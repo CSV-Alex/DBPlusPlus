@@ -13,5 +13,30 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="data">
+      <UniqueIdentifier>{5a0bd478-6242-4759-95bd-d8226e263eb9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{a8e49315-1875-4c5a-bb20-5f6c806bbccb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{045590d3-6e6a-4df1-b293-5d9bdec3f9ca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="data\usr">
+      <UniqueIdentifier>{e7b123f2-e6a9-4df9-811c-84832605e232}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="data\usr\db">
+      <UniqueIdentifier>{facc258b-5821-478a-af85-3741959704f3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="data\usr\db\titanic.tsv">
+      <Filter>data\usr\db</Filter>
+    </None>
   </ItemGroup>
 </Project>
