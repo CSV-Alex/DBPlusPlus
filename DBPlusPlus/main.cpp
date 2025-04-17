@@ -18,6 +18,14 @@ vector<string> parse_Line(const string& line) {
     return fields;
 }
 
+char convCondition(string data) {
+    for (int i = 0; i < data.size(); i++) {
+        if (data[i] == '.') return 'D';
+        if (!isdigit(data[i])) return 'S';
+    }
+    return 'I';
+}
+
 class Titanic {
 private:
     int passengerId;
@@ -121,6 +129,53 @@ public:
     }
 };
 
+class Disco {
+private:
+    string schema = "esquema.txt";
+public:
+    void relationFormat(string fileName) {
+        ofstream schemaFile(schema, ios::app);
+        ifstream file(fileName);
+
+        string schemaShortName = fileName.substr(fileName.find_last_of("\\") + 1);
+        schemaShortName = schemaShortName.substr(0, schemaShortName.find_last_of('.'));
+
+        schemaFile << schemaShortName;
+
+        string field;
+        string line1;
+        string data;
+        string data_type;
+        
+        char data_separator = ',';
+
+        getline(file, field);
+        getline(file, line1);
+        stringstream str(field);
+        stringstream str2(line1);
+
+        while (getline(str, data, data_separator)) {
+            schemaFile << " # " << data;
+            data_type = "";
+            getline(str2, data_type, data_separator);
+
+            switch (convCondition(data_type)) {
+            case 'I':
+                schemaFile << "# int ";
+                break;
+            case 'D':
+                schemaFile << "# double ";
+                break;
+            default: 
+                schemaFile << "# int ";
+                break;
+            }
+        }
+        schemaFile << endl;
+        file.close();
+    }
+};
+
 void convertTsvToTxt(const string& tsvFile, const string& txtFile) {
     ifstream inFile(tsvFile);
     ofstream outFile(txtFile);
@@ -153,5 +208,7 @@ int main() {
     cout << "Espacio usado: " << used << " bytes" << endl;
     cout << "Espacio libre: " << freeSpace << " bytes" << endl;
 
+    Disco Disco1;
+    Disco1.relationFormat("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\titanic.txt");
     return 0;
 }
