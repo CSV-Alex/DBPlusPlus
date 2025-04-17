@@ -33,21 +33,45 @@ private:
     string cabin;
     string embarked;
 
+    int safe_stoi(const string& s) {
+        if (s.empty()) return -1;
+        try {
+            return stoi(s);
+        }
+        catch (...) {
+            return -1;
+        }
+    }
+
+    double safe_stod(const string& s) {
+        if (s.empty()) return -1.0;
+        try {
+            string fix = s;
+            replace(fix.begin(), fix.end(), ',', '.');
+            return stod(fix);
+        }
+        catch (...) {
+            return -1.0;
+        }
+    }
+
+
 public:
     Titanic(vector<string>& data) {
         try {
-            passengerId = data[0].empty() ? -1 : stoi(data[0]);
-            survived = data[1].empty() ? -1 : stoi(data[1]);
-            pclass = data[2].empty() ? -1 : stoi(data[2]);
+            passengerId = safe_stoi(data[0]);
+            survived = safe_stoi(data[1]);
+            pclass = safe_stoi(data[2]);
             name = data[3];
             sex = data[4];
-            age = data[5].empty() ? -1.0 : stod(data[5]);
-            sibSp = data[6].empty() ? -1 : stoi(data[6]);
-            parch = data[7].empty() ? -1 : stoi(data[7]);
+            age = safe_stod(data[5]);
+            sibSp = safe_stoi(data[6]);
+            parch = safe_stoi(data[7]);
             ticket = data[8];
-            fare = data[9].empty() ? -1.0 : stod(data[9]);
+            fare = safe_stod(data[9]);
             cabin = data[10];
             embarked = data[11];
+
         }
         catch (const exception& e) {
             cerr << "Error: " << e.what() << endl;
