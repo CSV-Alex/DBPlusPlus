@@ -145,29 +145,52 @@ public:
         string field;
         string line1;
         string data;
-        string data_type;
+        string line2;
+        string type1;
+        string type2;
+        // string data_type;
 
         char data_separator = '#';
 
         getline(file, field);
         getline(file, line1);
+        getline(file, line2);
         stringstream str(field);
-        stringstream str2(line1);
-
+        stringstream str1(line1);
+        stringstream str2(line2);
         while (getline(str, data, data_separator)) {
             schemaFile << " # " << data;
-            data_type = "";
-            getline(str2, data_type, data_separator);
+            
+            // data_type = '';
 
-            switch (convCondition(data_type)) {
+            getline(str1, type1, data_separator);
+            getline(str2, type2, data_separator);
+
+            char str1_type = convCondition(type1);
+            char str2_type = convCondition(type2);
+
+            char final_type;
+            if (str1_type == 'D' || str2_type == 'D') {
+                final_type = 'D';
+            } 
+            else if (str1_type == 'S' || str2_type == 'S') {
+                final_type = 'S';
+            }
+            else {
+                final_type = 'I';
+            }
+
+            switch (final_type) {
             case 'I':
                 schemaFile << "# int ";
                 break;
             case 'D':
                 schemaFile << "# double ";
                 break;
+            case 'S':
+                schemaFile << "# string ";
+                break;
             default:
-                schemaFile << "# int ";
                 break;
             }
         }
@@ -210,5 +233,6 @@ int main() {
 
     Disco Disco1;
     Disco1.relationFormat("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\titanic.txt");
+
     return 0;
 }

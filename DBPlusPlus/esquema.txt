@@ -1,1 +1,1 @@
-titanic # PassengerId# int  # Survived# int  # Pclass# int  # Name# int  # Sex# int  # Age# int  # SibSp# int  # Parch# int  # Ticket# int  # Fare# double  # Cabin# int  # Embarked# int 
+titanic # PassengerId# int  # Survived# int  # Pclass# int  # Name# string  # Sex# string  # Age# int  # SibSp# int  # Parch# int  # Ticket# string  # Fare# double  # Cabin# string  # Embarked# string 
