@@ -39,4 +39,9 @@
       <Filter>data\usr\db</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="data\usr\db\titanic.txt">
+      <Filter>data\usr\db</Filter>
+    </Text>
+  </ItemGroup>
 </Project>

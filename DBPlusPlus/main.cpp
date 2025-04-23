@@ -11,7 +11,7 @@ vector<string> parse_Line(const string& line) {
     string field;
     istringstream iss(line);
 
-    while (getline(iss, field, ',')) {
+    while (getline(iss, field, '#')) {
         fields.push_back(field);
     }
 
@@ -146,8 +146,8 @@ public:
         string line1;
         string data;
         string data_type;
-        
-        char data_separator = ',';
+
+        char data_separator = '#';
 
         getline(file, field);
         getline(file, line1);
@@ -166,7 +166,7 @@ public:
             case 'D':
                 schemaFile << "# double ";
                 break;
-            default: 
+            default:
                 schemaFile << "# int ";
                 break;
             }
@@ -182,7 +182,7 @@ void convertTsvToTxt(const string& tsvFile, const string& txtFile) {
 
     string line;
     while (getline(inFile, line)) {
-        replace(line.begin(), line.end(), '\t', ',');
+        replace(line.begin(), line.end(), '\t', '#');
         outFile << line << '\n';
     }
 
