@@ -159,7 +159,7 @@ public:
         stringstream str1(line1);
         stringstream str2(line2);
         while (getline(str, data, data_separator)) {
-            schemaFile << " # " << data;
+            schemaFile << "#" << data;
             
             // data_type = '';
 
@@ -182,13 +182,13 @@ public:
 
             switch (final_type) {
             case 'I':
-                schemaFile << "# int ";
+                schemaFile << "#int";
                 break;
             case 'D':
-                schemaFile << "# double ";
+                schemaFile << "#double";
                 break;
             case 'S':
-                schemaFile << "# string ";
+                schemaFile << "#string";
                 break;
             default:
                 break;
@@ -213,6 +213,41 @@ void convertTsvToTxt(const string& tsvFile, const string& txtFile) {
     outFile.close();
 }
 
+string getRelationR(string schema, string relation_name) {
+    ifstream file(schema);
+    string fields;
+    string name;
+
+    char data_separator = '#';
+    getline(file, fields);
+    stringstream str(fields);
+    getline(str, name, data_separator);
+
+    return name;
+}
+
+string getAttributeA(string schema, string attribute_name) {
+    ifstream file(schema);
+    string fields;
+    string name;
+
+    char data_separator = '#';
+
+    if (getline(file, fields)) {
+
+        stringstream str(fields);
+        while (getline(str, name, data_separator)) {
+
+            if (name == attribute_name) {
+                name = attribute_name;
+                break;
+            }
+        }
+    }
+   
+    return name;
+}
+
 int main() {
     TitanicData titanicData;
 
@@ -234,5 +269,9 @@ int main() {
     Disco Disco1;
     Disco1.relationFormat("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\titanic.txt");
 
+    string path = "D:\\DBPlusPlus\\DBPlusPlus\\esquema.txt";
+
+    cout << getRelationR(path, "titanic");
+    cout << getAttributeA(path, "Survived");
     return 0;
 }
