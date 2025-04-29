@@ -4,7 +4,12 @@
 #include <vector>
 #include <sstream>
 #include <algorithm>
+#include <tuple>
+
+#define SEPARATOR #
+
 using namespace std;
+
 
 vector<string> parse_Line(const string& line) {
     vector<string> fields;
@@ -248,6 +253,60 @@ string getAttributeA(string schema, string attribute_name) {
     return name;
 }
 
+string parseQueryCondition(string& input) {
+    vector<string> operators = { "!=", ">=", "<=", ">", "<", "=" };
+
+    size_t earliestPos = string::npos;
+    string foundOp;
+    for (string& op : operators) {
+        size_t pos = input.find(op);
+        while (pos != string::npos) {
+            if (pos > 0 && input[pos - 1] == '#' &&
+                (pos + op.length() < input.length()) &&
+                input[pos + op.length()] == '#') {
+                if (earliestPos == string::npos || pos < earliestPos) {
+                    earliestPos = pos;
+                    foundOp = op;
+                }
+                break;
+            }
+            pos = input.find(op, pos + 1);
+        }
+    }
+
+    if (earliestPos == string::npos) {
+        return input;
+    }
+
+    string modified = input.substr(0, earliestPos - 1) + foundOp +
+                      input.substr(earliestPos + foundOp.length() + 1);
+
+    return modified;
+}
+
+int getIndexHeaders(string fileName, string relationR) {
+
+    char data_separator = '#';
+
+    ifstream file(fileName);
+    string line;
+    getline(file, line);
+
+    vector<string> fields;
+    istringstream str(line);
+    string field;
+
+    int index = 0;
+
+    while (getline(str, field, data_separator)) {
+        fields.push_back(field);
+        if (fields[index] == relationR) break;
+        index++;
+    }
+
+    return index;
+}
+
 int main() {
     TitanicData titanicData;
 
@@ -271,7 +330,16 @@ int main() {
 
     string path = "D:\\DBPlusPlus\\DBPlusPlus\\esquema.txt";
 
-    cout << getRelationR(path, "titanic");
-    cout << getAttributeA(path, "Survived");
+    cout << getRelationR(path, "titanic") << endl;
+    cout << getAttributeA(path, "Survivehd") << endl;
+
+    string testQuery1 = "&#SELECT#*#FROM#titanic#WHERE#id#>#20##";
+    string parsedQuery1 = parseQueryCondition(testQuery1);
+    cout << parsedQuery1 << endl;
+
+    string testQuery2 = "&#SELECT#name#FROM#titanic#WHERE#age#!=#30##";
+    string parsedQuery2 = parseQueryCondition(testQuery2);
+    cout << parsedQuery2 << endl;
+
     return 0;
 }
