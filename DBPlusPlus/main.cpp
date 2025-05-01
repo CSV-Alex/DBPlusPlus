@@ -253,35 +253,24 @@ string getAttributeA(string schema, string attribute_name) {
     return name;
 }
 
-string parseQueryCondition(string& input) {
+string parseQueryCondition(string input) {
     vector<string> operators = { "!=", ">=", "<=", ">", "<", "=" };
 
-    size_t earliestPos = string::npos;
-    string foundOp;
-    for (string& op : operators) {
-        size_t pos = input.find(op);
-        while (pos != string::npos) {
-            if (pos > 0 && input[pos - 1] == '#' &&
-                (pos + op.length() < input.length()) &&
-                input[pos + op.length()] == '#') {
-                if (earliestPos == string::npos || pos < earliestPos) {
-                    earliestPos = pos;
-                    foundOp = op;
-                }
+    bool found;
+    do {
+        found = false;
+        for (const auto& op : operators) {
+            string pattern = "#" + op + "#";
+            size_t pos = input.find(pattern);
+            if (pos != string::npos) {
+                input.replace(pos, pattern.length(), op);
+                found = true;
                 break;
             }
-            pos = input.find(op, pos + 1);
         }
-    }
+    } while (found);
 
-    if (earliestPos == string::npos) {
-        return input;
-    }
-
-    string modified = input.substr(0, earliestPos - 1) + foundOp +
-                      input.substr(earliestPos + foundOp.length() + 1);
-
-    return modified;
+    return input;
 }
 
 int getIndexHeaders(string fileName, string relationR) {
@@ -304,7 +293,7 @@ int getIndexHeaders(string fileName, string relationR) {
         index++;
     }
 
-    return index;
+    return index/2;
 }
 
 int main() {
@@ -333,13 +322,18 @@ int main() {
     cout << getRelationR(path, "titanic") << endl;
     cout << getAttributeA(path, "Survivehd") << endl;
 
-    string testQuery1 = "&#SELECT#*#FROM#titanic#WHERE#id#>#20##";
+    string testQuery1 = "&#SELECT#*#FROM#titanic#WHERE#id#>=#20#AND#age#=#20##";
     string parsedQuery1 = parseQueryCondition(testQuery1);
     cout << parsedQuery1 << endl;
 
-    string testQuery2 = "&#SELECT#name#FROM#titanic#WHERE#age#!=#30##";
+    string testQuery2 = "&#SELECT#name#FROM#titanic#WHERE#age#!=#30#AND#age#>#20##";
     string parsedQuery2 = parseQueryCondition(testQuery2);
     cout << parsedQuery2 << endl;
 
+    string fileName = "esquema.txt";
+    string relationR = "Embarked";
+
+    int index = getIndexHeaders(fileName, relationR);
+    cout << index << endl;
     return 0;
 }
