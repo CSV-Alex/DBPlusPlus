@@ -1,0 +1,5 @@
+PassengerId#Name#Survived#Sex#
+43#Kraeff, Mr. Theodor#0#male
+46#Rogers, Mr. William John#0#male
+47#Lennon, Mr. Denis#0#male
+49#Samaan, Mr. Youssef#0#male

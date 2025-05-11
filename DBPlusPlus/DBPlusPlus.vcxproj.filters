@@ -33,6 +33,18 @@
     <ClCompile Include="main.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="Disco.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="Titanic.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="TitanicData.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="data\usr\db\titanic.tsv">
@@ -43,5 +55,28 @@
     <Text Include="data\usr\db\titanic.txt">
       <Filter>data\usr\db</Filter>
     </Text>
+    <Text Include="esquema.txt">
+      <Filter>data\usr\db</Filter>
+    </Text>
+    <Text Include="HighId.txt">
+      <Filter>data\usr\db</Filter>
+    </Text>
+    <Text Include="IdHighFemale.txt">
+      <Filter>data\usr\db</Filter>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Disco.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="Titanic.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="TitanicData.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
