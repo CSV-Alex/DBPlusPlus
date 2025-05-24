@@ -1,7 +1,7 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 
 #include "TitanicData.h"
-//#include "Disco.h"
+#include "Disco.h"
 #include "Utils.h"
 #include <windows.h>
 #include <iostream>
@@ -162,7 +162,7 @@ int op_code(const char* op) {
     if (op[0] == '>' && op[1] == '\0') return 4;
     if (op[0] == '<' && op[1] == '=' && op[2] == '\0') return 5;
     if (op[0] == '>' && op[1] == '=' && op[2] == '\0') return 6;
-    return 0; // inválido
+    return 0; // invalido
 }
 
 bool str_eq(const char* a, const char* b) {
@@ -236,7 +236,7 @@ void mostrar_tabla_console(const char* dataPath,
         col = pos = 0;
         bool match = false;
 
-        // leer línea
+        // leer linea
         while ((c = fgetc(data)) != EOF && c != '\n') {
             if (c == '#') {
                 cell[pos] = '\0';
@@ -312,7 +312,7 @@ void mostrar_tabla_console(const char* dataPath,
     }
     fclose(sch);
 
-    // línea separadora
+    // linea separadora
     for (int i = 0; i < fieldCount; ++i) {
         for (size_t j = 0; j < widths[i]; ++j) putchar('-');
         if (i < fieldCount - 1) fputs("-+-", stdout);
@@ -394,28 +394,28 @@ void agregarTablaCatalogo(const char* basePath, const char* fromTable) {
     char catalogoPath[512];
     snprintf(catalogoPath, sizeof(catalogoPath), "%s%s", basePath, "catalog.txt");
 
-    std::fstream cat(catalogoPath, std::ios::in);
-    if (cat.is_open()) {
+    std::fstream catalogo(catalogoPath, std::ios::in);
+    if (catalogo.is_open()) {
         char line[MAX_PATH_LEN];
         bool exists = false;
 
-        while (cat.getline(line, MAX_PATH_LEN, '\n')) {
+        while (catalogo.getline(line, MAX_PATH_LEN, '\n')) {
             char* sep = std::strchr(line, '|');
             if (sep) {
                 *sep = '\0';
-                if (std::strcmp(line, input) == 0) {
+                if (strcmp(line, input) == 0) {
                     exists = true;
                     break;
                 }
             }
         }
-        cat.close();
+        catalogo.close();
     }
 
-    cat.open(catalogoPath, std::ios::app);
-    if (cat.is_open()) {
-        cat << input << "|" << basePath << input << ".txt" << "\n";
-        cat.close();
+    catalogo.open(catalogoPath, std::ios::app);
+    if (catalogo.is_open()) {
+        catalogo << input << "|" << basePath << input << ".txt" << "\n";
+        catalogo.close();
         std::cout << "Entrada agregada exitosamente!\n";
     }
     else {
@@ -443,19 +443,19 @@ void ejecutar_query(const char* selectField,
         return;
     }
 
-    const bool selectAll = (str_eq(selectField, "*") == 0);
+    const bool selectAll = (strcmp(selectField, "*") == 0);
 
-    FILE* cat = fopen(catalogoPath, "r");
-    if (!cat) { perror("abrir catalog.txt"); return; }
+    FILE* catalogo = fopen(catalogoPath, "r");
+    if (!catalogo) { perror("abrir catalog.txt"); return; }
 
     char line[256], name[64], path[192];
     bool table_found = false;
-    while (fgets(line, sizeof(line), cat)) {
+    while (fgets(line, sizeof(line), catalogo)) {
         line[strcspn(line, "\r\n")] = '\0';
         char* sep = strchr(line, '|');
         if (!sep) {
-            fprintf(stderr, "formato catálogo\n");
-            fclose(cat);
+            fprintf(stderr, "formato catalogo\n");
+            fclose(catalogo);
             return;
         }
         *sep = '\0';
@@ -466,7 +466,7 @@ void ejecutar_query(const char* selectField,
             break;
         }
     }
-    fclose(cat);
+    fclose(catalogo);
     if (!table_found) {
         fprintf(stderr, "Tabla '%s' no hallada\n", fromTable);
         return;
@@ -622,6 +622,10 @@ void ejecutar_query(const char* selectField,
 }
 
 int main() {
+
+    Disco miDisco(/*platos=*/2, /*pistas=*/100, /*sectores=*/20,
+        /*tamSector=*/30, /*tamBloque=*/120);
+
     const string basePath = "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\";
     const string schemaPath = basePath + "esquema.txt";
     const string titanicCSV = basePath + "titanicG.csv";
@@ -644,24 +648,65 @@ int main() {
     relationFormatMin(txtTitanic_Char, pathSchemaTitanic_Char);
 
     cout << "*************************************************************************************" << endl;
-    cout << "Welcome to MEGATRON 3000\n\n";
+    cout << "Welcome to MEGATRON 3000 (con simulador de disco)\n\n";
 
     while (true) {
-        cout << "1) Consulta SQL\n2) quit\n> ";
-        string opt, select, fromTable, whereCondition, opt0;
+        cout << "1) Adicionar relacion y asignar bloque\n";
+        cout << "2) Ejecutar consulta SQL (SELECT/FROM/WHERE…)\n";
+        cout << "3) Consultar bloque por relacion\n";
+        cout << "4) Volcar bloque a sectores fisicos\n";
+        cout << "5) Mostrar caracteristicas del disco\n";
+        cout << "6) Quit\n> ";
+
+        string opt;
         getline(cin, opt);
+        if (opt == "6" || opt == "quit") break;
 
-        if (opt == "2" || opt == "quit") break;
-        if (opt != "1") continue;
-        cout << "SELECT "; getline(cin, select);
-        cout << "FROM ";   getline(cin, fromTable);
-        cout << "WHERE ";  getline(cin, whereCondition);
+        if (opt == "1") {
+            cout << "Nombre de tabla a adicionar (p.ej. titanic): ";
+            string tabla;
+            getline(cin, tabla);
 
-        agregarTablaCatalogo(basePath.c_str(), fromTable.c_str());
-        ejecutar_query(select.c_str(), fromTable.c_str(), whereCondition.c_str(), schemaPath.c_str(), basePath.c_str());
-        cout << "Tabla: " << fromTable << " tama;o de: " << relationSizeBytes(fromTable.c_str(), basePath.c_str()) << "\n";
-        //remove_duplicates(schemaPath.c_str(), '#');
-        //remove_duplicates(schemaPath.c_str(), '#');
+            miDisco.adicionarRelacion("ignoradoBasePath", tabla.c_str());
+            // basePath
+            // archivos ya estan en “DISCO/...”
+            // modificar “construirRutaBloqueDesdeNombre”.
+        }
+        else if (opt == "2") {
+
+            string select, fromTable, whereCondition;
+            cout << "SELECT "; getline(cin, select);
+            cout << "FROM ";   getline(cin, fromTable);
+            cout << "WHERE ";  getline(cin, whereCondition);
+
+            agregarTablaCatalogo(basePath.c_str(), fromTable.c_str());
+            ejecutar_query(select.c_str(), fromTable.c_str(), whereCondition.c_str(), schemaPath.c_str(), basePath.c_str());
+            cout << "Tabla: " << fromTable << " tama;o de: " << relationSizeBytes(fromTable.c_str(), basePath.c_str()) << "\n";
+            //remove_duplicates(schemaPath.c_str(), '#');
+            //remove_duplicates(schemaPath.c_str(), '#');
+        }
+        else if (opt == "3") {
+            cout << "¿Que relacion quieres consultar? ";
+            string tabla; getline(cin, tabla);
+            miDisco.consultarBloquePorRelacion(tabla.c_str());
+        }
+        else if (opt == "4") {
+            cout << "¿Que relacion quieres volcar a sectores? ";
+            string tabla; getline(cin, tabla);
+            int blk = miDisco.obtenerBloqueDeRelacion(tabla.c_str());
+            if (blk == 0) {
+                cout << "> Relacion no encontrada en catalogo.txt.\n";
+            }
+            else {
+                miDisco.volcarBloqueASectores(blk);
+            }
+        }
+        else if (opt == "5") {
+            miDisco.printDisco();
+        }
+        else {
+            cout << "Opcion invalida\n";
+        }
     }
     return 0;
 }
