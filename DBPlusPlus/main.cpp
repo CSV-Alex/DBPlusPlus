@@ -392,7 +392,7 @@ void agregarTablaCatalogo(const char* basePath, const char* fromTable) {
     input[MAX_STR_LEN - 1] = '\0'; // nulo
 
     char catalogoPath[512];
-    snprintf(catalogoPath, sizeof(catalogoPath), "%s%s", basePath, "catalog.txt");
+    snprintf(catalogoPath, sizeof(catalogoPath), "%s%s", basePath, "catalogo.txt");
 
     std::fstream catalogo(catalogoPath, std::ios::in);
     if (catalogo.is_open()) {
@@ -427,15 +427,18 @@ void ejecutar_query(const char* selectField,
     const char* fromTable,
     const char* whereInput,
     const char* schema,
-    const char* basePath)
+    const char* basePath,
+    Disco& disco,
+    const char* discoPath)
 {
     char tablePath[512];
     snprintf(tablePath, sizeof(tablePath), "%s%s", basePath, fromTable);
     char catalogoPath[512];
-    snprintf(catalogoPath, sizeof(catalogoPath), "%s%s", basePath, "catalog.txt");
+    snprintf(catalogoPath, sizeof(catalogoPath), "%s%s", basePath, "catalogo.txt");
     char esquemaPath[512];
     snprintf(esquemaPath, sizeof(esquemaPath), "%s%s", basePath, "esquema.txt");
 
+    // Parsear "WHERE campo op valor"
     char whereField[MAX_STR_LEN], whereOp[3], whereVal[MAX_STR_LEN];
     if (sscanf(whereInput, "%31s %2s %31s",
         whereField, whereOp, whereVal) != 3) {
@@ -445,16 +448,18 @@ void ejecutar_query(const char* selectField,
 
     const bool selectAll = (strcmp(selectField, "*") == 0);
 
+    // 1. Buscar en catalogo.txt la ultima ruta real de la tabla
     FILE* catalogo = fopen(catalogoPath, "r");
-    if (!catalogo) { perror("abrir catalog.txt"); return; }
+    if (!catalogo) { perror("abrir catalogo.txt"); return; }
 
     char line[256], name[64], path[192];
     bool table_found = false;
+    char matchedPath[192] = { 0 };
+
     while (fgets(line, sizeof(line), catalogo)) {
         line[strcspn(line, "\r\n")] = '\0';
         char* sep = strchr(line, '|');
         if (!sep) {
-            fprintf(stderr, "formato catalogo\n");
             fclose(catalogo);
             return;
         }
@@ -463,32 +468,31 @@ void ejecutar_query(const char* selectField,
         strcpy(path, sep + 1);
         if (strcmp(name, fromTable) == 0) {
             table_found = true;
-            break;
+            strncpy(matchedPath, path, sizeof(matchedPath) - 1);
         }
     }
     fclose(catalogo);
+
     if (!table_found) {
         fprintf(stderr, "Tabla '%s' no hallada\n", fromTable);
         return;
     }
-    FILE* sch = fopen(esquemaPath, "r");
-    if (!sch) {
-        perror("abrir esquema.txt");
-        return;
-    }
 
-    char buf[512]; //512
+    // 2. Leer esquema para determinar indices, tipos y conteo de campos
+    FILE* sch = fopen(esquemaPath, "r");
+    if (!sch) { perror("abrir esquema.txt"); return; }
+
+    char buf[512];
     int fieldCount = 0;
     char types[MAX_FIELDS];
     int whereIndex = -1;
 
     while (fgets(buf, sizeof(buf), sch)) {
         buf[strcspn(buf, "\r\n")] = '\0';
-        if (buf[0] == '\0' || buf[0] == '#')
-            continue;
+        if (buf[0] == '\0' || buf[0] == '#') continue;
 
         long pos = ftell(sch);
-        char peek[MAX_PATH_LEN];
+        char peek[512];
         if (fgets(peek, sizeof(peek), sch)) {
             if (peek[0] == '#') {
                 peek[strcspn(peek, "\r\n")] = '\0';
@@ -500,8 +504,7 @@ void ejecutar_query(const char* selectField,
         }
 
         char* tableName = strtok(buf, "#");
-        if (!tableName || strcmp(tableName, fromTable) != 0)
-            continue;
+        if (!tableName || strcmp(tableName, fromTable) != 0) continue;
 
         char* tok;
         int idx = 0;
@@ -518,9 +521,9 @@ void ejecutar_query(const char* selectField,
                 : 'S';
             types[idx] = t;
 
-            if (strcmp(fld, whereField) == 0)
+            if (strcmp(fld, whereField) == 0) {
                 whereIndex = idx;
-
+            }
             idx++;
         }
         fieldCount = idx;
@@ -533,23 +536,32 @@ void ejecutar_query(const char* selectField,
         return;
     }
 
+    // 3. Determinar si hay que guardar en nuevo archivo
     char outNameBuf[MAX_STR_LEN];
     bool hasSave = fileToSaveName(whereInput, outNameBuf, sizeof(outNameBuf));
     const char* saveName = hasSave ? outNameBuf : nullptr;
 
+    // 4. Mostrar o guardar segun corresponda, usando matchedPath
     if (!saveName) {
-        mostrar_tabla_console(path, esquemaPath, fromTable,
+        mostrar_tabla_console(matchedPath, esquemaPath, fromTable,
             fieldCount, types, whereIndex,
             whereOp, whereVal);
         return;
     }
     else {
+        // —— Crear <saveName>.txt y escribir filas que cumplan
         char saveNamePath[512];
         snprintf(saveNamePath, sizeof(saveNamePath), "%s%s", basePath, saveName);
 
         FILE* data = fopen(path, "r");
-        ofstream outFile(saveNamePath);
+        if (!data) {
+            perror("abrir archivo de datos");
+            return;
+        }
 
+        std::ofstream outFile(saveNamePath);
+
+        // Copiar cabecera (primer linea) sin filtrar
         int headerChar;
         while ((headerChar = fgetc(data)) != EOF && headerChar != '\n') {
             outFile.put(headerChar);
@@ -561,7 +573,7 @@ void ejecutar_query(const char* selectField,
         bool match = false;
         long recStart = ftell(data);
 
-        while (1) {
+        while (true) {
             int c = fgetc(data);
             if (c == EOF) break;
 
@@ -586,7 +598,6 @@ void ejecutar_query(const char* selectField,
                             fseek(data, after, SEEK_SET);
                         }
                     }
-
                     recStart = ftell(data);
                     col = 0;
                     match = false;
@@ -596,12 +607,15 @@ void ejecutar_query(const char* selectField,
                 }
             }
             else {
-                if (pos + 1 < MAX_STR_LEN)
+                if (pos + 1 < MAX_STR_LEN) {
                     field_buf[pos++] = (char)c;
+                }
             }
         }
+
         fclose(data);
         outFile.close();
+
         char bareSaveName[MAX_STR_LEN];
         {
             size_t L = strlen(saveName);
@@ -616,93 +630,151 @@ void ejecutar_query(const char* selectField,
 
         agregarTablaCatalogo(basePath, bareSaveName);
         relationFormatMin(saveNamePath, esquemaPath);
+        disco.adicionarRelacion(discoPath, bareSaveName, basePath);
 
         return;
     }
 }
 
-int main() {
 
-    Disco miDisco(/*platos=*/2, /*pistas=*/100, /*sectores=*/20,
-        /*tamSector=*/30, /*tamBloque=*/120);
+
+int main() {
+    int platos, pistas, sectores, tamSector, sectoresPorBloque, tamBloque;
 
     const string basePath = "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\";
+    const string discoPath = "D:\\DBPlusPlus\\DBPlusPlus\\DISCO\\";
     const string schemaPath = basePath + "esquema.txt";
     const string titanicCSV = basePath + "titanicG.csv";
     const string housingCSV = basePath + "Housing.csv";
     const string titanicTXT = basePath + "titanic.txt";
     const string housingTXT = basePath + "housing.txt";
 
+    const int def_platos = 4;
+    const int def_pistas = 10;
+    const int def_sectores = 15;
+    const int def_tamSector = 60;
+    const int def_tamBloque = 180;
+
+    cout << "=== Configurar Disco ===\n";
+    cout << "1) Usar configuracion por defecto\n";
+    cout << "2) Ingresar configuracion personalizada\n";
+    cout << "3) Usar disco ya existente\n";
+    cout << ">> ";
+    string tipo;
+    getline(cin, tipo);
+
+    if (tipo == "2") {
+        cout << "Numero de platos: ";        cin >> platos;
+        cout << "Numero de pistas: ";        cin >> pistas;
+        cout << "Numero de sectores: ";      cin >> sectores;
+        cout << "Tamaño del sector (bytes): "; cin >> tamSector;
+        cout << "Sectores por bloque: ";     cin >> sectoresPorBloque;
+        tamBloque = tamSector * sectoresPorBloque;
+        cin.ignore();
+    }
+    else if (tipo == "1") {
+        platos = def_platos;
+        pistas = def_pistas;
+        sectores = def_sectores;
+        tamSector = def_tamSector;
+        tamBloque = def_tamBloque;
+    }
+    else {
+        // Opcion 3 u otra cualquiera: no reinicia nada
+        platos = def_platos;
+        pistas = def_pistas;
+        sectores = def_sectores;
+        tamSector = def_tamSector;
+        tamBloque = def_tamBloque;
+        cout << "> Continuando con el disco existente...\n\n";
+    }
+
+    Disco miDisco(platos, pistas, sectores, tamSector, tamBloque);
+
     convertCsvToTxt(titanicCSV, titanicTXT);
     convertCsvToTxt(housingCSV, housingTXT);
+    relationFormatMin(titanicTXT.c_str(), schemaPath.c_str());
+    relationFormatMin(housingTXT.c_str(), schemaPath.c_str());
 
-    const char* txt_Char = housingTXT.c_str();
-
-    const char* pathSchema_Char = schemaPath.c_str();
-
-    const char* txtTitanic_Char = titanicTXT.c_str();
-
-    const char* pathSchemaTitanic_Char = schemaPath.c_str();
-
-    relationFormatMin(txt_Char, pathSchema_Char);
-    relationFormatMin(txtTitanic_Char, pathSchemaTitanic_Char);
-
-    cout << "*************************************************************************************" << endl;
-    cout << "Welcome to MEGATRON 3000 (con simulador de disco)\n\n";
+    cout << "\n*** Bienvenido a MEGATRON 3000 ***\n\n";
 
     while (true) {
-        cout << "1) Adicionar relacion y asignar bloque\n";
-        cout << "2) Ejecutar consulta SQL (SELECT/FROM/WHERE…)\n";
-        cout << "3) Consultar bloque por relacion\n";
-        cout << "4) Volcar bloque a sectores fisicos\n";
+        cout << "1) Adicionar relacion\n";
+        cout << "2) Ejecutar consulta SQL\n";
+        cout << "3) Consultar bloques por relacion\n";
+        cout << "4) Volcar bloques a sectores\n";
         cout << "5) Mostrar caracteristicas del disco\n";
-        cout << "6) Quit\n> ";
+        cout << "6) Salir\n";
+        cout << "7) Adicionar registro\n";
+        cout << "8) Adicionar N registros desde CSV\n";
+        cout << "9) Adicionar todo CSV\n";
+        cout << ">> ";
 
         string opt;
         getline(cin, opt);
-        if (opt == "6" || opt == "quit") break;
+        if (opt == "6") break;
 
         if (opt == "1") {
-            cout << "Nombre de tabla a adicionar (p.ej. titanic): ";
-            string tabla;
-            getline(cin, tabla);
-
-            miDisco.adicionarRelacion("ignoradoBasePath", tabla.c_str());
-            // basePath
-            // archivos ya estan en “DISCO/...”
-            // modificar “construirRutaBloqueDesdeNombre”.
+            cout << "Nombre de la tabla: ";
+            string tabla; getline(cin, tabla);
+            miDisco.adicionarRelacion(discoPath.c_str(), tabla.c_str(), basePath.c_str());
         }
         else if (opt == "2") {
-
-            string select, fromTable, whereCondition;
-            cout << "SELECT "; getline(cin, select);
-            cout << "FROM ";   getline(cin, fromTable);
-            cout << "WHERE ";  getline(cin, whereCondition);
-
-            agregarTablaCatalogo(basePath.c_str(), fromTable.c_str());
-            ejecutar_query(select.c_str(), fromTable.c_str(), whereCondition.c_str(), schemaPath.c_str(), basePath.c_str());
-            cout << "Tabla: " << fromTable << " tama;o de: " << relationSizeBytes(fromTable.c_str(), basePath.c_str()) << "\n";
-            //remove_duplicates(schemaPath.c_str(), '#');
-            //remove_duplicates(schemaPath.c_str(), '#');
+            string sel, from, where;
+            cout << "SELECT "; getline(cin, sel);
+            cout << "FROM ";   getline(cin, from);
+            cout << "WHERE ";  getline(cin, where);
+            agregarTablaCatalogo(basePath.c_str(), from.c_str());
+            ejecutar_query(sel.c_str(), from.c_str(), where.c_str(),
+                schemaPath.c_str(), basePath.c_str(),
+                miDisco, discoPath.c_str());
+            cout << "Tamaño de la tabla: " << relationSizeBytes(from.c_str(), basePath.c_str()) << " bytes\n";
         }
         else if (opt == "3") {
-            cout << "¿Que relacion quieres consultar? ";
+            cout << "Nombre de la relacion: ";
             string tabla; getline(cin, tabla);
-            miDisco.consultarBloquePorRelacion(tabla.c_str());
+            miDisco.consultarRelacionBloques(tabla.c_str());
         }
         else if (opt == "4") {
-            cout << "¿Que relacion quieres volcar a sectores? ";
+            cout << "Nombre de la relacion: ";
             string tabla; getline(cin, tabla);
-            int blk = miDisco.obtenerBloqueDeRelacion(tabla.c_str());
-            if (blk == 0) {
-                cout << "> Relacion no encontrada en catalogo.txt.\n";
-            }
-            else {
-                miDisco.volcarBloqueASectores(blk);
-            }
+            miDisco.volcarRelacionASectores(tabla.c_str());
         }
         else if (opt == "5") {
             miDisco.printDisco();
+            miDisco.printCapacidadesDetalle();
+            miDisco.mostrarArbolDisco();
+        }
+        // Supongamos tabla="titanic"
+        else if (opt == "7") {
+            //char reg[512];
+            cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
+            cout << "892#Doe, John#M#32#0#0#A/5 21171#12.50##S\n" << endl;
+            //fgets(reg, 512, stdin);
+            string input = "892#Doe, John#M#32#0#0#A/5 21171#12.50##S\n";
+            if (input.back() != '\n')
+                input.push_back('\n');
+            //const char* reg = ;
+            miDisco.adicionarRegistroUnico(input.c_str(), "titanic");
+
+            //cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
+            //cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
+            ////fgets(reg, 512, stdin);
+            //string input = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
+            //if (input.back() != '\n')
+            //    input.push_back('\n');
+            ////const char* reg = ;
+            //miDisco.adicionarRegistroUnico(input.c_str(), "housing");
+        }
+        else if (opt == "8") {
+            int n;
+            cout << "¿Cuantos registros desea agregar? ";
+            cin >> n;
+            cin.ignore(1, '\n');
+            miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing");
+        }
+        else if (opt == "9") {
+            miDisco.adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing");
         }
         else {
             cout << "Opcion invalida\n";
