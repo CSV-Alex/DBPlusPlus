@@ -694,6 +694,8 @@ int main() {
     convertCsvToTxt(housingCSV, housingTXT);
     relationFormatMin(titanicTXT.c_str(), schemaPath.c_str());
     relationFormatMin(housingTXT.c_str(), schemaPath.c_str());
+    miDisco.calcularLongitudFija(titanicTXT.c_str());
+    miDisco.calcularLongitudFija(housingTXT.c_str());
 
     cout << "\n*** Bienvenido a MEGATRON 3000 ***\n\n";
 
@@ -765,7 +767,7 @@ int main() {
 
             bool ok = false;
             if (opcion == 1)
-                ok = miDisco.adicionarRegistroUnicoBitmap("housing", input.c_str());
+                ok = miDisco.adicionarRegistroUnicoBitmap("Housing", input.c_str());
             else
                 ok = miDisco.adicionarRegistroUnico(input.c_str(), "housing");
 
