@@ -33,13 +33,13 @@
 //    return fields;
 //}
 //
-////char convCondition(const std::string& data) {
-////    for (size_t i = 0; i < data.size(); i++) {
-////        if (data[i] == '.') return 'D';
-////        if (!isdigit(data[i])) return 'S';
-////    }
-////    return 'I';
-////}
+//char convCondition(const std::string& data) {
+//    for (size_t i = 0; i < data.size(); i++) {
+//        if (data[i] == '.') return 'D';
+//        if (!isdigit(data[i])) return 'S';
+//    }
+//    return 'I';
+//}
 //
 //std::string getRelationR(std::string schema, std::string input) {
 //    std::ifstream file(schema);
@@ -248,10 +248,10 @@
 //    )
 //
 //{
-//    // Campos
+//     Campos
 //    std::vector<std::string> selectedFields = getFields(input, schema, relationR);
 //
-//    // Condiciones
+//     Condiciones
 //    std::vector<std::vector<std::string>> conditions = getConditions(const_cast<std::string&>(input));
 //
 //    std::vector<int> fieldIndices;
@@ -266,7 +266,7 @@
 //        if (idx != -1) conditionIndices.push_back(idx);
 //    }
 //
-//    // Procesar
+//     Procesar
 //    std::ifstream dataFile(fileName);
 //    std::vector<std::string> results;
 //    std::string line;
@@ -351,7 +351,7 @@
 //            }
 //            outputFile.close();
 //
-//            // Esquema
+//             Esquema
 //            std::string baseName = saveFile.value();
 //            size_t dotPos = baseName.rfind('.');
 //            if (dotPos != std::string::npos) {
@@ -383,7 +383,7 @@
 //
 //            table.push_back(header);
 //
-//            // Añadir
+//             Añadir
 //            for (auto& line : results) {
 //                std::vector<std::string> row;
 //                std::istringstream ss(line);
@@ -399,7 +399,7 @@
 //                table.push_back(row);
 //            }
 //
-//            // Ancho
+//             Ancho
 //            int cols = header.size();
 //            std::vector<size_t> widths(cols, 0);
 //

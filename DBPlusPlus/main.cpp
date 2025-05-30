@@ -1,13 +1,12 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 
-#include "TitanicData.h"
 #include "Disco.h"
-#include "Utils.h"
 #include <windows.h>
 #include <iostream>
 #include <fstream>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 
 #define MAX_BUF      512
 #define MAX_STR_LEN 32
@@ -641,8 +640,8 @@ void ejecutar_query(const char* selectField,
 int main() {
     int platos, pistas, sectores, tamSector, sectoresPorBloque, tamBloque;
 
-    const string basePath = "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\";
-    const string discoPath = "D:\\DBPlusPlus\\DBPlusPlus\\DISCO\\";
+    const string basePath = "data\\usr\\db\\";
+    const string discoPath = "DISCO\\";
     const string schemaPath = basePath + "esquema.txt";
     const string titanicCSV = basePath + "titanicG.csv";
     const string housingCSV = basePath + "Housing.csv";
@@ -755,8 +754,26 @@ int main() {
             if (input.back() != '\n')
                 input.push_back('\n');
             //const char* reg = ;
-            miDisco.adicionarRegistroUnico(input.c_str(), "titanic");
 
+            cout << "¿Tipo de inserción?\n";
+            cout << "1) Longitud fija (bitmap)\n";
+            cout << "2) Longitud variable\n";
+            cout << ">> ";
+            int opcion;
+            cin >> opcion;
+            cin.ignore(1, '\n');
+
+            bool ok = false;
+            if (opcion == 1)
+                ok = miDisco.adicionarRegistroUnicoBitmap("housing", input.c_str());
+            else
+                ok = miDisco.adicionarRegistroUnico(input.c_str(), "housing");
+
+            if (ok)
+                cout << "Registro agregado correctamente.\n";
+            else
+                cout << "No se pudo agregar el registro.\n";
+        }
             //cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
             //cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
             ////fgets(reg, 512, stdin);
@@ -765,16 +782,39 @@ int main() {
             //    input.push_back('\n');
             ////const char* reg = ;
             //miDisco.adicionarRegistroUnico(input.c_str(), "housing");
-        }
         else if (opt == "8") {
             int n;
             cout << "¿Cuantos registros desea agregar? ";
             cin >> n;
             cin.ignore(1, '\n');
-            miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing");
+
+            cout << "¿Tipo de inserción?\n";
+            cout << "1) Longitud fija (bitmap)\n";
+            cout << "2) Longitud variable\n";
+            cout << ">> ";
+            int opcion;
+            cin >> opcion;
+            cin.ignore(1, '\n');
+
+            if (miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion))
+                cout << "Registros agregados correctamente.\n";
+            else
+                cout << "No se pudieron agregar los registros.\n";
         }
+
         else if (opt == "9") {
-            miDisco.adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing");
+            cout << "¿Tipo de inserción?\n";
+            cout << "1) Longitud fija (bitmap)\n";
+            cout << "2) Longitud variable\n";
+            cout << ">> ";
+            int opcion;
+            cin >> opcion;
+            cin.ignore(1, '\n');
+
+            if (miDisco.adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion))
+                cout << "Todos los registros del CSV agregados correctamente.\n";
+            else
+                cout << "No se pudieron agregar todos los registros.\n";
         }
         else {
             cout << "Opcion invalida\n";
