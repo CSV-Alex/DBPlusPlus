@@ -341,6 +341,10 @@ public:
         std::cout << "===================================\n\n";
     }
 
+    int get_tam_bloque(){ //funcion para tamaño de disco
+        return (int)tamBloque;
+    }
+
     void adicionarRelacion(const char* discoPath, const char* fromTable, const char* basePath) {
         char rutaTabla[MAX_PATH_LEN];
         snprintf(rutaTabla, MAX_PATH_LEN, "%s%s.txt", basePath, fromTable);
@@ -2597,7 +2601,7 @@ bool adicionarRegistroUnicoVersionFinal(const char* registroTxt, const char* rel
     }
 
 
-    return true;
+    return true;
 }
 
 void calcularLongitudFija(const char* rutaTXT) {
