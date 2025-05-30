@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <cstdio>
 #include <cstring>
+#include "Disco.h"  
 
 char schemapath[]="data\\usr\\db\\esquema.txt";
 
@@ -21,6 +22,12 @@ void num_to_binary(int n, char (*par_byte)[2]) {
     }
     (*par_byte)[0] = static_cast<char>(n & 0xFF);
     (*par_byte)[1] = static_cast<char>((n >> 8) & 0xFF);
+}
+
+int binary_to_num(const char (*par_byte)[2]) {
+    uint8_t lo = static_cast<uint8_t>((*par_byte)[0]);
+    uint8_t hi = static_cast<uint8_t>((*par_byte)[1]);
+    return static_cast<int>(lo | (hi << 8));
 }
 
 /**
@@ -99,4 +106,78 @@ char* format_registro_variable(const char registro[], const char relacion[]) {
     }
 
     return registro_variable;
+}
+
+
+/**
+ * Inserta un registro variable en un bloque y actualiza metadatos.
+ * @param registro_variable Buffer con formato de registro (512 bytes).
+ * @param relacion          Clave de relación para identificar esquema.
+ * @param espacio_libre_bloque Espacio libre en el bloque.
+ * @param bloque_variable   Puntero al buffer del bloque donde insertar.
+ * @return true si se inserta correctamente; false si no cabe.
+ */
+bool format_bloque_variable(const char registro_variable[], const char relacion[], int espacio_libre_bloque, char* bloque_variable, Disco& Disco) {
+    // 1. Contar campos en esquema
+    FILE* schema = std::fopen(schemapath, "r");
+    if (!schema) throw std::runtime_error("No se pudo abrir el archivo de esquema");
+    char line[1024]; int field_number = 1; size_t rel_len = std::strlen(relacion);
+    bool found = false;
+    while (std::fgets(line, sizeof(line), schema)) {
+        if (std::strncmp(line, relacion, rel_len) == 0) {
+            for (char* p = line; *p; ++p) if (*p == '#') ++field_number;
+            found = true; break;
+        }
+    }
+    std::fclose(schema);
+    if (!found) throw std::runtime_error("Relación no encontrada en el esquema");
+
+    // 2. Calcular longitud total del registro
+    int total_fields = field_number;
+    int registro_len = 4 * total_fields;
+    char binary_buffer[2] = {0,0};
+    int reg_idx = 2;
+    int fields = total_fields;
+    while (fields > 1) {
+        char buf[2] = { registro_variable[reg_idx], registro_variable[reg_idx+1] };
+        registro_len += binary_to_num(reinterpret_cast<const char(*)[2]>(&buf));
+        fields--; reg_idx += 4;
+    }
+
+    // 3. Leer contadores y posiciones actuales del bloque
+    int registro_n; int last_pos;
+    // bytes 0-1 = registro_n
+    binary_buffer[0] = bloque_variable[0];
+    binary_buffer[1] = bloque_variable[1];
+    registro_n = binary_to_num(&binary_buffer);
+    // bytes 2-3 = last_position
+    binary_buffer[0] = bloque_variable[2];
+    binary_buffer[1] = bloque_variable[3];
+    last_pos = binary_to_num(&binary_buffer);
+    if (last_pos == 0) last_pos = Disco.get_tam_bloque() - 1;
+
+    int index_array = 4 + registro_n * 4;
+
+    // 4. Chequear espacio y escribir
+    if (espacio_libre_bloque - last_pos >= registro_len) {
+        int write_pos = last_pos - registro_len + 1;
+        // Copiar datos
+        for (int i = 0; i < registro_len; ++i) {
+            bloque_variable[write_pos + i] = registro_variable[i];
+        }
+        last_pos = write_pos;
+        registro_n++;
+        // Actualizar cabecera: nueva last_pos
+        num_to_binary(last_pos, &binary_buffer);
+        bloque_variable[index_array]     = binary_buffer[0];
+        bloque_variable[index_array + 1] = binary_buffer[1];
+        index_array += 2;
+        // Tamaño del registro
+        num_to_binary(registro_len, &binary_buffer);
+        bloque_variable[index_array]     = binary_buffer[0];
+        bloque_variable[index_array + 1] = binary_buffer[1];
+        // index_array += 2; // no necesario a fin
+        return true;
+    }
+    return false;
 }
