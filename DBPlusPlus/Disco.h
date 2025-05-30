@@ -14,6 +14,7 @@
 #define MAX_FIELDS 32
 //#define MAX_PATH_LEN 256
 #define MAX_SCHEMA  4096
+#define MAX_LINE 1024
 
 static const int MAX_PATH_LEN = 256;
 static const int MAX_BUF = 512;
@@ -284,15 +285,6 @@ public:
             char rutaBloque[MAX_PATH_LEN];
             std::snprintf(rutaBloque, sizeof(rutaBloque), "DISCO\\BLOQUES\\Bloque%d.txt", i);
 
-            std::ofstream fbloc(rutaBloque, std::ios::out | std::ios::binary);
-            if (!fbloc.is_open()) {
-                std::perror("Error creando archivo BloqueN.txt");
-            }
-            else {
-                fbloc << tamBloque << "#2#BLOQUE#" << i << "#" << tamBloque << "#_";
-                fbloc << std::endl;
-                fbloc.close();
-            }
         }
 
         fdir.close();
@@ -879,1730 +871,681 @@ public:
         return found_digit ? sign * result : 0;
     }
 
+bool isBlockAllowed(const char* nombreRelacion, int nroBloque) {
+    char rutaCatalogo[MAX_PATH_LEN];
+    snprintf(rutaCatalogo, sizeof(rutaCatalogo),
+        "%s%s", discoNuevoPath, "catalogo.txt");
+    FILE* fcat = fopen(rutaCatalogo, "r");
+    if (!fcat) {
+        return true;
+    }
 
-    // segunda
-    /*
-    bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
-        // 1) Abrir dirBloques.txt en modo lectura/escritura
-        FILE* fdir = fopen(rutaDirBloques, "r+");
-        if (!fdir) {
-            perror("No se puede abrir dirBloques.txt");
-            return false;
-        }
-
-        char linea[MAX_BUF];
-        int  nroBloque = 0;
-        bool foundBlock = false;
-        char codSectorLibre[MAX_STR_LEN] = { 0 };
-        long posLineaBloque = 0;
-        int  tamRegistro = (int)strlen(registroTxt);
-        if (registroTxt[tamRegistro - 1] != '\n') {
-            // Asegurar que mida el '\n' si no está presente
-            tamRegistro++;
-        }
-
-        int  espacioLibreBloque = 0;
-        int  tamUtilAntes = 0;
-        int  espacioLibreSectorAntes = 0;
-
-        // 2) Recorrer líneas de dirBloques.txt buscando bloque y sector con espacio
-        while (fgets(linea, MAX_BUF, fdir)) {
-            ++nroBloque;
-            posLineaBloque = ftell(fdir) - (long)strlen(linea);
-
-            // --- DEBUG: Print the raw buffer before parsing ---
-            printf("[DEBUG] linea buffer (raw): '%s'\n", linea);
-
-            // 2.1) Extraer espacioLibreBloque (primer token antes de '#')
-            char copiaBloc[MAX_BUF];
-            strncpy(copiaBloc, linea, MAX_BUF);
-            copiaBloc[MAX_BUF - 1] = '\0';
-
-            // --- DEBUG: Print the copied buffer before strtok ---
-            printf("[DEBUG] copiaBloc before strtok: '%s'\n", copiaBloc);
-
-            char* tokBloc = strtok(copiaBloc, "#");
-
-            // --- DEBUG: Print the token extracted ---
-            printf("[DEBUG] tokBloc: '%s'\n", tokBloc ? tokBloc : "NULL");
-
-            if (!tokBloc) continue;
-            espacioLibreBloque = safe_atoi(tokBloc);
-
-            // --- DEBUG: Print the parsed value ---
-            printf("[DEBUG] espacioLibreBloque parsed: %d\n", espacioLibreBloque);
-
-            tamUtilAntes = tamBloque - espacioLibreBloque;
-
-            // --- DEBUG: Print the calculation result ---
-            printf("[DEBUG] tamBloque: %lld, espacioLibreBloque: %d, tamUtilAntes: %d\n",
-                tamBloque, espacioLibreBloque, tamUtilAntes);
-
-            printf("[DEBUG] Bloque %d: espacioLibreBloque leído = %d, tamUtilAntes = %d, tamRegistro = %d, tamBloque = %lld\n",
-                nroBloque, espacioLibreBloque, tamUtilAntes, tamRegistro, tamBloque);
-
-            if (espacioLibreBloque < tamRegistro) {
-                printf("> Bloque %d sin espacio suficiente. Espacio libre bloque: %d bytes; Tamaño del registro: %d bytes\n",
-                    nroBloque, espacioLibreBloque, tamRegistro);
-                continue;
-            }
-
-            // 2.2) Encontrar la primera aparición de "#_" (inicio de la lista de sectores)
-            char* p = strstr(linea, "#_");
-            if (!p) continue;
-            p += 2; // avanzar justo después de "#_"
-
-            // 2.3) Recorremos cada par "<espacioLibreSector>#<código>#_"
-            while (*p) {
-                // 2.3.1) Leer espacioLibreSector
-                char* inicioEspacioSector = p;
-                while (*p && *p != '#') p++;
-                if (*p != '#') break;
-                *p = '\0';
-                int espacioLibreSector = atoi(inicioEspacioSector);
-                *p = '#';
-                p++; // avanzar al código del sector
-
-                // 2.3.2) Extraer códigoSector hasta el siguiente '#'
-                char* inicioCodSector = p;
-                while (*p && *p != '#') p++;
-                if (*p != '#') break;
-                *p = '\0';
-                char sectorCode[MAX_STR_LEN] = { 0 };
-                strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
-                sectorCode[MAX_STR_LEN - 1] = '\0';
-                *p = '#';
-
-                // Avanzar al siguiente par
-                char* nextPair = strstr(p, "#_");
-                if (espacioLibreSector < tamRegistro) {
-                    printf("> Bloque %d, Sector %s sin espacio. Espacio libre sector: %d bytes; Tamaño registro: %d bytes\n",
-                        nroBloque, sectorCode, espacioLibreSector, tamRegistro);
-                    if (!nextPair) break;
-                    p = nextPair + 2;
-                    continue;
-                }
-
-                // Sector adecuado encontrado
-                strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
-                espacioLibreSectorAntes = espacioLibreSector;
-                foundBlock = true;
-                break;
-            }
-            if (foundBlock) break;
-        }
-
-        if (!foundBlock) {
-            fclose(fdir);
-            return false;
-        }
-
-        int espacioLibreBloqueAntes = espacioLibreBloque;
-        int tamUtilNuevo = tamUtilAntes + tamRegistro;
-        int espacioBloqueNuevo = tamBloque - tamUtilNuevo;
-
-        if (espacioBloqueNuevo < 0 || espacioBloqueNuevo > tamBloque) {
-            printf("[ERROR] Valor de espacioBloqueNuevo fuera de rango: %d (tamBloque=%lld, tamUtilNuevo=%d)\n",
-                espacioBloqueNuevo, tamBloque, tamUtilNuevo);
-            printf("[ERROR] Detalle: espacioLibreBloqueAntes=%d, tamRegistro=%d, tamUtilAntes=%d\n",
-                espacioLibreBloqueAntes, tamRegistro, tamUtilAntes);
-        }
-
-        printf("[DEBUG] Bloque %d: espacioLibreBloqueAntes = %d, tamUtilNuevo = %d, espacioBloqueNuevo = %d\n",
-            nroBloque, espacioLibreBloqueAntes, tamUtilNuevo, espacioBloqueNuevo);
-
-        // 3) Actualizar la línea en dirBloques.txt: restar tamRegistro de bloque y sector
-        fseek(fdir, posLineaBloque, SEEK_SET);
-        fgets(linea, MAX_BUF, fdir);
+    char linea[MAX_BUF];
+    while (fgets(linea, MAX_BUF, fcat)) {
         linea[strcspn(linea, "\r\n")] = '\0';
-
-        // 3.1) Reconstruir línea completa en un buffer nuevo, sin depender de la longitud anterior
-        char* inicioSectores = strstr(linea, "#_");
-        if (!inicioSectores) {
-            fclose(fdir);
-            return false;
+        char* sep = strchr(linea, '|');
+        if (!sep) continue;
+        *sep = '\0';
+        const char* rel = linea;
+        const char* path = sep + 1;
+        char bloquePath[MAX_PATH_LEN];
+        snprintf(bloquePath, sizeof(bloquePath),
+            "%sBLOQUES\\Bloque%d.txt",
+            discoNuevoPath, nroBloque);
+        if (strcmp(path, bloquePath) == 0) {
+            fclose(fcat);
+            return (strcmp(rel, nombreRelacion) == 0);
         }
+    }
+    fclose(fcat);
+    return true;
+}
 
-        char bufferLineaNueva[MAX_BUF];
-        int  ofs = 0;
+bool validarCampos(const char* registro, int numFields, int* maxLenArr) {
+    char copy[MAX_BUF];
+    strncpy(copy, registro, MAX_BUF);
+    copy[MAX_BUF - 1] = '\0';
 
-        // 3.1.1) Escribir el nuevo espacioLibreBloque y campos fijos
-        ofs += snprintf(bufferLineaNueva + ofs, MAX_BUF - ofs,
-            "%d#2#BLOQUE#%d#%d#_",
-            espacioBloqueNuevo,
-            nroBloque,
-            tamBloque
-        );
+    char* tok = strtok(copy, "#");
+    int idx = 0;
+    while (tok && idx < numFields) {
+        if ((int)strlen(tok) > maxLenArr[idx]) return false;
+        idx++;
+        tok = strtok(NULL, "#");
+    }
+    return (idx == numFields);
+}
 
-        // 3.1.2) Ajustar cada par de sectores
-        {
-            char* psec2 = inicioSectores + 2; // justo después de "#_"
-            while (*psec2) {
-                int espSec = atoi(psec2);
-                while (*psec2 && *psec2 != '#') ++psec2;
-                if (!*psec2) break;
-                ++psec2;
+bool updateRegistrobackup(const char* nombreRelacion, int lineaObjetivo, const char* registroNuevo) {
+    if (lineaObjetivo <= 0) return false;
 
-                char sectorCode2[MAX_STR_LEN] = { 0 };
-                int pos2 = 0;
-                while (*psec2 && *psec2 != '#') {
-                    sectorCode2[pos2++] = *psec2++;
-                }
-                sectorCode2[pos2] = '\0';
+    // a) Obtener registroSize y longitudes por campo:
+    int registroSize;
+    obtenerRegistroSize(nombreRelacion, &registroSize);
+    if (registroSize <= 0) return false;
 
-                int nuevoEspSec2 = espSec;
-                if (strcmp(sectorCode2, codSectorLibre) == 0) {
-                    nuevoEspSec2 = espSec - tamRegistro;
-                }
+    // Separar campos en arreglo para validar cada longitud
+    int numFields = 0;
+    int maxLenArr[MAX_FIELDS] = { 0 };
+    obtenerLongitudesPorCampo(nombreRelacion, &numFields, maxLenArr);
+    if (numFields <= 0) return false;
 
-                ofs += snprintf(bufferLineaNueva + ofs, MAX_BUF - ofs,
-                    "%d#%s#_",
-                    nuevoEspSec2,
-                    sectorCode2
-                );
+    // Validar que registroNuevo no exceda tamaño máximo de cada campo:
+    if (!validarCampos(registroNuevo, numFields, maxLenArr)) return false;
+    int newLen = (int)strlen(registroNuevo) + 1;  // +1 por '|'
+    if (newLen > registroSize) return false;
 
-                char* next2 = strstr(psec2, "#_");
-                if (!next2) break;
-                psec2 = next2 + 2;
+    // b) Leer catalogo.txt para obtener bloques asignados a esta relación
+#define MAX_BLOCKS 1024
+    int bloquesAsignados[MAX_BLOCKS];
+    int totalBloques = 0;
+
+    char rutaCatalogo[MAX_PATH_LEN];
+    snprintf(rutaCatalogo, sizeof(rutaCatalogo),
+        "%s%s", discoNuevoPath, "catalogo.txt");
+    FILE* fcat = fopen(rutaCatalogo, "r");
+    if (!fcat) return false;
+
+    char linea[MAX_BUF];
+    while (fgets(linea, MAX_BUF, fcat)) {
+        linea[strcspn(linea, "\r\n")] = '\0';
+        char* sep = strchr(linea, '|');
+        if (!sep) continue;
+        *sep = '\0';
+        const char* rel = linea;
+        const char* path = sep + 1;
+        if (strcmp(rel, nombreRelacion) != 0) continue;
+        const char* pN = strstr(path, "Bloque");
+        if (!pN) continue;
+        pN += strlen("Bloque");
+        int n = atoi(pN);
+        if (n > 0 && totalBloques < MAX_BLOCKS) {
+            bloquesAsignados[totalBloques++] = n;
+        }
+    }
+    fclose(fcat);
+
+    if (totalBloques == 0) return false;
+    // Ordenar bloques de menor a mayor
+    for (int i = 0; i < totalBloques - 1; i++) {
+        for (int j = i + 1; j < totalBloques; j++) {
+            if (bloquesAsignados[j] < bloquesAsignados[i]) {
+                int tmp = bloquesAsignados[i];
+                bloquesAsignados[i] = bloquesAsignados[j];
+                bloquesAsignados[j] = tmp;
             }
         }
+    }
 
-        // 3.1.3) Agregar salto de línea
-        if (ofs < MAX_BUF - 1) {
-            bufferLineaNueva[ofs++] = '\n';
-            bufferLineaNueva[ofs] = '\0';
+    int cuentaHastaAhora = 0;
+
+    // c) Recorrer bloques para encontrar dónde está el registro
+    for (int bi = 0; bi < totalBloques; bi++) {
+        int nroBloque = bloquesAsignados[bi];
+        char rutaBloque[MAX_PATH_LEN];
+        snprintf(rutaBloque, sizeof(rutaBloque),
+            "%sBLOQUES\\Bloque%d.txt",
+            discoNuevoPath, nroBloque);
+
+        FILE* fbloc = fopen(rutaBloque, "r+");
+        if (!fbloc) continue;
+
+        // Leer bitmap (hasta '/')
+        char bitmap[MAX_BUF];
+        if (!fgets(bitmap, sizeof(bitmap), fbloc)) {
+            fclose(fbloc);
+            continue;
         }
-        else {
-            bufferLineaNueva[MAX_BUF - 1] = '\n';
-            bufferLineaNueva[MAX_BUF - 0] = '\0';
+        bitmap[strcspn(bitmap, "\r\n")] = '\0';
+        int numMaxAnt = 0;
+        while (bitmap[numMaxAnt] && bitmap[numMaxAnt] != '/') {
+            numMaxAnt++;
+        }
+        if (numMaxAnt <= 0) {
+            fclose(fbloc);
+            continue;
         }
 
-        printf("[DEBUG] posLineaBloque = %ld\n", posLineaBloque);
-        printf("[DEBUG] linea original: '%s'\n", linea);
-        printf("[DEBUG] bufferLineaNueva antes de rellenar: '%s'\n", bufferLineaNueva);
-        printf("[DEBUG] len_original = %zu, len_nueva = %zu\n", strlen(linea), strlen(bufferLineaNueva));
-
-        // --- BLOQUE PARA RELLENAR LA LÍNEA NUEVA SI ES MÁS CORTA QUE LA ORIGINAL ---
-        size_t len_original = strlen(linea); // 'linea' ya sin \r\n
-        size_t len_nueva = strlen(bufferLineaNueva);
-
-        // Si la nueva línea es más corta, rellena con espacios
-// Rellenar con espacios o truncar correctamente
-// Siempre rellena hasta len_original-1 y termina con '\n'
-        if (len_nueva < len_original) {
-            memset(bufferLineaNueva + len_nueva, ' ', len_original - len_nueva - 1);
-            bufferLineaNueva[len_original - 1] = '\n';
-            bufferLineaNueva[len_original] = '\0';
+        // Contar cuántos '1' en bitmap
+        int unosEnBloque = 0;
+        for (int i = 0; i < numMaxAnt; i++) {
+            if (bitmap[i] == '1') unosEnBloque++;
         }
-        else if (len_nueva > len_original) {
-            // Truncar la nueva línea para que no sobrescriba la siguiente
-            bufferLineaNueva[len_original - 1] = '\n';
-            bufferLineaNueva[len_original] = '\0';
+        if (cuentaHastaAhora + unosEnBloque < lineaObjetivo) {
+            cuentaHastaAhora += unosEnBloque;
+            fclose(fbloc);
+            continue;
         }
-        else {
-            // Si son iguales, asegúrate de terminar con '\n'
-            if (bufferLineaNueva[len_original - 1] != '\n') {
-                bufferLineaNueva[len_original - 1] = '\n';
+
+        // Está en este bloque → calcular idxLocal
+        int idxLocal = lineaObjetivo - cuentaHastaAhora;
+        int contador1s = 0;
+        int bitPos = -1;
+        for (int i = 0; i < numMaxAnt; i++) {
+            if (bitmap[i] == '1') {
+                contador1s++;
+                if (contador1s == idxLocal) {
+                    bitPos = i;
+                    break;
+                }
             }
         }
-
-        // Después de rellenar
-        printf("[DEBUG] bufferLineaNueva después de rellenar: '%s'\n", bufferLineaNueva);
-
-        fseek(fdir, posLineaBloque, SEEK_SET);
-        fwrite(bufferLineaNueva, 1, len_original, fdir);
-
-        // Después de escribir
-        long posDespuesFputs = ftell(fdir);
-        printf("[DEBUG] ftell después de fputs: %ld\n", posDespuesFputs);
-
-        fclose(fdir);
-
-        printf("[DEBUG] Bloque %d: línea actualizada en dirBloques.txt: '%s'\n",
-            nroBloque, bufferLineaNueva);
-
-        // 4) Actualizar cabecera de BloqueN.txt
-        char rutaBloqueFis[MAX_PATH_LEN];
-        rutaBloqueFisico(nroBloque, rutaBloqueFis);
-        FILE* fbloc = fopen(rutaBloqueFis, "r+");
-        if (!fbloc) {
-            perror("No se pudo abrir BloqueN.txt para actualización");
-            return false;
-        }
-        long posBlocLinea = ftell(fbloc);
-        char lineaBloc[MAX_BUF];
-        fgets(lineaBloc, MAX_BUF, fbloc);
-        lineaBloc[strcspn(lineaBloc, "\r\n")] = '\0';
-
-        // Extraer espacioLibreBloqueActual de la líneaBloque
-        char copiaBloc2[MAX_BUF];
-        strncpy(copiaBloc2, lineaBloc, MAX_BUF);
-        copiaBloc2[MAX_BUF - 1] = '\0';
-        char* tok2 = strtok(copiaBloc2, "#");
-        int espacioLibreBloqueBloque = atoi(tok2);
-        int tamUtilAntesBloc = tamBloque - espacioLibreBloqueBloque;
-        int tamUtilNuevoBloc = tamUtilAntesBloc + tamRegistro;
-        int espacioBloqueNuevoBloc = tamBloque - tamUtilNuevoBloc;
-
-        char* inicioSBloc = strstr(lineaBloc, "#_");
-        if (!inicioSBloc) {
+        if (bitPos < 0) {
             fclose(fbloc);
             return false;
         }
-        // Ajustar lista de sectores en el bloque físico
-        char sectoresModBloc[MAX_BUF] = { 0 };
-        char* psec2b = inicioSBloc + 2;
-        while (*psec2b) {
-            int espSec = atoi(psec2b);
-            while (*psec2b && *psec2b != '#') ++psec2b;
-            if (!*psec2b) break;
-            ++psec2b;
 
-            char sectorCode2b[MAX_STR_LEN] = { 0 };
-            int posb = 0;
-            while (*psec2b && *psec2b != '#') {
-                sectorCode2b[posb++] = *psec2b++;
-            }
-            sectorCode2b[posb] = '\0';
-
-            int nuevoEspSec2b = espSec;
-            if (strcmp(sectorCode2b, codSectorLibre) == 0) {
-                nuevoEspSec2b = espSec - tamRegistro;
-            }
-
-            char bufferPar2[64];
-            snprintf(bufferPar2, sizeof(bufferPar2), "%d#%s#_", nuevoEspSec2b, sectorCode2b);
-            strncat(sectoresModBloc, bufferPar2, sizeof(sectoresModBloc) - strlen(sectoresModBloc) - 1);
-
-            char* next2b = strstr(psec2b, "#_");
-            if (!next2b) break;
-            psec2b = next2b + 2;
+        // Extraer numRegAnt de la cabecera
+        size_t raw_header_len = 0;
+        rewind(fbloc);
+        int c;
+        while ((c = fgetc(fbloc)) != EOF) {
+            raw_header_len++;
+            if (c == '/') break;
+            if (raw_header_len >= MAX_BUF - 1) break;
         }
+        rewind(fbloc);
 
-        // Reconstruir la línea dentro de BloqueN.txt
-        char nuevaLineaBloc[MAX_BUF];
-        snprintf(nuevaLineaBloc, MAX_BUF,
-            "%d#2#BLOQUE#%d#%d#_%s\n",
-            espacioBloqueNuevoBloc,
-            nroBloque,
-            tamBloque,
-            sectoresModBloc);
+        char cabTmp[MAX_BUF];
+        if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
+        fread(cabTmp, 1, raw_header_len, fbloc);
+        cabTmp[raw_header_len] = '\0';
+        char* p1 = strchr(cabTmp, '#');
+        if (!p1) { fclose(fbloc); return false; }
+        *p1 = '\0';
+        int numRegAnt = safe_atoi(cabTmp);
+        // No necesitamos numMaxAnt de nuevo
 
-        fseek(fbloc, posBlocLinea, SEEK_SET);
-        fprintf(fbloc, "%s", nuevaLineaBloc);
-        fclose(fbloc);
-
-        //// 5) Escribir registro en sector físico
-        //rutaSectorDesdeCodigo(codSectorLibre);
-        //FILE* fsec = fopen(rutaSectorDesdeCodigo(codSectorLibre), "a");
-        //if (!fsec) {
-        //    perror("No se pudo abrir sector para escribir");
-        //    return false;
-        //}
-        //int espacioLibreSectorDesp = espacioLibreSectorAntes - tamRegistro;
-
-        // escribir registro en sector fisico
-        rutaSectorDesdeCodigo(codSectorLibre);
-        FILE* fsec = fopen(bufferRuta, "a");
-        if (!fsec) {
-            perror("No se pudo abrir sector para escribir");
+        // Buscar límite del registro antiguo:
+        long posData = (long)raw_header_len;
+        fseek(fbloc, posData, SEEK_SET);
+        int barras = 0;
+        long inicioReg = posData;
+        while ((c = fgetc(fbloc)) != EOF) {
+            if (c == '|') {
+                barras++;
+                if (barras == idxLocal) {
+                    break;
+                }
+            }
+            inicioReg++;
+        }
+        long finReg = ftell(fbloc);
+        long oldLen = finReg - inicioReg;
+        if (oldLen <= 0) {
+            fclose(fbloc);
             return false;
         }
-        int espacioLibreSectorDesp = espacioLibreSectorAntes - tamRegistro;
 
+        // Calcular delta:
+        int delta = newLen - (int)oldLen;
 
-        int pl, su, pi, se;
-        sscanf(codSectorLibre, "%d/%d/%d/%d", &pl, &su, &pi, &se);
+        // d) Verificar si cabe dentro del bloque si newLen > oldLen
+        if (delta > 0) {
+            // Leer espacio libre actual en dirBloques.txt
+            FILE* fdir = fopen(rutaDirBloques, "r+");
+            if (!fdir) { fclose(fbloc); return false; }
 
-        printf("-> Insertando registro en Plato %d, Superficie %d, Pista %d, Sector %d\n", pl, su, pi, se);
-        printf("   Espacio libre bloque antes: %d bytes; después: %d bytes\n", espacioLibreBloqueAntes, espacioBloqueNuevo);
-        printf("   Espacio libre sector antes: %d bytes; después: %d bytes\n", espacioLibreSectorAntes, espacioLibreSectorDesp);
+            // Buscar línea de este bloque en dirBloques.txt para leer espacioLibreSector y espacioLibreBloque
+            char lineaDir[MAX_BUF];
+            int contadorDir = 0;
+            long posLineaDir = 0;
+            int espLibreSector = 0;
+            int espLibreBloque = 0;
+            rewind(fdir);
+            while (fgets(lineaDir, MAX_BUF, fdir)) {
+                ++contadorDir;
+                if (contadorDir == nroBloque) {
+                    posLineaDir = ftell(fdir) - (long)strlen(lineaDir);
+                    char copiaDir[MAX_BUF];
+                    strncpy(copiaDir, lineaDir, MAX_BUF);
+                    copiaDir[MAX_BUF - 1] = '\0';
+                    // Extraer espacioLibreBloque (antes del primer '#')
+                    char* tokB = strtok(copiaDir, "#");
+                    espLibreBloque = safe_atoi(tokB);
+                    // Extraer primer sector libre: buscar "#_" y luego leer primer número
+                    char* psect = strstr(lineaDir, "#_");
+                    if (psect) {
+                        psect += 2;
+                        espLibreSector = atoi(psect);
+                    }
+                    break;
+                }
+            }
+            fclose(fdir);
 
-        fprintf(fsec, "%s", registroTxt);
-        fclose(fsec);
+            if (espLibreBloque < delta || espLibreSector < delta) {
+                fclose(fbloc);
+                return false; // No hay espacio suficiente
+            }
+        }
 
+        // e) Desplazar datos y sobrescribir:
+        // Leer hasta fin de archivo para desplazar remainder
+        fseek(fbloc, 0, SEEK_END);
+        long eofPos = ftell(fbloc);
+        long moveStart = inicioReg + oldLen;      // byte donde termina registro viejo
+        long moveEnd = eofPos;                  // byte final
+        long shiftBy = delta;                   // +para derecha, -para izquierda
+
+        if (delta > 0) {
+            // DESPLAZAR HACIA LA DERECHA: copiar de atrás hacia adelante
+            long readPos = moveEnd - 1;
+            long writePos = readPos + shiftBy;
+            while (readPos >= moveStart) {
+                fseek(fbloc, readPos, SEEK_SET);
+                int ch = fgetc(fbloc);
+                fseek(fbloc, writePos, SEEK_SET);
+                fputc(ch, fbloc);
+                readPos--;
+                writePos--;
+            }
+        }
+        else if (delta < 0) {
+            // DESPLAZAR HACIA LA IZQUIERDA: copiar de adelante hacia atrás
+            long readPos = moveStart;
+            long writePos = moveStart + shiftBy; // shiftBy es negativo
+            while (readPos < moveEnd) {
+                fseek(fbloc, readPos, SEEK_SET);
+                int ch = fgetc(fbloc);
+                fseek(fbloc, writePos, SEEK_SET);
+                fputc(ch, fbloc);
+                readPos++;
+                writePos++;
+            }
+            // Rellenar el final sobrante con espacios (o '#')
+            long fillPos = moveEnd + shiftBy;
+            fseek(fbloc, fillPos, SEEK_SET);
+            for (long k = fillPos; k < moveEnd; k++) {
+                fputc(' ', fbloc);
+            }
+        }
+
+        // Sobreescribir el registro antiguo por “registroNuevo|”
+        // Limpiar saltos de línea y asegurar separador '|'
+        char regLimpio[MAX_BUF];
+        size_t len = strlen(registroNuevo);
+        // Copiar y limpiar '\n' y '\r'
+        size_t k = 0;
+        for (size_t i = 0; i < len && k < MAX_BUF - 2; ++i) {
+            if (registroNuevo[i] != '\n' && registroNuevo[i] != '\r')
+                regLimpio[k++] = registroNuevo[i];
+        }
+        regLimpio[k] = '\0';
+
+        // Escribir el registro limpio y el separador '|'
+        fseek(fbloc, inicioReg, SEEK_SET);
+        fwrite(regLimpio, 1, k, fbloc);
+        fputc('|', fbloc);
+        fflush(fbloc);
+
+        // f) Actualizar bitmap (permanece igual porque sigue “ocupado”).
+        // g) Actualizar dirBloques.txt restando (newLen - oldLen) de espacio libre
+        int deltaEsp = (int)(oldLen - newLen); // si new>old: negativo, sumará espacio usado
+        {
+            FILE* fdir = fopen(rutaDirBloques, "r+");
+            if (!fdir) {
+                fclose(fbloc);
+                return false;
+            }
+            char lineaD[MAX_BUF];
+            int contadorD = 0;
+            long posD = 0;
+            rewind(fdir);
+            while (fgets(lineaD, MAX_BUF, fdir)) {
+                ++contadorD;
+                if (contadorD == nroBloque) {
+                    posD = ftell(fdir) - (long)strlen(lineaD);
+                    break;
+                }
+            }
+            if (posD == 0) {
+                fclose(fdir);
+                fclose(fbloc);
+                return false;
+            }
+            fseek(fdir, posD, SEEK_SET);
+            fgets(lineaD, MAX_BUF, fdir);
+            lineaD[strcspn(lineaD, "\r\n")] = '\0';
+
+            // Extraer espacioLibreBloque y reconstruir línea:
+            char copiaD2[MAX_BUF];
+            strncpy(copiaD2, lineaD, MAX_BUF);
+            copiaD2[MAX_BUF - 1] = '\0';
+            char* tokB2 = strtok(copiaD2, "#");
+            int espBloqueAnt = safe_atoi(tokB2);
+            int espBloqueNuevo = espBloqueAnt + deltaEsp;
+
+            // Reconstruir sectores (misma lógica que en adicionar)
+            char* ptrSect = strstr(lineaD, "#_");
+            if (!ptrSect) {
+                fclose(fdir);
+                fclose(fbloc);
+                return false;
+            }
+            char sectoresStr[MAX_BUF];
+            strncpy(sectoresStr, ptrSect + 2, MAX_BUF - 1);
+            sectoresStr[MAX_BUF - 1] = '\0';
+
+            char nuevaLinea[MAX_BUF];
+            snprintf(nuevaLinea, MAX_BUF,
+                "%d#2#BLOQUE#%d#%d#_%s\n",
+                espBloqueNuevo,
+                nroBloque,
+                tamBloque,
+                sectoresStr);
+
+            fseek(fdir, posD, SEEK_SET);
+            fwrite(nuevaLinea, 1, strlen(nuevaLinea), fdir);
+            fflush(fdir);
+            fclose(fdir);
+        }
+
+        fclose(fbloc);
         return true;
     }
-    */
 
-
-bool adicionarRegistroUniconoseusa(const char* registroTxt, const char* relacion) {
-    // 1) Abrir dirBloques.txt en modo lectura/escritura
-    FILE* fdir = fopen(rutaDirBloques, "r+");
-    if (!fdir) {
-        perror("No se puede abrir dirBloques.txt");
-        return false;
-    }
-
-    char linea[MAX_BUF];
-    int  nroBloque = 0;
-    bool foundBlock = false;
-    char codSectorLibre[MAX_STR_LEN] = { 0 };
-    long posLineaBloque = 0;
-    int  tamRegistro = (int)strlen(registroTxt);
-    if (registroTxt[tamRegistro - 1] != '\n') {
-        // Asegurar que mida el '\n' si no esta presente
-        tamRegistro++;
-    }
-
-    int  espacioLibreBloque = 0;
-    int  tamUtilAntes = 0;
-    int  espacioLibreSectorAntes = 0;
-
-    // 2) Recorrer lineas de dirBloques.txt buscando bloque y sector con espacio
-    while (fgets(linea, MAX_BUF, fdir)) {
-        ++nroBloque;
-        posLineaBloque = ftell(fdir) - (long)strlen(linea);
-
-        // 2.1) Extraer espacioLibreBloque (primer token antes de '#')
-        char copiaBloc[MAX_BUF];
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        char* tokBloc = strtok(copiaBloc, "#");
-        if (!tokBloc) continue;
-        espacioLibreBloque = atoi(tokBloc);
-        tamUtilAntes = tamBloque - espacioLibreBloque;
-        if (espacioLibreBloque < tamRegistro) {
-            printf("> Bloque %d sin espacio suficiente. Espacio libre bloque: %d bytes; Tamaño del registro: %d bytes\n",
-                nroBloque, espacioLibreBloque, tamRegistro);
-            continue;
-        }
-
-        // 2.2) Encontrar la primera aparicion de "#_" (inicio de la lista de sectores)
-        char* p = strstr(linea, "#_");
-        if (!p) continue;
-        p += 2; // avanzar justo despues de "#_"
-
-        // 2.3) Recorremos cada par "<espacioLibreSector>#<p>/<s>/<pi>/<se>#_"
-        while (*p) {
-            // 2.3.1) Leer espacioLibreSector
-            char* inicioEspacioSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            int espacioLibreSector = atoi(inicioEspacioSector);
-            *p = '#';
-            p++; // avanzar al codigo del sector
-
-            // 2.3.2) Extraer codigoSector hasta el siguiente '#'
-            char* inicioCodSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            char sectorCode[MAX_STR_LEN];
-            strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
-            sectorCode[MAX_STR_LEN - 1] = '\0';
-            *p = '#';
-
-            // Avanzar al siguiente par
-            char* nextPair = strstr(p, "#_");
-            if (espacioLibreSector < tamRegistro) {
-                printf("> Bloque %d, Sector %s sin espacio. Espacio libre sector: %d bytes; Tamaño registro: %d bytes\n",
-                    nroBloque, sectorCode, espacioLibreSector, tamRegistro);
-                if (!nextPair) break;
-                p = nextPair + 2;
-                continue;
-            }
-
-            // Sector adecuado encontrado
-            strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
-            espacioLibreSectorAntes = espacioLibreSector;
-            foundBlock = true;
-            break;
-        }
-        if (foundBlock) break;
-    }
-
-    if (!foundBlock) {
-        fclose(fdir);
-        return false;
-    }
-
-    int espacioLibreBloqueAntes = espacioLibreBloque;
-    int tamUtilNuevo = tamUtilAntes + tamRegistro;
-    int espacioBloqueNuevo = tamBloque - tamUtilNuevo;
-
-    //// 3) Actualizar la linea en dirBloques.txt: restar tamRegistro de bloque y sector
-    //fseek(fdir, posLineaBloque, SEEK_SET);
-    //fgets(linea, MAX_BUF, fdir);
-    //linea[strcspn(linea, "\r\n")] = '\0';
-
-    // 3) Volver a la posición donde empieza la línea encontrada
-    fseek(fdir, posLineaBloque, SEEK_SET);
-
-    // 3.1) Reconstruir linea completa en un buffer nuevo, sin depender de la longitud anterior
-    char* inicioSectores = strstr(linea, "#_");
-    if (!inicioSectores) {
-        fclose(fdir);
-        return false;
-    }
-
-    char bufferLineaNueva[MAX_BUF];
-    int ofs = 0;
-
-    // 3.1.1) Escribir el nuevo espacioLibreBloque y campos fijos
-    ofs += snprintf(bufferLineaNueva + ofs, MAX_BUF - ofs,
-        "%d#2#BLOQUE#%d#%d#_",
-        espacioBloqueNuevo,
-        nroBloque,
-        tamBloque
-    );
-
-    // 3.1.2) Ajustar cada par de sectores
-    {
-        char* psec2 = inicioSectores + 2; // justo despues de "#_"
-        while (*psec2) {
-            int espSec = atoi(psec2);
-            while (*psec2 && *psec2 != '#') ++psec2;
-            if (!*psec2) break;
-            ++psec2;
-
-            char sectorCode2[MAX_STR_LEN] = { 0 };
-            int pos2 = 0;
-            while (*psec2 && *psec2 != '#') {
-                sectorCode2[pos2++] = *psec2++;
-            }
-            sectorCode2[pos2] = '\0';
-
-            int nuevoEspSec2 = espSec;
-            if (strcmp(sectorCode2, codSectorLibre) == 0) {
-                nuevoEspSec2 = espSec - tamRegistro;
-            }
-
-            ofs += snprintf(bufferLineaNueva + ofs, MAX_BUF - ofs,
-                "%d#%s#_",
-                nuevoEspSec2,
-                sectorCode2
-            );
-
-            char* next2 = strstr(psec2, "#_");
-            if (!next2) break;
-            psec2 = next2 + 2;
-        }
-    }
-
-    // 3.1.3) Agregar salto de linea
-    if (ofs < MAX_BUF - 1) {
-        bufferLineaNueva[ofs++] = '\n';
-        bufferLineaNueva[ofs] = '\0';
-    }
-    else {
-        bufferLineaNueva[MAX_BUF - 1] = '\n';
-        bufferLineaNueva[MAX_BUF - 0] = '\0';
-    }
-
-
-    //fseek(fdir, posLineaBloque, SEEK_SET);
-    //fputs(bufferLineaNueva, fdir);
-    //fclose(fdir);
-
-    // 3) Volver a la posición donde empieza la línea encontrada
-    fseek(fdir, posLineaBloque, SEEK_SET);
-
-    // 4) Actualizar cabecera de BloqueN.txt
-    char rutaBloqueFis[MAX_PATH_LEN];
-    rutaBloqueFisico(nroBloque, rutaBloqueFis);
-    FILE* fbloc = fopen(rutaBloqueFis, "r+");
-    if (!fbloc) {
-        perror("No se pudo abrir BloqueN.txt para actualizacion");
-        return false;
-    }
-    long posBlocLinea = ftell(fbloc);
-    char lineaBloc[MAX_BUF];
-    fgets(lineaBloc, MAX_BUF, fbloc);
-    lineaBloc[strcspn(lineaBloc, "\r\n")] = '\0';
-
-    // Extraer espacioLibreBloqueActual de la lineaBloque
-    char copiaBloc2[MAX_BUF];
-    strncpy(copiaBloc2, lineaBloc, MAX_BUF);
-    copiaBloc2[MAX_BUF - 1] = '\0';
-    char* tok2 = strtok(copiaBloc2, "#");
-    int espacioLibreBloqueBloque = atoi(tok2);
-    int tamUtilAntesBloc = tamBloque - espacioLibreBloqueBloque;
-    int tamUtilNuevoBloc = tamUtilAntesBloc + tamRegistro;
-    int espacioBloqueNuevoBloc = tamBloque - tamUtilNuevoBloc;
-
-    char* inicioSBloc = strstr(lineaBloc, "#_");
-    if (!inicioSBloc) {
-        fclose(fbloc);
-        return false;
-    }
-    // Ajustar lista de sectores en el bloque fisico
-    char sectoresModBloc[MAX_BUF] = { 0 };
-    char* psec2 = inicioSBloc + 2;
-    while (*psec2) {
-        int espSec = atoi(psec2);
-        while (*psec2 && *psec2 != '#') ++psec2;
-        if (!*psec2) break;
-        ++psec2;
-
-        char sectorCode2[MAX_STR_LEN] = { 0 };
-        int pos2 = 0;
-        while (*psec2 && *psec2 != '#') {
-            sectorCode2[pos2++] = *psec2++;
-        }
-        sectorCode2[pos2] = '\0';
-
-        int nuevoEspSec2 = espSec;
-        if (strcmp(sectorCode2, codSectorLibre) == 0) {
-            nuevoEspSec2 = espSec - tamRegistro;
-        }
-
-        char bufferPar2[64];
-        snprintf(bufferPar2, sizeof(bufferPar2), "%d#%s#_", nuevoEspSec2, sectorCode2);
-        strncat(sectoresModBloc, bufferPar2, sizeof(sectoresModBloc) - strlen(sectoresModBloc) - 1);
-
-        char* next2 = strstr(psec2, "#_");
-        if (!next2) break;
-        psec2 = next2 + 2;
-    }
-
-    // reconstruir
-    char nuevaLineaBloc[MAX_BUF];
-    snprintf(nuevaLineaBloc, MAX_BUF,
-        "%d#2#BLOQUE#%d#%d#_%s\n",
-        espacioBloqueNuevoBloc,
-        nroBloque,
-        tamBloque,
-        sectoresModBloc);
-
-    fseek(fbloc, posBlocLinea, SEEK_SET);
-    fprintf(fbloc, "%s", nuevaLineaBloc);
-    fclose(fbloc);
-
-    // escribir registro en sector fisico
-    rutaSectorDesdeCodigo(codSectorLibre);
-    FILE* fsec = fopen(bufferRuta, "a");
-    if (!fsec) {
-        perror("No se pudo abrir sector para escribir");
-        return false;
-    }
-    int espacioLibreSectorDesp = espacioLibreSectorAntes - tamRegistro;
-
-    int pl, su, pi, se;
-    sscanf(codSectorLibre, "%d/%d/%d/%d", &pl, &su, &pi, &se);
-
-    printf("-> Insertando registro en Plato %d, Superficie %d, Pista %d, Sector %d\n", pl, su, pi, se);
-    printf("   Espacio libre bloque antes: %d bytes; despues: %d bytes\n", espacioLibreBloqueAntes, espacioBloqueNuevo);
-    printf("   Espacio libre sector antes: %d bytes; despues: %d bytes\n", espacioLibreSectorAntes, espacioLibreSectorDesp);
-
-    fprintf(fsec, "%s", registroTxt);
-    fclose(fsec);
-
-    return true;
+    return false;
 }
 
+bool updateRegistro(const char* nombreRelacion,
+    int lineaObjetivo,
+    const char* registroNuevo)
+{
+    if (lineaObjetivo <= 0) return false;
 
-bool adicionarRegistroUnicobackuppp(const char* registroTxt, const char* relacion) {
-    FILE* fdir = fopen(rutaDirBloques, "r+");
-    if (!fdir) {
-        perror("No se puede abrir dirBloques.txt");
-        return false;
-    }
+    // 1) Leer registroSize y maxLenArr[] desde longitudfija.txt
+    int registroSize;
+    obtenerRegistroSize(nombreRelacion, &registroSize);
+    if (registroSize <= 0) return false;
 
-    char linea[MAX_BUF];
-    int  nroBloque = 0;
-    bool foundBlock = false;
-    char codSectorLibre[MAX_STR_LEN] = { 0 };
-    long posLineaBloque = 0;
-    int  tamRegistro = (int)strlen(registroTxt);
-    if (registroTxt[tamRegistro - 1] != '\n') {
-        tamRegistro++;
-    }
+    int numFields = 0;
+    int maxLenArr[MAX_FIELDS] = { 0 };
+    obtenerLongitudesPorCampo(nombreRelacion, &numFields, maxLenArr);
+    if (numFields <= 0) return false;
 
-    int  espacioLibreBloque = 0;
-    int  tamUtilAntes = 0;
-    int  espacioLibreSectorAntes = 0;
-
-    // 2) Recorrer líneas de dirBloques.txt buscando bloque y sector con espacio
-    while (1) {
-        posLineaBloque = ftell(fdir);
-        if (!fgets(linea, MAX_BUF, fdir)) break;
-        nroBloque++;
-
-        // --- Eliminar '\n' y luego '\r' al final, si existen ---
-        size_t len_linea = strlen(linea);
-        if (len_linea > 0 && linea[len_linea - 1] == '\n') {
-            linea[--len_linea] = '\0';
-        }
-        if (len_linea > 0 && linea[len_linea - 1] == '\r') {
-            linea[--len_linea] = '\0';
-        }
-
-        // 2.1) Extraer espacioLibreBloque
-        char copiaBloc[MAX_BUF];
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        char* tokBloc = strtok(copiaBloc, "#");
-        if (!tokBloc) continue;
-        espacioLibreBloque = safe_atoi(tokBloc);
-        tamUtilAntes = tamBloque - espacioLibreBloque;
-        if (espacioLibreBloque < tamRegistro) {
-            continue;
-        }
-
-        // 2.2) Encontrar "#_" en la línea original
-        char* p = strstr(linea, "#_");
-        if (!p) continue;
-        // Para modificar, copiamos linea en buffer mutable
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        p = strstr(copiaBloc, "#_");
-        if (!p) continue;
-        p += 2;
-
-        // 2.3) Recorrer pares "<espacioLibreSector>#<código>#_"
-        while (*p) {
-            char* inicioEspacioSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            int espacioLibreSector = atoi(inicioEspacioSector);
-            *p = '#';
-            p++;
-            char* inicioCodSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            char sectorCode[MAX_STR_LEN];
-            strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
-            sectorCode[MAX_STR_LEN - 1] = '\0';
-            *p = '#';
-
-            char* nextPair = strstr(p, "#_");
-            if (espacioLibreSector < tamRegistro) {
-                if (!nextPair) break;
-                p = nextPair + 2;
-                continue;
-            }
-
-            strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
-            espacioLibreSectorAntes = espacioLibreSector;
-            foundBlock = true;
-            break;
-        }
-        if (foundBlock) break;
-    }
-
-    if (!foundBlock) {
-        fclose(fdir);
-        return false;
-    }
-
-    int espacioLibreBloqueAntes = espacioLibreBloque;
-    int tamUtilNuevo = tamUtilAntes + tamRegistro;
-    int espacioBloqueNuevo = tamBloque - tamUtilNuevo;
-    if (espacioBloqueNuevo < 0 || espacioBloqueNuevo > tamBloque) {
-        // Valor inesperado; pero continuamos a efectos de debug
-    }
-
-    // 3) Volver a la posición donde empieza la línea encontrada
-    fseek(fdir, posLineaBloque, SEEK_SET);
-
-
-    // 3.1) Leer de nuevo la línea original para conocer su longitud real en bytes
-    if (!fgets(linea, MAX_BUF, fdir)) {
-        fclose(fdir);
-        return false;
-    }
-    // Quitar '\n' y '\r'
-    size_t len_original = strlen(linea);
-    if (len_original > 0 && linea[len_original - 1] == '\n') {
-        linea[--len_original] = '\0';
-    }
-    if (len_original > 0 && linea[len_original - 1] == '\r') {
-        linea[--len_original] = '\0';
-    }
-    // En disco, esa línea ocupaba len_original (texto) + 1 byte de '\n'
-    len_original += 1;
-
-    // 3.2) Construir la nueva línea (sin '\r', sólo un '\n' al final)
-    char* bufferNueva = (char*)malloc(MAX_BUF);
-    if (!bufferNueva) {
-        fclose(fdir);
-        return false;
-    }
-    int ofs = 0;
-    ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-        "%d#2#BLOQUE#%d#%d#_",
-        espacioBloqueNuevo,
-        nroBloque,
-        tamBloque);
-
-    // Reconstruir la parte de sectores sobre copia de linea
-    {
-        char copia2[MAX_BUF];
-        strncpy(copia2, linea, MAX_BUF);
-        copia2[MAX_BUF - 1] = '\0';
-        char* inicioSect = strstr(copia2, "#_");
-        if (inicioSect) {
-            char* p2 = inicioSect + 2;
-            while (*p2) {
-                int espSec = atoi(p2);
-                while (*p2 && *p2 != '#') ++p2;
-                if (!*p2) break;
-                ++p2;
-                char sectorCode2[MAX_STR_LEN] = { 0 };
-                int pos2 = 0;
-                while (*p2 && *p2 != '#') {
-                    sectorCode2[pos2++] = *p2++;
-                }
-                sectorCode2[pos2] = '\0';
-                int nuevoEsp = espSec;
-                if (strcmp(sectorCode2, codSectorLibre) == 0) {
-                    nuevoEsp = espSec - tamRegistro;
-                }
-                ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-                    "%d#%s#_",
-                    nuevoEsp,
-                    sectorCode2);
-                char* next2 = strstr(p2, "#_");
-                if (!next2) break;
-                p2 = next2 + 2;
-            }
+    // 2) Limpiar registroNuevo de '\r' y '\n' y validar campos
+    char regLimpio[MAX_BUF];
+    size_t raw = strlen(registroNuevo);
+    size_t w = 0;
+    for (size_t i = 0; i < raw && w < MAX_BUF - 2; i++) {
+        if (registroNuevo[i] != '\n' && registroNuevo[i] != '\r') {
+            regLimpio[w++] = registroNuevo[i];
         }
     }
+    regLimpio[w] = '\0';
 
-    // Agregar '\n' al final
-    if (ofs < MAX_BUF - 1) {
-        bufferNueva[ofs++] = '\n';
-        bufferNueva[ofs] = '\0';
-    }
-    else {
-        bufferNueva[MAX_BUF - 1] = '\n';
-        bufferNueva[MAX_BUF] = '\0';
-    }
+    // Validar número de campos y longitud de cada uno
+    if (!validarCampos(regLimpio, numFields, maxLenArr)) return false;
 
-    // 3.3) Ajustar longitud para que sea EXACTAMENTE len_original bytes
-    size_t len_nueva = strlen(bufferNueva);
-    if (len_nueva > 0 && linea[len_nueva - 1] == '\n') {
-        linea[--len_nueva] = '\0';    // ahora linea = "180#2#BLOQUE#1#180#_\r"
-    }
-    if (len_nueva > 0 && linea[len_nueva - 1] == '\r') {
-        linea[--len_nueva] = '\0';    // ahora linea = "180#2#BLOQUE#1#180#_"
-    }
-    // else: (len_nueva == len_original) ya termina en '\n'
+    // newLen = w + 1 (por el '|')
+    int newLen = (int)w + 1;
+    if (newLen > registroSize) return false;
 
-    // 3.4) Sobreescribir exactamente len_original bytes
-    fseek(fdir, posLineaBloque, SEEK_SET);
-    fwrite(bufferNueva, 1, len_original, fdir);
+    // 3) Leer catalogo.txt y armar lista de bloques para esta relación
+#define MAX_BLOCKS 1024
+    int bloquesAsignados[MAX_BLOCKS];
+    int totalBloques = 0;
 
-    fflush(fdir);
-    free(bufferNueva);
-    fclose(fdir);
-
-    // 4) Actualizar cabecera de BloqueN.txt (misma lógica que antes)
-    char rutaBloqueFis[MAX_PATH_LEN];
-    rutaBloqueFisico(nroBloque, rutaBloqueFis);
-    FILE* fbloc = fopen(rutaBloqueFis, "r+");
-    if (!fbloc) {
-        perror("No se pudo abrir BloqueN.txt para actualización");
-        return false;
-    }
-    long posBlocLinea = ftell(fbloc);
-    char lineaBloc[MAX_BUF];
-    fgets(lineaBloc, MAX_BUF, fbloc);
-    lineaBloc[strcspn(lineaBloc, "\r\n")] = '\0';
-
-    char copiaBloc2[MAX_BUF];
-    strncpy(copiaBloc2, lineaBloc, MAX_BUF);
-    copiaBloc2[MAX_BUF - 1] = '\0';
-    char* tok2 = strtok(copiaBloc2, "#");
-    int espacioLibreBloqueBloque = atoi(tok2);
-    int tamUtilAntesBloc = tamBloque - espacioLibreBloqueBloque;
-    int tamUtilNuevoBloc = tamUtilAntesBloc + tamRegistro;
-    int espacioBloqueNuevoBloc = tamBloque - tamUtilNuevoBloc;
-
-    char* inicioSBloc = strstr(lineaBloc, "#_");
-    if (!inicioSBloc) {
-        fclose(fbloc);
-        return false;
-    }
-    char sectoresModBloc[MAX_BUF] = { 0 };
-    char* psec2b = inicioSBloc + 2;
-    while (*psec2b) {
-        int espSec = atoi(psec2b);
-        while (*psec2b && *psec2b != '#') ++psec2b;
-        if (!*psec2b) break;
-        ++psec2b;
-
-        char sectorCode2b[MAX_STR_LEN] = { 0 };
-        int posb = 0;
-        while (*psec2b && *psec2b != '#') {
-            sectorCode2b[posb++] = *psec2b++;
-        }
-        sectorCode2b[posb] = '\0';
-
-        int nuevoEspSec2b = espSec;
-        if (strcmp(sectorCode2b, codSectorLibre) == 0) {
-            nuevoEspSec2b = espSec - tamRegistro;
-        }
-
-        char bufferPar2[64];
-        snprintf(bufferPar2, sizeof(bufferPar2), "%d#%s#_",
-            nuevoEspSec2b, sectorCode2b);
-        strncat(sectoresModBloc, bufferPar2,
-            sizeof(sectoresModBloc) - strlen(sectoresModBloc) - 1);
-
-        char* next2b = strstr(psec2b, "#_");
-        if (!next2b) break;
-        psec2b = next2b + 2;
-    }
-
-    char nuevaLineaBloc[MAX_BUF];
-    snprintf(nuevaLineaBloc, MAX_BUF,
-        "%d#2#BLOQUE#%d#%d#_%s\n",
-        espacioBloqueNuevoBloc,
-        nroBloque,
-        tamBloque,
-        sectoresModBloc);
-
-    fseek(fbloc, posBlocLinea, SEEK_SET);
-    fprintf(fbloc, "%s", nuevaLineaBloc);
-    fclose(fbloc);
-
-    // 5) Escribir registro en sector físico
-    rutaSectorDesdeCodigo(codSectorLibre);
-    FILE* fsec = fopen(bufferRuta, "a");
-    if (!fsec) {
-        perror("No se pudo abrir sector para escribir");
-        return false;
-    }
-    int espacioLibreSectorDesp = espacioLibreSectorAntes - tamRegistro;
-
-    int pl, su, pi, se;
-    sscanf(codSectorLibre, "%d/%d/%d/%d", &pl, &su, &pi, &se);
-
-    printf("-> Insertando registro en Plato %d, Superficie %d, Pista %d, Sector %d\n",
-        pl, su, pi, se);
-    printf("   Espacio libre bloque antes: %d bytes; después: %d bytes\n",
-        espacioLibreBloqueAntes, espacioBloqueNuevo);
-    printf("   Espacio libre sector antes: %d bytes; después: %d bytes\n",
-        espacioLibreSectorAntes, espacioLibreSectorDesp);
-
-    fprintf(fsec, "%s", registroTxt);
-    fclose(fsec);
-
-    return true;
-}
-
-
-bool adicionarRegistroUnicoEstaBien(const char* registroTxt, const char* relacion) {
-    FILE* fdir = fopen(rutaDirBloques, "r+");
-    if (!fdir) {
-        perror("No se puede abrir dirBloques.txt");
-        return false;
-    }
-
-    char linea[MAX_BUF];
-    int  nroBloque = 0;
-    bool foundBlock = false;
-    char codSectorLibre[MAX_STR_LEN] = { 0 };
-    long posLineaBloque = 0;
-    int  tamRegistro = (int)strlen(registroTxt);
-    if (registroTxt[tamRegistro - 1] != '\n') {
-        tamRegistro++;
-    }
-
-    int  espacioLibreBloque = 0;
-    int  tamUtilAntes = 0;
-    int  espacioLibreSectorAntes = 0;
-
-    // 2) Recorrer líneas de dirBloques.txt buscando bloque y sector con espacio
-    while (1) {
-        posLineaBloque = ftell(fdir);
-        if (!fgets(linea, MAX_BUF, fdir)) break;
-        nroBloque++;
-
-        // --- Eliminar '\n' y luego '\r' al final, si existen ---
-        size_t len_linea = strlen(linea);
-        if (len_linea > 0 && linea[len_linea - 1] == '\n') {
-            linea[--len_linea] = '\0';
-        }
-        if (len_linea > 0 && linea[len_linea - 1] == '\r') {
-            linea[--len_linea] = '\0';
-        }
-
-        // 2.1) Extraer espacioLibreBloque
-        char copiaBloc[MAX_BUF];
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        char* tokBloc = strtok(copiaBloc, "#");
-        if (!tokBloc) continue;
-        espacioLibreBloque = safe_atoi(tokBloc);
-        tamUtilAntes = tamBloque - espacioLibreBloque;
-        if (espacioLibreBloque < tamRegistro) {
-            continue;
-        }
-
-        // 2.2) Encontrar "#_" en la línea original
-        char* p = strstr(linea, "#_");
-        if (!p) continue;
-        // Para modificar, copiamos linea en buffer mutable
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        p = strstr(copiaBloc, "#_");
-        if (!p) continue;
-        p += 2;
-
-        // 2.3) Recorrer pares "<espacioLibreSector>#<código>#_"
-        while (*p) {
-            char* inicioEspacioSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            int espacioLibreSector = atoi(inicioEspacioSector);
-            *p = '#';
-            p++;
-            char* inicioCodSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            char sectorCode[MAX_STR_LEN];
-            strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
-            sectorCode[MAX_STR_LEN - 1] = '\0';
-            *p = '#';
-
-            char* nextPair = strstr(p, "#_");
-            if (espacioLibreSector < tamRegistro) {
-                if (!nextPair) break;
-                p = nextPair + 2;
-                continue;
-            }
-
-            strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
-            espacioLibreSectorAntes = espacioLibreSector;
-            foundBlock = true;
-            break;
-        }
-        if (foundBlock) break;
-    }
-
-    if (!foundBlock) {
-        fclose(fdir);
-        return false;
-    }
-
-    int espacioLibreBloqueAntes = espacioLibreBloque;
-    int tamUtilNuevo = tamUtilAntes + tamRegistro;
-    int espacioBloqueNuevo = tamBloque - tamUtilNuevo;
-    if (espacioBloqueNuevo < 0 || espacioBloqueNuevo > tamBloque) {
-        // Valor inesperado; pero continuamos a efectos de debug
-    }
-
-    // 3) Volver a la posición donde empieza la línea encontrada
-    fseek(fdir, posLineaBloque, SEEK_SET);
-
-
-    // 3.1) Leer de nuevo la línea original para conocer su longitud real en bytes
-    if (!fgets(linea, MAX_BUF, fdir)) {
-        fclose(fdir);
-        return false;
-    }
-
-    /*
-    // Quitar '\n' y '\r'
-    size_t len_original = strlen(linea);
-    if (len_original > 0 && linea[len_original - 1] == '\n') {
-        linea[--len_original] = '\0';
-    }
-    if (len_original > 0 && linea[len_original - 1] == '\r') {
-        linea[--len_original] = '\0';
-    }
-    // En disco, esa línea ocupaba len_original (texto) + 1 byte de '\n'
-    len_original += 1;
-    */
-
-    size_t raw_len = strlen(linea);  // incluye '\n' y quizá '\r'
-    // Quitar '\n' y '\r' para obtener la parte de texto
-    if (raw_len > 0 && linea[raw_len - 1] == '\n') {
-        raw_len--;
-    }
-    if (raw_len > 0 && linea[raw_len - 1] == '\r') {
-        raw_len--;
-    }
-    // En disco, la línea antigua ocupaba raw_len + (posiblemente) 2 bytes de CRLF.
-    // Pero strlen(linea) contaba ambos antes de quitar. Así raw_len_original = strlen(linea_with_CRLF).
-    raw_len = strlen(linea) + ((linea[raw_len] == '\r') ? 2 : 1);
-    // Para simplificar asumimos 2 bytes CRLF: raw_len = strlen(linea) + 2.
-    // Si no hay '\r', strlen incluía solo '\n', añadimos 1.
-    // Podemos recontar:
-    size_t len1 = strlen(linea);
-    if (linea[len1] == '\r') {
-        raw_len = len1 + 2;
-    }
-    else {
-        raw_len = len1 + 1;
-    }
-
-
-    // 3.2) Construir la nueva línea (sin '\r', sólo un '\n' al final)
-    char* bufferNueva = (char*)malloc(MAX_BUF);
-    if (!bufferNueva) {
-        fclose(fdir);
-        return false;
-    }
-    int ofs = 0;
-    ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-        "%d#2#BLOQUE#%d#%d#_",
-        espacioBloqueNuevo,
-        nroBloque,
-        tamBloque);
-
-    // Reconstruir la parte de sectores sobre copia de linea
-    {
-        char copia2[MAX_BUF];
-        strncpy(copia2, linea, MAX_BUF);
-        copia2[MAX_BUF - 1] = '\0';
-        char* inicioSect = strstr(copia2, "#_");
-        if (inicioSect) {
-            char* p2 = inicioSect + 2;
-            while (*p2) {
-                int espSec = atoi(p2);
-                while (*p2 && *p2 != '#') ++p2;
-                if (!*p2) break;
-                ++p2;
-                char sectorCode2[MAX_STR_LEN] = { 0 };
-                int pos2 = 0;
-                while (*p2 && *p2 != '#') {
-                    sectorCode2[pos2++] = *p2++;
-                }
-                sectorCode2[pos2] = '\0';
-                int nuevoEsp = espSec;
-                if (strcmp(sectorCode2, codSectorLibre) == 0) {
-                    nuevoEsp = espSec - tamRegistro;
-                }
-                ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-                    "%d#%s#_",
-                    nuevoEsp,
-                    sectorCode2);
-                char* next2 = strstr(p2, "#_");
-                if (!next2) break;
-                p2 = next2 + 2;
-            }
-        }
-    }
-
-    /*
-    //// Agregar '\n' al final
-    //if (ofs < MAX_BUF - 1) {
-    //    bufferNueva[ofs++] = '\n';
-    //    bufferNueva[ofs] = '\0';
-    //}
-    //else {
-    //    bufferNueva[MAX_BUF - 1] = '\n';
-    //    bufferNueva[MAX_BUF] = '\0';
-    //}
-
-    //// 3.3) Ajustar longitud para que sea EXACTAMENTE len_original bytes
-    //size_t len_nueva = strlen(bufferNueva);
-    //if (len_nueva > 0 && linea[len_nueva - 1] == '\n') {
-    //    linea[--len_nueva] = '\0';    // ahora linea = "180#2#BLOQUE#1#180#_\r"
-    //}
-    //if (len_nueva > 0 && linea[len_nueva - 1] == '\r') {
-    //    linea[--len_nueva] = '\0';    // ahora linea = "180#2#BLOQUE#1#180#_"
-    //}
-    //// else: (len_nueva == len_original) ya termina en '\n'
-    */
-
-
-    //esto modifique
-    // 3.3) Ajustar para que bufferNueva ocupe exactamente raw_len bytes (incluyendo CRLF)
-    int parteUtil = ofs;
-    if (parteUtil > (int)raw_len - 2) {
-        // truncar a raw_len-2 y luego CRLF
-        bufferNueva[raw_len - 2] = '\r';
-        bufferNueva[raw_len - 1] = '\n';
-        bufferNueva[raw_len] = '\0';
-    }
-    else {
-        int i;
-        for (i = parteUtil; i < (int)raw_len - 2; i++) {
-            bufferNueva[i] = ' ';
-        }
-        bufferNueva[raw_len - 2] = '\r';
-        bufferNueva[raw_len - 1] = '\n';
-        bufferNueva[raw_len] = '\0';
-    }
-
-    size_t len_original = strlen(linea);
-    // 3.4) Sobreescribir exactamente len_original bytes
-    fseek(fdir, posLineaBloque, SEEK_SET);
-    fwrite(bufferNueva, 1, len_original, fdir);
-
-    fflush(fdir);
-    free(bufferNueva);
-    fclose(fdir);
-
-    // 4) Actualizar cabecera de BloqueN.txt (misma lógica que antes)
-    char rutaBloqueFis[MAX_PATH_LEN];
-    rutaBloqueFisico(nroBloque, rutaBloqueFis);
-    FILE* fbloc = fopen(rutaBloqueFis, "r+");
-    if (!fbloc) {
-        perror("No se pudo abrir BloqueN.txt para actualización");
-        return false;
-    }
-    long posBlocLinea = ftell(fbloc);
-    char lineaBloc[MAX_BUF];
-    fgets(lineaBloc, MAX_BUF, fbloc);
-    lineaBloc[strcspn(lineaBloc, "\r\n")] = '\0';
-
-    char copiaBloc2[MAX_BUF];
-    strncpy(copiaBloc2, lineaBloc, MAX_BUF);
-    copiaBloc2[MAX_BUF - 1] = '\0';
-    char* tok2 = strtok(copiaBloc2, "#");
-    int espacioLibreBloqueBloque = atoi(tok2);
-    int tamUtilAntesBloc = tamBloque - espacioLibreBloqueBloque;
-    int tamUtilNuevoBloc = tamUtilAntesBloc + tamRegistro;
-    int espacioBloqueNuevoBloc = tamBloque - tamUtilNuevoBloc;
-
-    char* inicioSBloc = strstr(lineaBloc, "#_");
-    if (!inicioSBloc) {
-        fclose(fbloc);
-        return false;
-    }
-    char sectoresModBloc[MAX_BUF] = { 0 };
-    char* psec2b = inicioSBloc + 2;
-    while (*psec2b) {
-        int espSec = atoi(psec2b);
-        while (*psec2b && *psec2b != '#') ++psec2b;
-        if (!*psec2b) break;
-        ++psec2b;
-
-        char sectorCode2b[MAX_STR_LEN] = { 0 };
-        int posb = 0;
-        while (*psec2b && *psec2b != '#') {
-            sectorCode2b[posb++] = *psec2b++;
-        }
-        sectorCode2b[posb] = '\0';
-
-        int nuevoEspSec2b = espSec;
-        if (strcmp(sectorCode2b, codSectorLibre) == 0) {
-            nuevoEspSec2b = espSec - tamRegistro;
-        }
-
-        char bufferPar2[64];
-        snprintf(bufferPar2, sizeof(bufferPar2), "%d#%s#_",
-            nuevoEspSec2b, sectorCode2b);
-        strncat(sectoresModBloc, bufferPar2,
-            sizeof(sectoresModBloc) - strlen(sectoresModBloc) - 1);
-
-        char* next2b = strstr(psec2b, "#_");
-        if (!next2b) break;
-        psec2b = next2b + 2;
-    }
-
-    char nuevaLineaBloc[MAX_BUF];
-    snprintf(nuevaLineaBloc, MAX_BUF,
-        "%d#2#BLOQUE#%d#%d#_%s\n",
-        espacioBloqueNuevoBloc,
-        nroBloque,
-        tamBloque,
-        sectoresModBloc);
-
-    fseek(fbloc, posBlocLinea, SEEK_SET);
-    fprintf(fbloc, "%s", nuevaLineaBloc);
-    fclose(fbloc);
-
-    // 5) Escribir registro en sector físico
-    rutaSectorDesdeCodigo(codSectorLibre);
-    FILE* fsec = fopen(bufferRuta, "a");
-    if (!fsec) {
-        perror("No se pudo abrir sector para escribir");
-        return false;
-    }
-    int espacioLibreSectorDesp = espacioLibreSectorAntes - tamRegistro;
-
-    int pl, su, pi, se;
-    sscanf(codSectorLibre, "%d/%d/%d/%d", &pl, &su, &pi, &se);
-
-    printf("-> Insertando registro en Plato %d, Superficie %d, Pista %d, Sector %d\n",
-        pl, su, pi, se);
-    printf("   Espacio libre bloque antes: %d bytes; después: %d bytes\n",
-        espacioLibreBloqueAntes, espacioBloqueNuevo);
-    printf("   Espacio libre sector antes: %d bytes; después: %d bytes\n",
-        espacioLibreSectorAntes, espacioLibreSectorDesp);
-
-    fprintf(fsec, "%s", registroTxt);
-    fclose(fsec);
-
-
-    // 6) VOLCAR/INSERTAR el mismo registro en “DISCO\\BLOQUES\\BloqueN.txt”
-    char rutaBloque[MAX_PATH_LEN];
-    snprintf(rutaBloque, sizeof(rutaBloque),
-        "%sBLOQUES\\Bloque%d.txt",
-        discoNuevoPath, nroBloque);
-    FILE* fblocAppend = fopen(rutaBloque, "ab");
-    if (fblocAppend) {
-        fwrite(registroTxt, 1, tamRegistro, fblocAppend);
-        fclose(fblocAppend);
-    }
-
-    // 7) MODIFICAR catalogo.txt: agregar “relacion|rutaBloque\n”
     char rutaCatalogo[MAX_PATH_LEN];
-    snprintf(rutaCatalogo, sizeof(rutaCatalogo),
-        "%s%s", discoNuevoPath, "catalogo.txt");
-    FILE* fcat = fopen(rutaCatalogo, "a");
-    if (fcat) {
-        fprintf(fcat, "%s|%s\n", relacion, rutaBloque);
-        fclose(fcat);
-    }
-
-
-    return true;
-}
-
-/*
-void calcularLongitudFija(const char* rutaCSV) {
-    FILE* fcsv = fopen(rutaCSV, "r");
-    if (!fcsv) {
-        perror("No se puede abrir el CSV para calcular longitudes fijas");
-        return;
-    }
-
-    std::cout << rutaCSV << std::endl;
+    snprintf(rutaCatalogo, sizeof(rutaCatalogo), "%s%s", discoNuevoPath, "catalogo.txt");
+    FILE* fcat = fopen(rutaCatalogo, "r");
+    if (!fcat) return false;
 
     char linea[MAX_BUF];
-    if (!fgets(linea, MAX_BUF, fcsv)) {
-        fclose(fcsv);
-        return;
-    }
-    // Eliminar CRLF al final
-    linea[strcspn(linea, "\r\n")] = '\0';
-
-    // Contar comas (o el delimitador que uses) para determinar numFields
-    int numFields = 1;
-    for (char* p = linea; *p; ++p) {
-        if (*p == ',') numFields++;
-    }
-    if (numFields < 1) numFields = 1;
-    if (numFields > MAX_FIELDS) numFields = MAX_FIELDS;
-
-    // Array estático para guardar la máxima longitud de cada campo
-    int maxLen[MAX_FIELDS] = { 0 };
-
-    // Procesar primera línea
-    {
-        char copy[MAX_BUF];
-        strncpy(copy, linea, MAX_BUF);
-        copy[MAX_BUF - 1] = '\0';
-        char* tok = strtok(copy, ",");
-        int idx = 0;
-        while (tok && idx < numFields) {
-            int len = (int)strlen(tok);
-            if (len > maxLen[idx]) maxLen[idx] = len;
-            idx++;
-            tok = strtok(NULL, ",");
-        }
-    }
-
-    // Procesar el resto
-    while (fgets(linea, MAX_BUF, fcsv)) {
+    while (fgets(linea, MAX_BUF, fcat)) {
         linea[strcspn(linea, "\r\n")] = '\0';
-        char copy[MAX_BUF];
-        strncpy(copy, linea, MAX_BUF);
-        copy[MAX_BUF - 1] = '\0';
-        char* tok = strtok(copy, ",");
-        int idx = 0;
-        while (tok && idx < numFields) {
-            int len = (int)strlen(tok);
-            if (len > maxLen[idx]) maxLen[idx] = len;
-            idx++;
-            tok = strtok(NULL, ",");
+        char* sep = strchr(linea, '|');
+        if (!sep) continue;
+        *sep = '\0';
+        const char* rel = linea;
+        const char* path = sep + 1;
+        if (strcmp(rel, nombreRelacion) != 0) continue;
+        const char* pN = strstr(path, "Bloque");
+        if (!pN) continue;
+        pN += strlen("Bloque");
+        int n = atoi(pN);
+        if (n > 0 && totalBloques < MAX_BLOCKS) {
+            bloquesAsignados[totalBloques++] = n;
         }
     }
-    fclose(fcsv);
+    fclose(fcat);
+    if (totalBloques == 0) return false;
 
-    // Obtener nombre de la relación (sin ruta ni ".csv")
-    const char* slash = strrchr(rutaCSV, '/');
-    const char* backslash = strrchr(rutaCSV, '\\');
-    const char* fname = slash ? slash + 1 : (backslash ? backslash + 1 : rutaCSV);
-    char nombreRel[MAX_STR_LEN];
-    strncpy(nombreRel, fname, MAX_STR_LEN - 1);
-    nombreRel[MAX_STR_LEN - 1] = '\0';
-    char* ext = strstr(nombreRel, ".csv");
-    if (ext) *ext = '\0';
-
-    // Escribir en longitudFija.txt
-    FILE* flog = fopen(rutaLongitudFija, "a");
-    if (!flog) {
-        perror("No se puede abrir longitudFija.txt");
-        return;
-    }
-    // Formato: <nombre_relacion>|<numFields>#<maxLen1>#<maxLen2>#...#<maxLenN>\n
-    fprintf(flog, "%s|%d", nombreRel, numFields);
-    for (int i = 0; i < numFields; i++) {
-        fprintf(flog, "#%d", maxLen[i]);
-    }
-    fprintf(flog, "\n");
-    fclose(flog);
-}
-*/
-
-bool adicionarRegistroUnicoVersionFinal(const char* registroTxt, const char* relacion) {
-    FILE* fdir = fopen(rutaDirBloques, "r+");
-    if (!fdir) {
-        perror("No se puede abrir dirBloques.txt");
-        return false;
-    }
-
-    char linea[MAX_BUF];
-    int  nroBloque = 0;
-    bool foundBlock = false;
-    char codSectorLibre[MAX_STR_LEN] = { 0 };
-    long posLineaBloque = 0;
-    int  tamRegistro = (int)strlen(registroTxt);
-    if (registroTxt[tamRegistro - 1] != '\n') {
-        tamRegistro++;
-    }
-
-    int  espacioLibreBloque = 0;
-    int  tamUtilAntes = 0;
-    int  espacioLibreSectorAntes = 0;
-
-    // 2) Recorrer líneas de dirBloques.txt buscando bloque y sector con espacio
-    while (1) {
-        posLineaBloque = ftell(fdir);
-        if (!fgets(linea, MAX_BUF, fdir)) break;
-        nroBloque++;
-
-        // --- Eliminar '\n' y luego '\r' al final, si existen ---
-        size_t len_linea = strlen(linea);
-        if (len_linea > 0 && linea[len_linea - 1] == '\n') {
-            linea[--len_linea] = '\0';
+    // Ordenar bloques
+    for (int i = 0; i < totalBloques - 1; i++) {
+        for (int j = i + 1; j < totalBloques; j++) {
+            if (bloquesAsignados[j] < bloquesAsignados[i]) {
+                int tmp = bloquesAsignados[i];
+                bloquesAsignados[i] = bloquesAsignados[j];
+                bloquesAsignados[j] = tmp;
+            }
         }
-        if (len_linea > 0 && linea[len_linea - 1] == '\r') {
-            linea[--len_linea] = '\0';
-        }
+    }
 
-        // 2.1) Extraer espacioLibreBloque
-        char copiaBloc[MAX_BUF];
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        char* tokBloc = strtok(copiaBloc, "#");
-        if (!tokBloc) continue;
-        espacioLibreBloque = safe_atoi(tokBloc);
-        tamUtilAntes = tamBloque - espacioLibreBloque;
-        if (espacioLibreBloque < tamRegistro) {
+    // 4) Buscar qué bloque contiene la “líneaObjetivo”-ésima
+    int cuentaHastaAhora = 0;
+    for (int bi = 0; bi < totalBloques; bi++) {
+        int nroBloque = bloquesAsignados[bi];
+        char rutaBloque[MAX_PATH_LEN];
+        snprintf(rutaBloque, sizeof(rutaBloque),
+            "%sBLOQUES\\Bloque%d.txt", discoNuevoPath, nroBloque);
+
+        FILE* fbloc = fopen(rutaBloque, "r+");
+        if (!fbloc) continue;
+
+        // 4.a) Leer el bitmap hasta '/'
+        char bitmap[MAX_BUF];
+        if (!fgets(bitmap, sizeof(bitmap), fbloc)) {
+            fclose(fbloc);
+            continue;
+        }
+        bitmap[strcspn(bitmap, "\r\n")] = '\0';
+        int numMaxAnt = 0;
+        while (bitmap[numMaxAnt] && bitmap[numMaxAnt] != '/') {
+            numMaxAnt++;
+        }
+        if (numMaxAnt <= 0) {
+            fclose(fbloc);
+            continue;
+        }
+        int unosEnBloque = 0;
+        for (int i = 0; i < numMaxAnt; i++) {
+            if (bitmap[i] == '1') unosEnBloque++;
+        }
+        if (cuentaHastaAhora + unosEnBloque < lineaObjetivo) {
+            cuentaHastaAhora += unosEnBloque;
+            fclose(fbloc);
             continue;
         }
 
-        // 2.2) Encontrar "#_" en la línea original
-        char* p = strstr(linea, "#_");
-        if (!p) continue;
-        // Para modificar, copiamos linea en buffer mutable
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        p = strstr(copiaBloc, "#_");
-        if (!p) continue;
-        p += 2;
-
-        // 2.3) Recorrer pares "<espacioLibreSector>#<código>#_"
-        while (*p) {
-            char* inicioEspacioSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            int espacioLibreSector = atoi(inicioEspacioSector);
-            *p = '#';
-            p++;
-            char* inicioCodSector = p;
-            while (*p && *p != '#') p++;
-            if (*p != '#') break;
-            *p = '\0';
-            char sectorCode[MAX_STR_LEN];
-            strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
-            sectorCode[MAX_STR_LEN - 1] = '\0';
-            *p = '#';
-
-            char* nextPair = strstr(p, "#_");
-            if (espacioLibreSector < tamRegistro) {
-                if (!nextPair) break;
-                p = nextPair + 2;
-                continue;
-            }
-
-            strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
-            espacioLibreSectorAntes = espacioLibreSector;
-            foundBlock = true;
-            break;
-        }
-        if (foundBlock) break;
-    }
-
-    if (!foundBlock) {
-        fclose(fdir);
-        return false;
-    }
-
-    int espacioLibreBloqueAntes = espacioLibreBloque;
-    int tamUtilNuevo = tamUtilAntes + tamRegistro;
-    int espacioBloqueNuevo = tamBloque - tamUtilNuevo;
-    if (espacioBloqueNuevo < 0 || espacioBloqueNuevo > tamBloque) {
-        // Valor inesperado; pero continuamos a efectos de debug
-    }
-
-    // 3) Volver a la posición donde empieza la línea encontrada
-    fseek(fdir, posLineaBloque, SEEK_SET);
-
-
-    // 3.1) Leer de nuevo la línea original para conocer su longitud real en bytes
-    if (!fgets(linea, MAX_BUF, fdir)) {
-        fclose(fdir);
-        return false;
-    }
-
-    /*
-    // Quitar '\n' y '\r'
-    size_t len_original = strlen(linea);
-    if (len_original > 0 && linea[len_original - 1] == '\n') {
-        linea[--len_original] = '\0';
-    }
-    if (len_original > 0 && linea[len_original - 1] == '\r') {
-        linea[--len_original] = '\0';
-    }
-    // En disco, esa línea ocupaba len_original (texto) + 1 byte de '\n'
-    len_original += 1;
-    */
-
-    size_t raw_len = strlen(linea);  // incluye '\n' y quizá '\r'
-    // Quitar '\n' y '\r' para obtener la parte de texto
-    if (raw_len > 0 && linea[raw_len - 1] == '\n') {
-        raw_len--;
-    }
-    if (raw_len > 0 && linea[raw_len - 1] == '\r') {
-        raw_len--;
-    }
-    // En disco, la línea antigua ocupaba raw_len + (posiblemente) 2 bytes de CRLF.
-    // Pero strlen(linea) contaba ambos antes de quitar. Así raw_len_original = strlen(linea_with_CRLF).
-    raw_len = strlen(linea) + ((linea[raw_len] == '\r') ? 2 : 1);
-    // Para simplificar asumimos 2 bytes CRLF: raw_len = strlen(linea) + 2.
-    // Si no hay '\r', strlen incluía solo '\n', añadimos 1.
-    // Podemos recontar:
-    size_t len1 = strlen(linea);
-    if (linea[len1] == '\r') {
-        raw_len = len1 + 2;
-    }
-    else {
-        raw_len = len1 + 1;
-    }
-
-
-    // 3.2) Construir la nueva línea (sin '\r', sólo un '\n' al final)
-    char* bufferNueva = (char*)malloc(MAX_BUF);
-    if (!bufferNueva) {
-        fclose(fdir);
-        return false;
-    }
-    int ofs = 0;
-    ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-        "%d#2#BLOQUE#%d#%d#_",
-        espacioBloqueNuevo,
-        nroBloque,
-        tamBloque);
-
-    // Reconstruir la parte de sectores sobre copia de linea
-    {
-        char copia2[MAX_BUF];
-        strncpy(copia2, linea, MAX_BUF);
-        copia2[MAX_BUF - 1] = '\0';
-        char* inicioSect = strstr(copia2, "#_");
-        if (inicioSect) {
-            char* p2 = inicioSect + 2;
-            while (*p2) {
-                int espSec = atoi(p2);
-                while (*p2 && *p2 != '#') ++p2;
-                if (!*p2) break;
-                ++p2;
-                char sectorCode2[MAX_STR_LEN] = { 0 };
-                int pos2 = 0;
-                while (*p2 && *p2 != '#') {
-                    sectorCode2[pos2++] = *p2++;
+        // 4.b) Estamos en el bloque correcto. Calcular idxLocal (1-based dentro de este bloque)
+        int idxLocal = lineaObjetivo - cuentaHastaAhora;
+        int cnt1 = 0, bitPos = -1;
+        for (int i = 0; i < numMaxAnt; i++) {
+            if (bitmap[i] == '1') {
+                cnt1++;
+                if (cnt1 == idxLocal) {
+                    bitPos = i;
+                    break;
                 }
-                sectorCode2[pos2] = '\0';
-                int nuevoEsp = espSec;
-                if (strcmp(sectorCode2, codSectorLibre) == 0) {
-                    nuevoEsp = espSec - tamRegistro;
-                }
-                ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-                    "%d#%s#_",
-                    nuevoEsp,
-                    sectorCode2);
-                char* next2 = strstr(p2, "#_");
-                if (!next2) break;
-                p2 = next2 + 2;
             }
         }
-    }
-
-    /*
-    //// Agregar '\n' al final
-    //if (ofs < MAX_BUF - 1) {
-    //    bufferNueva[ofs++] = '\n';
-    //    bufferNueva[ofs] = '\0';
-    //}
-    //else {
-    //    bufferNueva[MAX_BUF - 1] = '\n';
-    //    bufferNueva[MAX_BUF] = '\0';
-    //}
-
-    //// 3.3) Ajustar longitud para que sea EXACTAMENTE len_original bytes
-    //size_t len_nueva = strlen(bufferNueva);
-    //if (len_nueva > 0 && linea[len_nueva - 1] == '\n') {
-    //    linea[--len_nueva] = '\0';    // ahora linea = "180#2#BLOQUE#1#180#_\r"
-    //}
-    //if (len_nueva > 0 && linea[len_nueva - 1] == '\r') {
-    //    linea[--len_nueva] = '\0';    // ahora linea = "180#2#BLOQUE#1#180#_"
-    //}
-    //// else: (len_nueva == len_original) ya termina en '\n'
-    */
-
-
-    //esto modifique
-    // 3.3) Ajustar para que bufferNueva ocupe exactamente raw_len bytes (incluyendo CRLF)
-    int parteUtil = ofs;
-    if (parteUtil > (int)raw_len - 2) {
-        // truncar a raw_len-2 y luego CRLF
-        bufferNueva[raw_len - 2] = '\r';
-        bufferNueva[raw_len - 1] = '\n';
-        bufferNueva[raw_len] = '\0';
-    }
-    else {
-        int i;
-        for (i = parteUtil; i < (int)raw_len - 2; i++) {
-            bufferNueva[i] = ' ';
+        if (bitPos < 0) {
+            fclose(fbloc);
+            return false;
         }
-        bufferNueva[raw_len - 2] = '\r';
-        bufferNueva[raw_len - 1] = '\n';
-        bufferNueva[raw_len] = '\0';
-    }
 
-    size_t len_original = strlen(linea);
-    // 3.4) Sobreescribir exactamente len_original bytes
-    fseek(fdir, posLineaBloque, SEEK_SET);
-    fwrite(bufferNueva, 1, len_original, fdir);
+        // 4.c) Calcular raw_header_len (bytes hasta '/')
+        size_t raw_header_len = 0;
+        rewind(fbloc);
+        int ch;
+        while ((ch = fgetc(fbloc)) != EOF) {
+            raw_header_len++;
+            if (ch == '/') break;
+            if (raw_header_len >= MAX_BUF - 1) break;
+        }
+        rewind(fbloc);
 
-    fflush(fdir);
-    free(bufferNueva);
-    fclose(fdir);
+        // 4.d) Encontrar “inicioReg” y “finReg” del viejo registro:
+        long posData = (long)raw_header_len;
+        fseek(fbloc, posData, SEEK_SET);
 
-    // 4) Actualizar cabecera de BloqueN.txt (misma lógica que antes)
-    char rutaBloqueFis[MAX_PATH_LEN];
-    rutaBloqueFisico(nroBloque, rutaBloqueFis);
-    FILE* fbloc = fopen(rutaBloqueFis, "r+");
-    if (!fbloc) {
-        perror("No se pudo abrir BloqueN.txt para actualización");
-        return false;
-    }
-    long posBlocLinea = ftell(fbloc);
-    char lineaBloc[MAX_BUF];
-    fgets(lineaBloc, MAX_BUF, fbloc);
-    lineaBloc[strcspn(lineaBloc, "\r\n")] = '\0';
+        int barras = 0;
+        long inicioReg = posData;
+        long finReg = posData;
+        while ((ch = fgetc(fbloc)) != EOF) {
+            if (ch == '|') {
+                barras++;
+                finReg = ftell(fbloc); // justo después del '|'
+                if (barras == idxLocal) {
+                    break;
+                }
+            }
+            inicioReg++;
+        }
+        long oldLen = finReg - inicioReg;
+        if (oldLen <= 0) {
+            fclose(fbloc);
+            return false;
+        }
 
-    char copiaBloc2[MAX_BUF];
-    strncpy(copiaBloc2, lineaBloc, MAX_BUF);
-    copiaBloc2[MAX_BUF - 1] = '\0';
-    char* tok2 = strtok(copiaBloc2, "#");
-    int espacioLibreBloqueBloque = atoi(tok2);
-    int tamUtilAntesBloc = tamBloque - espacioLibreBloqueBloque;
-    int tamUtilNuevoBloc = tamUtilAntesBloc + tamRegistro;
-    int espacioBloqueNuevoBloc = tamBloque - tamUtilNuevoBloc;
+        // 4.e) Calcular delta y, si es >0, verificar espacio en dirBloques.txt
+        int delta = newLen - (int)oldLen;
+        if (delta > 0) {
+            FILE* fdir = fopen(rutaDirBloques, "r+");
+            if (!fdir) {
+                fclose(fbloc);
+                return false;
+            }
+            char lineaDir[MAX_BUF];
+            int cntDir = 0;
+            int espBloque = 0, espSector = 0;
+            rewind(fdir);
+            while (fgets(lineaDir, MAX_BUF, fdir)) {
+                ++cntDir;
+                if (cntDir == nroBloque) {
+                    // Extraer espacioLibreBloque
+                    char copiaD[MAX_BUF];
+                    strcpy(copiaD, lineaDir);
+                    char* t = strtok(copiaD, "#");
+                    espBloque = safe_atoi(t);
+                    // Extraer primer espacioLibreSector
+                    char* psect = strstr(lineaDir, "#_");
+                    if (psect) {
+                        psect += 2;
+                        espSector = atoi(psect);
+                    }
+                    break;
+                }
+            }
+            fclose(fdir);
+            if (espBloque < delta || espSector < delta) {
+                fclose(fbloc);
+                return false;
+            }
+        }
 
-    char* inicioSBloc = strstr(lineaBloc, "#_");
-    if (!inicioSBloc) {
+        // 4.f) Desplazar bytes: si delta>0: atrás→adelante; si delta<0: adelante→atrás.
+        fseek(fbloc, 0, SEEK_END);
+        long eofPos = ftell(fbloc);
+        long moveStart = inicioReg + oldLen;
+        long moveEnd = eofPos;
+        long shiftBy = delta;
+        if (delta > 0) {
+            for (long r = moveEnd - 1; r >= moveStart; --r) {
+                fseek(fbloc, r, SEEK_SET);
+                int c2 = fgetc(fbloc);
+                fseek(fbloc, r + shiftBy, SEEK_SET);
+                fputc(c2, fbloc);
+            }
+        }
+        else if (delta < 0) {
+            for (long r = moveStart; r < moveEnd; ++r) {
+                fseek(fbloc, r, SEEK_SET);
+                int c2 = fgetc(fbloc);
+                fseek(fbloc, r + shiftBy, SEEK_SET);
+                fputc(c2, fbloc);
+            }
+            long fillFrom = moveEnd + shiftBy;
+            fseek(fbloc, fillFrom, SEEK_SET);
+            for (long x = fillFrom; x < moveEnd; x++) {
+                fputc(' ', fbloc);
+            }
+        }
+
+        // 4.g) Sobrescribir el viejo registro por “regLimpio|”
+        fseek(fbloc, inicioReg, SEEK_SET);
+        fwrite(regLimpio, 1, w, fbloc);
+        fputc('|', fbloc);
+        fflush(fbloc);
+
+        // 4.h) Actualizar dirBloques.txt: restar (newLen - oldLen) al espacio libre
+        int ajuste = oldLen - newLen;
+        {
+            FILE* fdir = fopen(rutaDirBloques, "r+");
+            if (!fdir) {
+                fclose(fbloc);
+                return false;
+            }
+            char lineaD2[MAX_BUF];
+            int cnt2 = 0;
+            long posD = 0;
+            rewind(fdir);
+            while (fgets(lineaD2, MAX_BUF, fdir)) {
+                ++cnt2;
+                if (cnt2 == nroBloque) {
+                    posD = ftell(fdir) - (long)strlen(lineaD2);
+                    break;
+                }
+            }
+            if (posD == 0) {
+                fclose(fdir);
+                fclose(fbloc);
+                return false;
+            }
+            fseek(fdir, posD, SEEK_SET);
+            fgets(lineaD2, MAX_BUF, fdir);
+            lineaD2[strcspn(lineaD2, "\r\n")] = '\0';
+
+            char copia2[MAX_BUF];
+            strncpy(copia2, lineaD2, MAX_BUF);
+            copia2[MAX_BUF - 1] = '\0';
+            char* t2 = strtok(copia2, "#");
+            int espBloAnte = safe_atoi(t2);
+            int espBloNuev = espBloAnte + ajuste;
+
+            char* ptrSec = strstr(lineaD2, "#_");
+            if (!ptrSec) {
+                fclose(fdir);
+                fclose(fbloc);
+                return false;
+            }
+            char sectoresStr[MAX_BUF];
+            strncpy(sectoresStr, ptrSec + 2, MAX_BUF - 1);
+            sectoresStr[MAX_BUF - 1] = '\0';
+
+            char nuevaLinea[MAX_BUF];
+            snprintf(nuevaLinea, MAX_BUF,
+                "%d#2#BLOQUE#%d#%d#_%s\n",
+                espBloNuev,
+                nroBloque,
+                tamBloque,
+                sectoresStr);
+
+            fseek(fdir, posD, SEEK_SET);
+            fwrite(nuevaLinea, 1, strlen(nuevaLinea), fdir);
+            fflush(fdir);
+            fclose(fdir);
+        }
+
         fclose(fbloc);
-        return false;
-    }
-    char sectoresModBloc[MAX_BUF] = { 0 };
-    char* psec2b = inicioSBloc + 2;
-    while (*psec2b) {
-        int espSec = atoi(psec2b);
-        while (*psec2b && *psec2b != '#') ++psec2b;
-        if (!*psec2b) break;
-        ++psec2b;
-
-        char sectorCode2b[MAX_STR_LEN] = { 0 };
-        int posb = 0;
-        while (*psec2b && *psec2b != '#') {
-            sectorCode2b[posb++] = *psec2b++;
-        }
-        sectorCode2b[posb] = '\0';
-
-        int nuevoEspSec2b = espSec;
-        if (strcmp(sectorCode2b, codSectorLibre) == 0) {
-            nuevoEspSec2b = espSec - tamRegistro;
-        }
-
-        char bufferPar2[64];
-        snprintf(bufferPar2, sizeof(bufferPar2), "%d#%s#_",
-            nuevoEspSec2b, sectorCode2b);
-        strncat(sectoresModBloc, bufferPar2,
-            sizeof(sectoresModBloc) - strlen(sectoresModBloc) - 1);
-
-        char* next2b = strstr(psec2b, "#_");
-        if (!next2b) break;
-        psec2b = next2b + 2;
+        return true;
     }
 
-    char nuevaLineaBloc[MAX_BUF];
-    snprintf(nuevaLineaBloc, MAX_BUF,
-        "%d#2#BLOQUE#%d#%d#_%s\n",
-        espacioBloqueNuevoBloc,
-        nroBloque,
-        tamBloque,
-        sectoresModBloc);
-
-    fseek(fbloc, posBlocLinea, SEEK_SET);
-    fprintf(fbloc, "%s", nuevaLineaBloc);
-    fclose(fbloc);
-
-    // 5) Escribir registro en sector físico
-    rutaSectorDesdeCodigo(codSectorLibre);
-    FILE* fsec = fopen(bufferRuta, "a");
-    if (!fsec) {
-        perror("No se pudo abrir sector para escribir");
-        return false;
-    }
-    int espacioLibreSectorDesp = espacioLibreSectorAntes - tamRegistro;
-
-    int pl, su, pi, se;
-    sscanf(codSectorLibre, "%d/%d/%d/%d", &pl, &su, &pi, &se);
-
-    printf("-> Insertando registro en Plato %d, Superficie %d, Pista %d, Sector %d\n",
-        pl, su, pi, se);
-    printf("   Espacio libre bloque antes: %d bytes; después: %d bytes\n",
-        espacioLibreBloqueAntes, espacioBloqueNuevo);
-    printf("   Espacio libre sector antes: %d bytes; después: %d bytes\n",
-        espacioLibreSectorAntes, espacioLibreSectorDesp);
-
-    fprintf(fsec, "%s", registroTxt);
-    fclose(fsec);
-
-
-    // 6) VOLCAR/INSERTAR el mismo registro en “DISCO\\BLOQUES\\BloqueN.txt”
-    char rutaBloque[MAX_PATH_LEN];
-    snprintf(rutaBloque, sizeof(rutaBloque),
-        "%sBLOQUES\\Bloque%d.txt",
-        discoNuevoPath, nroBloque);
-    FILE* fblocAppend = fopen(rutaBloque, "ab");
-    if (fblocAppend) {
-        fwrite(registroTxt, 1, tamRegistro, fblocAppend);
-        fclose(fblocAppend);
-    }
-
-    // 7) MODIFICAR catalogo.txt: agregar “relacion|rutaBloque\n”
-    char rutaCatalogo[MAX_PATH_LEN];
-    snprintf(rutaCatalogo, sizeof(rutaCatalogo),
-        "%s%s", discoNuevoPath, "catalogo.txt");
-    FILE* fcat = fopen(rutaCatalogo, "a");
-    if (fcat) {
-        fprintf(fcat, "%s|%s\n", relacion, rutaBloque);
-        fclose(fcat);
-    }
-
-
-    return true;
+    return false;
 }
+
 
 void calcularLongitudFija(const char* rutaTXT) {
     FILE* ftxt = fopen(rutaTXT, "r");
@@ -2612,14 +1555,15 @@ void calcularLongitudFija(const char* rutaTXT) {
     }
 
     char linea[MAX_BUF];
+    // Paso 1: leer encabezado para contar campos, pero NO usarlo para maxLen
     if (!fgets(linea, MAX_BUF, ftxt)) {
         fclose(ftxt);
         return;
     }
-    // Eliminar CRLF
+    // Eliminar CRLF del encabezado
     linea[strcspn(linea, "\r\n")] = '\0';
 
-    // Contar cuántos campos hay (número de '#' + 1)
+    // Contar numFields = (número de ‘#’) + 1
     int numFields = 1;
     for (char* p = linea; *p; ++p) {
         if (*p == '#') numFields++;
@@ -2627,28 +1571,15 @@ void calcularLongitudFija(const char* rutaTXT) {
     if (numFields < 1) numFields = 1;
     if (numFields > MAX_FIELDS) numFields = MAX_FIELDS;
 
-    // Array estático para guardar la máxima longitud de cada campo
+    // Paso 2: inicializar maxLen[i] = 0
     int maxLen[MAX_FIELDS] = { 0 };
 
-    // Procesar la primera línea
-    {
-        char copy[MAX_BUF];
-        strncpy(copy, linea, MAX_BUF);
-        copy[MAX_BUF - 1] = '\0';
-
-        char* tok = strtok(copy, "#");
-        int idx = 0;
-        while (tok && idx < numFields) {
-            int len = (int)strlen(tok);
-            if (len > maxLen[idx]) maxLen[idx] = len;
-            idx++;
-            tok = strtok(NULL, "#");
-        }
-    }
-
-    // Procesar el resto de las líneas
+    // Paso 3: procesar cada línea de datos (las que quedan después del encabezado)
     while (fgets(linea, MAX_BUF, ftxt)) {
+        // Quitar CRLF
         linea[strcspn(linea, "\r\n")] = '\0';
+
+        // Separar por '#'
         char copy[MAX_BUF];
         strncpy(copy, linea, MAX_BUF);
         copy[MAX_BUF - 1] = '\0';
@@ -2657,25 +1588,29 @@ void calcularLongitudFija(const char* rutaTXT) {
         int idx = 0;
         while (tok && idx < numFields) {
             int len = (int)strlen(tok);
-            if (len > maxLen[idx]) maxLen[idx] = len;
+            if (len > maxLen[idx]) {
+                maxLen[idx] = len;
+            }
             idx++;
             tok = strtok(NULL, "#");
         }
+        // Si hay menos campos de los esperados, los omitimos; si hay más campos,
+        // los ignoramos porque solo consideramos numFields = “número de '#'+1” del encabezado.
     }
     fclose(ftxt);
 
-    // Extraer nombre de relación (sin ruta ni extensión)
+    // Paso 4: extraer nombre de relación (sin ruta ni “.txt”)
     const char* slash = strrchr(rutaTXT, '/');
     const char* backslash = strrchr(rutaTXT, '\\');
     const char* fname = slash ? slash + 1 : (backslash ? backslash + 1 : rutaTXT);
     char nombreRel[MAX_STR_LEN];
     strncpy(nombreRel, fname, MAX_STR_LEN - 1);
     nombreRel[MAX_STR_LEN - 1] = '\0';
-    // Quitar extensión (por ejemplo ".csv" o ".txt")
+    // Quitar extensión (por ejemplo ".txt" o ".csv")
     char* ext = strrchr(nombreRel, '.');
     if (ext) *ext = '\0';
 
-    // Escribir en longitudfija.txt
+    // Abrir (o crear) longitudfija.txt y agregar la línea
     FILE* flog = fopen(rutaLongitudFija, "a");
     if (!flog) {
         perror("No se puede abrir longitudfija.txt");
@@ -2690,19 +1625,6 @@ void calcularLongitudFija(const char* rutaTXT) {
     fclose(flog);
 }
 
-/**
- * obtenerRegistroSize:
- *   - Abre longitudFija.txt, busca la línea que comience con "<relacion>|".
- *   - Parámetros:
- *       relacion: nombre de la relación (sin ".csv").
- *   - Retorna en *outRegistroSize el tamaño máximo fijo de un registro:
- *       suma de todas las longitudes máximas de campo +
- *       (numFields - 1) bytes para los separadores ',' o '#' entre campos +
- *       1 byte adicional para el separador '|' final.
- *   - Si no encuentra la relación, devuelve 0 en *outRegistroSize.
- *
- *   No usa memoria dinámica ni STL. Emplea buffers locales.
- */
 void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
     FILE* flog = fopen(rutaLongitudFija, "r");
     if (!flog) {
@@ -2712,16 +1634,15 @@ void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
     }
 
     char linea[MAX_BUF];
-
     *outRegistroSize = 0;
 
     while (fgets(linea, MAX_BUF, flog)) {
         linea[strcspn(linea, "\r\n")] = '\0';
-        // Verificar si la línea comienza con "relacion|"
+        // Verificar si la línea comienza con "<relacion>|"
         size_t relLen = strlen(relacion);
         if (strncmp(linea, relacion, relLen) == 0 && linea[relLen] == '|') {
             // Formato: "<relacion>|<numFields>#<len1>#<len2>#...#<lenN>"
-            char* p = linea + relLen + 1; // apunta justo después del '|'
+            char* p = linea + relLen + 1; // justo después del '|'
 
             // 1) Leer numFields
             int numFields = atoi(p);
@@ -2739,9 +1660,10 @@ void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
                 if (*p == '#') p++;
             }
 
-            // (numFields - 1) bytes de separadores '#' entre los campos
+            // 4) Cada campo va separado en un registro por un '#', 
+            //    lo que suma (numFields - 1) bytes adicionales.
             int separadores = (numFields > 1 ? numFields - 1 : 0);
-            // +1 byte para el separador '|' final
+            // 5) Cada registro se guarda terminado en '|' → +1 byte
             int trailingBar = 1;
 
             *outRegistroSize = sumaLong + separadores + trailingBar;
@@ -2755,14 +1677,853 @@ void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
     *outRegistroSize = 0;
 }
 
+void obtenerLongitudesPorCampo(const char* relacion, int* numFields, int* maxLenArr) {
+    FILE* flog = fopen(rutaLongitudFija, "r");
+    if (!flog) {
+        perror("No se puede abrir longitudfija.txt para lectura");
+        *numFields = 0;
+        return;
+    }
 
-////////////////////Version propia para Longitud Fija, reemplazar cuando quieres adicionarRegistroUnico por default, sin uso de
+    char linea[MAX_BUF];
+    *numFields = 0;
+
+    while (fgets(linea, MAX_BUF, flog)) {
+        // Eliminar CRLF
+        linea[strcspn(linea, "\r\n")] = '\0';
+
+        // Verificar si la línea comienza con "<relacion>|"
+        size_t relLen = strlen(relacion);
+        if (strncmp(linea, relacion, relLen) == 0 && linea[relLen] == '|') {
+            // Avanzar justo después de 'relacion|'
+            char* p = linea + relLen + 1;
+
+            // Leer numFields (hasta el primer '#')
+            int nf = atoi(p);
+            if (nf < 1) {
+                fclose(flog);
+                *numFields = 0;
+                return;
+            }
+            if (nf > MAX_FIELDS) nf = MAX_FIELDS;
+            *numFields = nf;
+
+            // Avanzar al primer '#' que sigue a numFields
+            while (*p && *p != '#') p++;
+            if (*p == '#') p++;
+
+            // Ahora, extraer los nf valores sucesivos
+            for (int i = 0; i < *numFields; i++) {
+                if (!*p) {
+                    maxLenArr[i] = 0;
+                }
+                else {
+                    maxLenArr[i] = atoi(p);
+                    // Avanzar al siguiente '#'
+                    while (*p && *p != '#') p++;
+                    if (*p == '#') p++;
+                }
+            }
+
+            fclose(flog);
+            return;
+        }
+    }
+
+    // Si llegamos aquí, no encontramos la relación
+    fclose(flog);
+    *numFields = 0;
+}
+
+bool eliminarRegistroNoLoUsamos(const char* nombreRelacion, int lineaObjetivo) {
+    if (lineaObjetivo <= 0) return false;
+
+    const char rutaBloque[] = "DISCO/BLOQUES/Bloque1.txt";
+    printf("[DEBUG] Abriendo archivo: %s\n", rutaBloque);
+    FILE* archivo = fopen(rutaBloque, "r+");
+    if (!archivo) {
+        printf("[DEBUG] No se pudo abrir el archivo del bloque\n");
+        return false;
+    }
+
+    // --- (1) Leer la primera "línea" completa con fgets, que en este
+    //          caso contenga: header + "/" + posible resto de datos si no había CRLF ---
+    char buffer[MAX_LINE];
+    if (!fgets(buffer, sizeof(buffer), archivo)) {
+        printf("[DEBUG] No se pudo leer la cabecera del bloque\n");
+        fclose(archivo);
+        return false;
+    }
+
+    // --- (2) Quitar CR/LF al final de ese "buffer" ---
+    size_t lenBmp = strlen(buffer);
+    while (lenBmp > 0 && (buffer[lenBmp - 1] == '\n' || buffer[lenBmp - 1] == '\r')) {
+        buffer[--lenBmp] = '\0';
+    }
+    printf("[DEBUG] Buffer tras quitar CRLF: '%s' (len=%zu)\n", buffer, lenBmp);
+
+    // --- (3) Truncar justo en el slash '/', que marca el fin del bitmap ---
+    char* slash = strchr(buffer, '/');
+    if (!slash) {
+        printf("[DEBUG] ERROR: No se encontró '/' en la cabecera\n");
+        fclose(archivo);
+        return false;
+    }
+    // longitud real de header = (posición del slash - inicio) + 1
+    size_t headerBitsLen = (slash - buffer) + 1;
+    buffer[headerBitsLen] = '\0';
+    printf("[DEBUG] Header puro leido (hasta '/'): '%s' (bytes = %zu)\n",
+        buffer, headerBitsLen);
+
+    // --- (4) Buscar la línea objetivo dentro de ese bitmap puro ---
+    int contador1s = 0;
+    int bitIndex = -1;
+    // El bitmap está en buffer[0..headerBitsLen-2], y buffer[headerBitsLen-1]=='/'
+    // Recorremos solo hasta 'headerBitsLen-1' y no más allá:
+    for (size_t i = 0; i + 1 < headerBitsLen; i++) {
+        if (buffer[i] == '1') {
+            contador1s++;
+            if (contador1s == lineaObjetivo) {
+                bitIndex = (int)i;
+                break;
+            }
+        }
+    }
+    printf("[DEBUG] contador1s=%d, bitIndex=%d\n", contador1s, bitIndex);
+    if (bitIndex < 0) {
+        printf("[DEBUG] No hay suficientes '1' en el bitmap para lineaObjetivo=%d\n",
+            lineaObjetivo);
+        fclose(archivo);
+        return false;
+    }
+
+    // --- (5) Marcar esa posición a '0' ---
+    buffer[bitIndex] = '0';
+    printf("[DEBUG] Bitmap modificado a: '%s'\n", buffer);
+
+    // --- (6) Reescribir SOLO ESOS 'headerBitsLen' bytes + "\r\n" ---
+    fseek(archivo, 0, SEEK_SET);
+    fwrite(buffer, 1, headerBitsLen, archivo);
+    fputc('\r', archivo);
+    fputc('\n', archivo);
+    fflush(archivo);
+
+    // --- (7) Calcular raw_header_len = headerBitsLen + 2 bytes de CRLF ---
+    size_t raw_header_len = headerBitsLen + 2;
+    printf("[DEBUG] raw_header_len (cabecera en bytes): %zu\n", raw_header_len);
+
+    // --- (8) Movernos justo al byte siguiente a la cabecera física ---
+    fseek(archivo, (long)raw_header_len, SEEK_SET);
+
+    // --- (9) Ahora contamos separadores '|' para hallar dónde empieza el registro viejo ---
+    int contSeparadores = 0;
+    long inicioReg = ftell(archivo);  // si lineaObjetivo==1, comenzamos aquí
+    int c;
+    while ((c = fgetc(archivo)) != EOF) {
+        if (c == '|') {
+            contSeparadores++;
+            // en el momento en que contSeparadores == (lineaObjetivo - 1),
+            // el siguiente byte es el inicio real del registro a eliminar.
+            if (contSeparadores == lineaObjetivo - 1) {
+                inicioReg = ftell(archivo);
+                break;
+            }
+        }
+    }
+    printf("[DEBUG] contSeparadores=%d, inicioReg=%ld\n", contSeparadores, inicioReg);
+    if (contSeparadores < lineaObjetivo - 1) {
+        printf("[DEBUG] No se encontraron suficientes '|' para lineaObjetivo=%d\n",
+            lineaObjetivo);
+        fclose(archivo);
+        return false;
+    }
+
+    // --- (10) Encontrar el '|' final que cierra EL registro VIEJO ---
+    long finReg = inicioReg;
+    while ((c = fgetc(archivo)) != EOF) {
+        finReg = ftell(archivo);
+        if (c == '|') {
+            break;
+        }
+    }
+    printf("[DEBUG] finReg=%ld\n", finReg);
+    if (finReg <= inicioReg) {
+        printf("[DEBUG] No se encontró el separador '|' final para el registro\n");
+        fclose(archivo);
+        return false;
+    }
+
+    // --- (11) Calcular cuántos bytes ocupa el registro viejo (oldLen) ---
+    long oldLen = finReg - inicioReg;
+    printf("[DEBUG] oldLen (bytes del registro viejo): %ld\n", oldLen);
+
+    // --- (12) Sobrescribir ESOS oldLen bytes con '#' para "eliminar" ese registro ---
+    fseek(archivo, inicioReg, SEEK_SET);
+    for (long i = 0; i < oldLen; i++) {
+        fputc('#', archivo);
+    }
+    fflush(archivo);
+
+    printf("[DEBUG] Registro eliminado correctamente\n");
+    fclose(archivo);
+    return true;
+}
+
+bool eliminarRegistro(const char* nombreRelacion, int lineaObjetivo) {
+    if (lineaObjetivo <= 0) return false;
+
+    // --- 1) Abrir el archivo de bloque (aquí, Bloque1.txt) en modo "r+" ---
+    const char rutaBloque[] = "DISCO/BLOQUES/Bloque1.txt";
+    FILE* archivo = fopen(rutaBloque, "r+");
+    if (!archivo) {
+        return false;
+    }
+
+    //------------------------------------------------------------
+    // (A)  Leer y actualizar la cabecera interna del bloque (bitmap)
+    //------------------------------------------------------------
+    // Leer la primera “línea” completa (puede incluir datos extras si no había CRLF)
+    char buffer[MAX_LINE];
+    if (!fgets(buffer, sizeof(buffer), archivo)) {
+        fclose(archivo);
+        return false;
+    }
+    // Quitar CR/LF al final
+    size_t lenBmp = strlen(buffer);
+    while (lenBmp > 0 && (buffer[lenBmp - 1] == '\n' || buffer[lenBmp - 1] == '\r')) {
+        buffer[--lenBmp] = '\0';
+    }
+
+    // Buscar el slash '/' que marca el fin del bitmap
+    char* slash = strchr(buffer, '/');
+    if (!slash) {
+        fclose(archivo);
+        return false;
+    }
+    // headerBitsLen = (posSlash - inicio) + 1  → incluye el '/'
+    size_t headerBitsLen = (slash - buffer) + 1;
+
+    // Contar cuántas '1' hay hasta la líneaObjetivo, y ubicar el índice del bit
+    int contador1s = 0;
+    int bitIndex = -1;
+    for (size_t i = 0; i + 1 < headerBitsLen; i++) {
+        if (buffer[i] == '1') {
+            contador1s++;
+            if (contador1s == lineaObjetivo) {
+                bitIndex = (int)i;
+                break;
+            }
+        }
+    }
+    if (bitIndex < 0) {
+        // No había suficientes '1' en el bitmap
+        fclose(archivo);
+        return false;
+    }
+
+    // Marcar esa posición a '0'
+    buffer[bitIndex] = '0';
+
+    // Ahora reescribimos los primeros headerBitsLen bytes + "\r\n"
+    fseek(archivo, 0, SEEK_SET);
+    fwrite(buffer, 1, headerBitsLen, archivo);
+    fputc('\r', archivo);
+    fputc('\n', archivo);
+    fflush(archivo);
+
+    // raw_header_len = headerBitsLen + 2 (CRLF)
+    size_t raw_header_len = headerBitsLen + 2;
+
+    //------------------------------------------------------------
+    // (B)  Detectar cuánto mide el registro “viejo” para liberarlo internamente
+    //------------------------------------------------------------
+    // Posicionarse justo después de la cabecera física
+    fseek(archivo, (long)raw_header_len, SEEK_SET);
+
+    // Contar hasta lineaObjetivo-1 separadores '|' para hallar inicio del registro
+    long inicioReg = ftell(archivo);
+    int contSeparadores = 0;
+    int c;
+    while ((c = fgetc(archivo)) != EOF) {
+        if (c == '|') {
+            contSeparadores++;
+            if (contSeparadores == lineaObjetivo - 1) {
+                inicioReg = ftell(archivo);
+                break;
+            }
+        }
+    }
+    if (contSeparadores < lineaObjetivo - 1) {
+        fclose(archivo);
+        return false;
+    }
+
+    // Ahora buscar el '|' que cierra el registro viejo
+    long finReg = inicioReg;
+    while ((c = fgetc(archivo)) != EOF) {
+        finReg = ftell(archivo);
+        if (c == '|') {
+            break;
+        }
+    }
+    if (finReg <= inicioReg) {
+        fclose(archivo);
+        return false;
+    }
+
+    // oldLen = cuántos bytes ocupa el registro (incluyendo todos sus campos, sin el '|')
+    long oldLen = finReg - inicioReg;
+
+    // Sobrescribir oldLen bytes con '#' (invalida el registro)
+    fseek(archivo, inicioReg, SEEK_SET);
+    for (long i = 0; i < oldLen; i++) {
+        fputc('#', archivo);
+    }
+    fflush(archivo);
+    fclose(archivo);
+
+    //------------------------------------------------------------
+    // (C)  ACTUALIZAR dirBloques.txt: sumar registroSize a bloque y a sector
+    //------------------------------------------------------------
+    // 1) Abrir dirBloques.txt en “r+” para lectura/modificación in-place
+    FILE* fdir = fopen(rutaDirBloques, "r+");
+    if (!fdir) {
+        return false;
+    }
+
+    char linea[MAX_BUF];
+    long  posLineaBloque = 0;
+    int   nroBloque = 0;
+    bool  foundBlock = false;
+
+    // Leer línea por línea hasta dar con “BLOQUE#1” (nroBloque == 1)
+    while (fgets(linea, MAX_BUF, fdir)) {
+        // Guardar posición de inicio de esta línea (antes de leerla)
+        posLineaBloque = ftell(fdir) - (long)strlen(linea);
+        nroBloque++;
+
+        // Quitar CR/LF al final para parsear
+        size_t len_linea = strlen(linea);
+        while (len_linea > 0 && (linea[len_linea - 1] == '\n' || linea[len_linea - 1] == '\r')) {
+            linea[--len_linea] = '\0';
+        }
+
+        // Extraer el token “#BLOQUE#<nroBloque>#” para comparar
+        // Primera parte = "<espLibreBloque>#2#BLOQUE#<nroBloque>#<tamBloque>#_…"
+        // Podemos hacer strchr para encontrar “#BLOQUE#” y luego atoi(nroBloque).
+        char* pb = strstr(linea, "#BLOQUE#");
+        if (!pb) continue;
+        // Avanzar “#BLOQUE#”
+        pb += strlen("#BLOQUE#");
+        // Leer el número de bloque de texto
+        int bloqueoLeido = atoi(pb);
+        if (bloqueoLeido != 1) continue; // aquí solo nos interesa Bloque1
+
+        // Si llegamos acá, esta es la línea a modificar
+        foundBlock = true;
+        break;
+    }
+
+    if (!foundBlock) {
+        fclose(fdir);
+        return false;
+    }
+
+    // “línea” contiene la línea completa (sin CRLF) y posLineaBloque apunta a su inicio en el archivo.
+    // Debemos:
+    //   a) extraer espacioLibreBloque (primer token antes de '#'),
+    //   b) sumarle oldLen,
+    //   c) recorrer cada par “<espLibreSector>#<codSector>#_”,
+    //      y, para el primer sector que corresponda a nuestro Bloque1, sumarle oldLen,
+    //   d) reconstruir la línea con los nuevos espacios.
+
+    // --- (C.1) Extraer espacioLibreBloque y tamBloque (aunque tamBloque se mantiene igual) ---
+    char copia[MAX_BUF];
+    strncpy(copia, linea, MAX_BUF - 1);
+    copia[MAX_BUF - 1] = '\0';
+
+    // Primer token = espacioLibreBloque
+    char* tokEspBloq = strtok(copia, "#");
+    if (!tokEspBloq) {
+        fclose(fdir);
+        return false;
+    }
+    int espacioLibreBloqueAntes = atoi(tokEspBloq);
+    int espacioLibreBloqueNuevo = espacioLibreBloqueAntes + (int)oldLen;
+
+    // Saltar “#2#BLOQUE#<nroBloque>#”
+    // Ya avanzamos un token; ahora salteamos dos más (“2” y “BLOQUE”) y leemos <nroBloque> y <tamBloque>
+    char* tok_2 = strtok(NULL, "#");        // “2”
+    char* tok_BLOQUE = strtok(NULL, "#");   // “BLOQUE”
+    char* tok_numBloque = strtok(NULL, "#");// “1”
+    char* tok_tamBloque = strtok(NULL, "#");// “<tamBloque>”
+    if (!tok_tamBloque) {
+        fclose(fdir);
+        return false;
+    }
+    int tamBloqLeido = atoi(tok_tamBloque);
+
+    // (C.2) Ahora reconstruimos la cabecera hasta “#_”
+    // Empezaremos poniendo “<espacioLibreBloqueNuevo>#2#BLOQUE#1#<tamBloque>#_”
+    char nuevaLinea[MAX_BUF];
+    int ofs = 0;
+    ofs += snprintf(nuevaLinea + ofs, MAX_BUF - ofs,
+        "%d#2#BLOQUE#%d#%d#_",
+        espacioLibreBloqueNuevo,
+        1,
+        tamBloqLeido);
+
+    // (C.3) Ahora recorremos la lista de sectores: cada par “<espLibreSector>#<codSector>#_”
+    // Para el primer sector cuyo “<codSector>” empiece por “BLOQUE1” (o contenga ese identificador),
+    // le sumamos oldLen. A los demás, los copiamos igual.
+    //
+    // Como no sabemos exactamente el formato de <codSector> (¿“1/1/1/3”?),
+    // usaremos la heurística: el primer <codSector> que empiece por “1/” corresponde a Bloque1.
+    // (Si su esquema real varía, basta ajustar esa comparación.)
+
+    // Volvemos a apuntar a la parte “#_<lista sectores>” en la línea original:
+    char* inicioSect = strstr(linea, "#_");
+    if (!inicioSect) {
+        fclose(fdir);
+        return false;
+    }
+    // Avanzar dos caracteres para saltar “#_”
+    inicioSect += 2;
+
+    bool sectorActualizado = false;
+    char* p = inicioSect;
+    while (*p) {
+        // Leer espacioLibreSector (cadena numérica hasta '#')
+        char* p_iniEsp = p;
+        while (*p && *p != '#') p++;
+        if (!*p) break;
+        *p = '\0';
+        int espLibreSectorAntes = atoi(p_iniEsp);
+        *p = '#';
+        p++;
+
+        // Leer codSector (cadena hasta siguiente '#')
+        char* p_iniCod = p;
+        while (*p && *p != '#') p++;
+        if (!*p) break;
+        *p = '\0';
+        char codSector[MAX_STR_LEN];
+        strncpy(codSector, p_iniCod, MAX_STR_LEN - 1);
+        codSector[MAX_STR_LEN - 1] = '\0';
+        *p = '#';
+        p++;
+
+        // Saber dónde termina este par: buscamos "#_" desde p
+        char* nextPair = strstr(p, "#_");
+
+        // Decidir si este es el sector que queremos “liberar”:
+        //   (aquí, heurística: si codSector empieza con “1/”  → bloque 1)
+        //   Tú puedes cambiar la condición a: strstr(codSector, "<tuIdentificador>") == codSector
+        int espLibreSectorNuevo = espLibreSectorAntes;
+        if (!sectorActualizado && strncmp(codSector, "1/", 2) == 0) {
+            espLibreSectorNuevo += (int)oldLen;
+            sectorActualizado = true;
+        }
+
+        // Agregar al buffer: “<espLibreSectorNuevo>#<codSector>#_”
+        ofs += snprintf(nuevaLinea + ofs, MAX_BUF - ofs,
+            "%d#%s#_",
+            espLibreSectorNuevo,
+            codSector);
+
+        // Avanzar p a “nextPair + 2” o romper
+        if (!nextPair) break;
+        p = nextPair + 2;
+    }
+
+    // Si nunca encontramos un sector “1/…” (muy raro), dejamos la lista idéntica a como estaba.
+    if (!sectorActualizado) {
+        // Copiamos “\<espLibreSectorAntes>#<codSector>#_” tal cual de la línea original
+        // para todos los pares; como ya tenemos “nuevaLinea” parcial, simplemente reescribimos todo lo que
+        // quedaba en “linea” desde “#_<lista sectores completa>” hasta el final.
+        char* todaListaSect = strstr(linea, "#_");
+        if (todaListaSect) {
+            ofs += snprintf(nuevaLinea + ofs, MAX_BUF - ofs,
+                "%s", todaListaSect + 2);
+        }
+    }
+
+    // (C.4) Ahora “nuevaLinea” tiene la línea completa SIN CR/LF. Debemos imponernos
+    // EXACTAMENTE el mismo número de bytes que ocupaba en disco (medido con fgets),
+    // de modo que no “corramos” el resto del archivo. Para ello, medimos la longitud original:
+    size_t len_original = strlen(linea);   // ya quitamos CR/LF antes, así que esto es la longitud sin CRLF
+    // raw_len_total = len_original + 2 (CRLF)
+    size_t raw_len_total = len_original + 2;
+
+    // (C.5) Si “ofs” (longitud de parte útil en nuevaLinea) > raw_len_total-2, truncamos.
+    //       En otro caso, rellenamos con espacios hasta raw_len_total-1, y al final ponemos '\n'.
+    if ((size_t)ofs > raw_len_total - 2) {
+        // Truncar y asegurar que en la penúltima posición quede '\r', última '\n'
+        if (raw_len_total >= 2) {
+            nuevaLinea[raw_len_total - 2] = '\r';
+            nuevaLinea[raw_len_total - 1] = '\n';
+        }
+    }
+    else {
+        // Rellenar de espacios hasta raw_len_total-2
+        size_t i;
+        for (i = ofs; i < raw_len_total - 2; i++) {
+            nuevaLinea[i] = ' ';
+        }
+        // Luego CRLF
+        nuevaLinea[raw_len_total - 2] = '\r';
+        nuevaLinea[raw_len_total - 1] = '\n';
+    }
+
+    // (C.6) Escribir EXACTAMENTE raw_len_total bytes en position posLineaBloque
+    fseek(fdir, posLineaBloque, SEEK_SET);
+    fwrite(nuevaLinea, 1, raw_len_total, fdir);
+    fflush(fdir);
+    fclose(fdir);
+
+    return true;
+}
+
+/*
+bool eliminarRegistroNoFuncionaCorrecto(const char* nombreRelacion, int lineaObjetivo) {
+    if (lineaObjetivo <= 0) return false;
+
+    // === PARTE A: actualizar header y borrar registro dentro de Bloque1.txt ===
+
+    // 1) Abrir archivo de bloque en modo "r+"
+    const char rutaBloque[] = "DISCO/BLOQUES/Bloque1.txt";
+    FILE* archivo = fopen(rutaBloque, "r+");
+    if (!archivo) {
+        return false;
+    }
+
+    // 2) Leer la primera “línea” completa del bloque (cabecera + “/” + posible resto)
+    char buffer[MAX_LINE];
+    if (!fgets(buffer, sizeof(buffer), archivo)) {
+        fclose(archivo);
+        return false;
+    }
+    // buffer_incl contiene la línea tal cual la lee fgets (incluye '\n' o "\r\n")
+    size_t len_incl = strlen(buffer);
+
+    // 3) Crear una copia “sin CR/LF” para procesar el bitmap
+    char buffer_sin[MAX_LINE];
+    strncpy(buffer_sin, buffer, MAX_LINE - 1);
+    buffer_sin[MAX_LINE - 1] = '\0';
+    size_t len_no_crlf = strlen(buffer_sin);
+    while (len_no_crlf > 0 && (buffer_sin[len_no_crlf - 1] == '\n' || buffer_sin[len_no_crlf - 1] == '\r')) {
+        buffer_sin[--len_no_crlf] = '\0';
+    }
+
+    // 4) Buscar el slash '/' que marca el fin del bitmap
+    char* slash = strchr(buffer_sin, '/');
+    if (!slash) {
+        fclose(archivo);
+        return false;
+    }
+    // headerBitsLen = posición del slash - inicio + 1 (incluye '/')
+    size_t headerBitsLen = (slash - buffer_sin) + 1;
+
+    // 5) Contar cuántas '1' hasta alcanzar lineaObjetivo → encontrar bitIndex
+    int contador1s = 0;
+    int bitIndex = -1;
+    for (size_t i = 0; i + 1 < headerBitsLen; i++) {
+        if (buffer_sin[i] == '1') {
+            contador1s++;
+            if (contador1s == lineaObjetivo) {
+                bitIndex = (int)i;
+                break;
+            }
+        }
+    }
+    if (bitIndex < 0) {
+        // No había suficientes '1'
+        fclose(archivo);
+        return false;
+    }
+
+    // 6) Marcar ese bit a '0' en buffer_sin
+    buffer_sin[bitIndex] = '0';
+
+    // 7) Sobrescribir EN EL ARCHIVO SOLO los primeros headerBitsLen bytes + "\r\n"
+    //    Para ello debemos ir a la posición EXACTA donde comienza esta línea:
+    //    posLineaBloque = ftell (después de fgets) - len_incl
+    long posLineaBloque = ftell(archivo) - (long)len_incl;
+    //   raw_header_len = headerBitsLen + 2 (para CRLF)
+    size_t raw_header_len = headerBitsLen + 2;
+
+    //   Construimos un buffer temporal para escribir: 
+    //   • copiamos buffer_sin[0..headerBitsLen-1], 
+    //   • luego ponemos '\r' y '\n'
+    char tmpHeader[MAX_LINE];
+    // Copiamos los headerBitsLen bytes
+    memcpy(tmpHeader, buffer_sin, headerBitsLen);
+    // A continuación CRLF
+    tmpHeader[headerBitsLen] = '\r';
+    tmpHeader[headerBitsLen + 1] = '\n';
+
+    // 8) Escribimos exactamente raw_header_len bytes
+    fseek(archivo, posLineaBloque, SEEK_SET);
+    fwrite(tmpHeader, 1, raw_header_len, archivo);
+    fflush(archivo);
+
+    // 9) Ahora detectamos el tamaño “oldLen” del registro a eliminar (después de la cabecera física)
+    fseek(archivo, (long)raw_header_len, SEEK_SET);
+    long inicioReg = ftell(archivo);
+    int contSeparadores = 0;
+    int c;
+    while ((c = fgetc(archivo)) != EOF) {
+        if (c == '|') {
+            contSeparadores++;
+            if (contSeparadores == lineaObjetivo - 1) {
+                inicioReg = ftell(archivo);
+                break;
+            }
+        }
+    }
+    if (contSeparadores < lineaObjetivo - 1) {
+        // No encontramos suficientes '|' 
+        fclose(archivo);
+        return false;
+    }
+    // Buscar el siguiente '|' que cierra el registro viejo
+    long finReg = inicioReg;
+    while ((c = fgetc(archivo)) != EOF) {
+        finReg = ftell(archivo);
+        if (c == '|') {
+            break;
+        }
+    }
+    if (finReg <= inicioReg) {
+        fclose(archivo);
+        return false;
+    }
+    long oldLen = finReg - inicioReg;
+
+    // 10) Sobrescribir esos oldLen bytes con '#' (invalida el registro)
+    fseek(archivo, inicioReg, SEEK_SET);
+    for (long i = 0; i < oldLen; i++) {
+        fputc('#', archivo);
+    }
+    fflush(archivo);
+    fclose(archivo);
+
+    // === PARTE C: actualizar dirBloques.txt ===
+
+    // 1) Abrir dirBloques.txt en “r+”
+    FILE* fdir = fopen(rutaDirBloques, "r+");
+    if (!fdir) {
+        return false;
+    }
+    return true;
+}
+
+    // 2) Leer línea a línea hasta encontrar “#BLOQUE#1#...” (nroBloque=1)
+    char linea[MAX_BUF];
+    bool foundBlock = false;
+    int  lineaNum = 0;
+    long posDirLinea = 0;    // posición donde empieza la línea actual
+    size_t len_incl_dir = 0; // longitud real de la línea leída (incluyendo '\n' o "\r\n")
+
+    while (fgets(linea, sizeof(linea), fdir)) {
+        lineaNum++;
+        len_incl_dir = strlen(linea);
+        posDirLinea = ftell(fdir) - (long)len_incl_dir;
+
+        // Creamos copia sin CRLF para parseo
+        char linea_sin[MAX_BUF];
+        strncpy(linea_sin, linea, MAX_BUF - 1);
+        linea_sin[MAX_BUF - 1] = '\0';
+        size_t len_sin = strlen(linea_sin);
+        while (len_sin > 0 && (linea_sin[len_sin - 1] == '\n' || linea_sin[len_sin - 1] == '\r')) {
+            linea_sin[--len_sin] = '\0';
+        }
+
+        // Buscar “#BLOQUE#” y extraer el número
+        char* pb = strstr(linea_sin, "#BLOQUE#");
+        if (!pb) continue;
+        pb += strlen("#BLOQUE#");
+        int nro = atoi(pb);
+        if (nro != 1) continue;
+
+        // Esta es la línea para Bloque1
+        foundBlock = true;
+        // Reconocemos len_no_crlf_dir = len_sin
+        break;
+    }
+    if (!foundBlock) {
+        fclose(fdir);
+        return false;
+    }
+
+    // 3) Ahora “linea_sin” contiene la línea ENTENDIBLE sin CRLF
+    //    len_sin = strlen(linea_sin). Raw total = len_sin + 2.
+    size_t len_sin_dir = strlen(linea_sin);
+    size_t raw_len_total_dir = len_sin_dir + 2;
+
+    // 4) Parsear espacioLibreBloque (primer token antes de '#')
+    char copia_dir[MAX_BUF];
+    strncpy(copia_dir, linea_sin, MAX_BUF - 1);
+    copia_dir[MAX_BUF - 1] = '\0';
+    char* tokEspBloq = strtok(copia_dir, "#");
+    if (!tokEspBloq) {
+        fclose(fdir);
+        return false;
+    }
+    int espacioBloqueAntes = atoi(tokEspBloq);
+    int espacioBloqueNuevo = espacioBloqueAntes + (int)oldLen;
+
+    // 5) Extraer “#2#BLOQUE#1#<tamBloque>#”
+    char* tok2 = strtok(NULL, "#"); // “2”
+    char* tokBLOQ = strtok(NULL, "#"); // “BLOQUE”
+    char* tokNumBloq = strtok(NULL, "#"); // “1”
+    char* tokTamBloq = strtok(NULL, "#"); // e.g. “22400”
+    if (!tokTamBloq) {
+        fclose(fdir);
+        return false;
+    }
+    int tamBloqLeido = atoi(tokTamBloq);
+
+    // 6) Reconstruir la parte “<espBloqueNuevo>#2#BLOQUE#1#<tamBloque>#_”
+    //    en un buffer temporal “lineaNueva” de longitud EXACTA raw_len_total_dir.
+    char lineaNueva[MAX_BUF];
+    // Inicializar con espacios (hasta raw_len_total_dir), luego corregir al final CRLF.
+    for (size_t i = 0; i < raw_len_total_dir; i++) {
+        lineaNueva[i] = ' ';
+    }
+    // Pondremos el CRLF en las dos últimas posiciones:
+    if (raw_len_total_dir >= 2) {
+        lineaNueva[raw_len_total_dir - 2] = '\r';
+        lineaNueva[raw_len_total_dir - 1] = '\n';
+    }
+
+    // Escribir el encabezado útil al inicio (sin sobrepasar raw_len_total_dir-2)
+    int ofs = snprintf(
+        lineaNueva,
+        (raw_len_total_dir >= 2 ? raw_len_total_dir - 2 : 0),
+        "%d#2#BLOQUE#%d#%d#_",
+        espacioBloqueNuevo,
+        1,
+        tamBloqLeido
+    );
+    if (ofs < 0) ofs = 0;
+    if ((size_t)ofs > raw_len_total_dir - 2) {
+        ofs = (int)raw_len_total_dir - 2;
+    }
+
+    // 7) Ahora recorremos la lista de sectores a partir de “#_<lista>” en linea_sin
+    char* inicioSect = strstr(linea_sin, "#_");
+    if (!inicioSect) {
+        // No había lista de sectores (caso extraño), pero aún así escribimos el header
+        fseek(fdir, posDirLinea, SEEK_SET);
+        fwrite(lineaNueva, 1, raw_len_total_dir, fdir);
+        fflush(fdir);
+        fclose(fdir);
+        return true;
+    }
+    // Saltamos "#_"
+    inicioSect += 2;
+
+    bool sectorActualizado = false;
+    char* p = inicioSect;
+    while (*p && (size_t)ofs < raw_len_total_dir - 2) {
+        // Leer espLibreSector (cadena numérica hasta '#')
+        char* p_iniEsp = p;
+        while (*p && *p != '#') p++;
+        if (!*p) break;
+        *p = '\0';
+        int espSecAntes = atoi(p_iniEsp);
+        *p = '#';
+        p++;
+
+        // Leer codSector (hasta siguiente '#')
+        char* p_iniCod = p;
+        while (*p && *p != '#') p++;
+        if (!*p) break;
+        *p = '\0';
+        char codSector[MAX_STR_LEN];
+        // Copiar con límite
+        strncpy(codSector, p_iniCod, MAX_STR_LEN - 1);
+        codSector[MAX_STR_LEN - 1] = '\0';
+        *p = '#';
+        p++;
+
+        // Determinar el nuevo espLibreSector
+        int espSecNuevo = espSecAntes;
+        // Heurística: si codSector empieza por “1/” → bloque 1
+        if (!sectorActualizado && strncmp(codSector, "1/", 2) == 0) {
+            espSecNuevo += (int)oldLen;
+            sectorActualizado = true;
+        }
+
+        // Escribir en lineaNueva en ofs: "<espSecNuevo>#<codSector>#_"
+        int written = snprintf(
+            lineaNueva + ofs,
+            (raw_len_total_dir - 2 >= (size_t)ofs ? raw_len_total_dir - 2 - ofs : 0),
+            "%d#%s#_",
+            espSecNuevo,
+            codSector
+        );
+        if (written < 0) written = 0;
+        if ((size_t)written > raw_len_total_dir - 2 - (size_t)ofs) {
+            written = (int)(raw_len_total_dir - 2 - (size_t)ofs);
+        }
+        ofs += written;
+
+        // Avanzar p a la próxima ocurrencia de "#_"
+        char* nextPair = strstr(p, "#_");
+        if (!nextPair) break;
+        p = nextPair + 2;
+    }
+
+    // 8) Si nunca actualizamos ningún sector (sectorActualizado==false), copiamos idéntico el resto de la lista
+    if (!sectorActualizado) {
+        // Queremos copiar todo “<esp>#<cod>#_...” desde inicioSect-2 hasta el final de linea_sin
+        // (pero no lo copiamos si excede raw_len_total_dir-2, pues lo restante queda en espacios).
+        size_t restoLen = strlen(inicioSect);
+        if ((size_t)ofs + restoLen > raw_len_total_dir - 2) {
+            restoLen = (raw_len_total_dir - 2) - (size_t)ofs;
+        }
+        if (restoLen > 0) {
+            memcpy(lineaNueva + ofs, inicioSect, restoLen);
+            ofs += (int)restoLen;
+        }
+    }
+
+    // 9) Finalmente escribimos EXACTAMENTE raw_len_total_dir bytes en posDirLinea
+    fseek(fdir, posDirLinea, SEEK_SET);
+    fwrite(lineaNueva, 1, raw_len_total_dir, fdir);
+    fflush(fdir);
+    fclose(fdir);
+
+    return true;
+}
+*/
+
+
 //////////////////// insertar de forma fija
+
+/// #P1#Works#BeforeTheCorruption
 bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
     // --- 0) Antes de abrir dirBloques, obtenemos el tamaño fijo del registro ---
     int registroSize;
     std::cout << "DEBUG0" << relacion << std::endl;
     std::cout << "DEBUG1" << registroTxt << std::endl;
+
+    // Antes de llamar a obtenerRegistroSize:
+    printf(">>> Leyendo %s para ver su contenido:\n", rutaLongitudFija);
+    FILE* ftmp = fopen(rutaLongitudFija, "r");
+    if (ftmp) {
+        char buf[MAX_BUF];
+        while (fgets(buf, MAX_BUF, ftmp)) {
+            printf("   %s", buf);
+        }
+        fclose(ftmp);
+    }
+    else {
+        printf("   ¡NO se pudo abrir %s!\n", rutaLongitudFija);
+    }
+
     obtenerRegistroSize(relacion, &registroSize);
     std::cout << "DEBUG" << registroSize << std::endl;
     if (registroSize <= 0) {
@@ -2770,7 +2531,7 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
         fprintf(stderr, "No se encontró longitud fija para %s\n", relacion);
         return false;
     }
-    
+
     // 1) Abrir dirBloques.txt para buscar bloque+sector libres.
     FILE* fdir = fopen(rutaDirBloques, "r+");
     if (!fdir) {
@@ -2881,8 +2642,14 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
         fclose(fdir);
         return false;
     }
+
+    // Quitar '\n' para medir longitud real
+    size_t len_linea = strlen(linea);
+    if (len_linea > 0 && linea[len_linea - 1] == '\n') {
+        len_linea--;
+    }
     // raw_len_total = strlen(linea) en disco (incluye "\r\n" si existe)
-    size_t raw_len_total = strlen(linea);
+    size_t raw_len_total = len_linea + 1;
     {
         // En Windows, fgets lee "\r\n". raw_len_total incluye CR y LF.
         // Para asegurarnos, si hay CR justo antes del '\n', contamos +2; si solo LF, +1.
@@ -2923,7 +2690,7 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
     // Copiar la lista de sectores (igual que antes), restando tamRegistro al sector usado:
     {
         char copia2[MAX_BUF];
-        strncpy(copia2, linea, MAX_BUF);
+        strncpy(copia2, linea, MAX_BUF - 1);
         copia2[MAX_BUF - 1] = '\0';
         char* p2 = strstr(copia2, "#_");
         if (p2) {
@@ -2956,22 +2723,21 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
 
     // 5) Ajustar bufferNueva para que ocupe EXACTAMENTE raw_len_total bytes (con CRLF)
     //    Rellenar con espacios hasta raw_len_total-2, luego poner "\r\n".
-    if (ofsN > (int)raw_len_total - 2) {
-        // Si la “parte útil” ya sobrepasa raw_len_total-2, truncar
-        bufferNueva[raw_len_total - 2] = '\r';
-        bufferNueva[raw_len_total - 1] = '\n';
-        bufferNueva[raw_len_total] = '\0';
+    if (ofsN > (int)raw_len_total - 1) {
+        // Truncar si excede longitud útil
+        if (raw_len_total >= 1) {
+            bufferNueva[raw_len_total - 1] = '\n';
+        }
     }
     else {
-        // Rellenar espacios entre ofsN y raw_len_total-2
-        for (int i = ofsN; i < (int)raw_len_total - 2; i++) {
+        // Rellenar con espacios hasta raw_len_total - 1, luego '\n'
+        for (int i = ofsN; i < (int)raw_len_total - 1; i++) {
             bufferNueva[i] = ' ';
         }
-        bufferNueva[raw_len_total - 2] = '\r';
         bufferNueva[raw_len_total - 1] = '\n';
-        bufferNueva[raw_len_total] = '\0';
     }
 
+    size_t len_original = strlen(linea);
     // 6) Sobreescribir EXACTAMENTE raw_len_total bytes
     fseek(fdir, posLineaBloque, SEEK_SET);
     fwrite(bufferNueva, 1, raw_len_total, fdir);
@@ -3012,6 +2778,7 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
             if (fbloc) {
                 fwrite(headerBuf, 1, headerLen, fbloc);
                 fflush(fbloc);
+                fseek(fbloc, -1, SEEK_END); // Move back one byte to overwrite the newline
                 raw_header_len = headerLen;
             }
             numRegAnt = 0;
@@ -3116,12 +2883,20 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
 
         // 7.8) Ir al final del archivo y **hacer append del registro** + '|'
         fseek(fbloc, 0, SEEK_END);
+        // Aquí va el nuevo código:
+        size_t len = strlen(registroTxt);
+        while (len > 0 && (registroTxt[len - 1] == '\n' || registroTxt[len - 1] == '\r')) {
+            len--;
+        }
         // Si registroTxt NO incluye un '|' al final, nosotros añadimos el '|':
-        fwrite(registroTxt, 1, strlen(registroTxt), fbloc);
+        fwrite(registroTxt, 1, len, fbloc);
         fputc('|', fbloc);
         fflush(fbloc);
 
         fclose(fbloc);
+
+        // --- NUEVO: Volcar el bloque a sectores ---
+        this->volcarBloqueASectores(nroBloque);
     }
 
     // -------------------------------------------------
@@ -3146,269 +2921,6 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
 
     return true;
 }
-
-
-    /*
-    bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
-        // 1) Abrir dirBloques.txt en modo lectura/escritura
-        FILE* fdir = fopen(rutaDirBloques, "r+");
-        if (!fdir) {
-            perror("No se puede abrir dirBloques.txt");
-            return false;
-        }
-
-        char linea[MAX_BUF];
-        int  nroBloque = 0;
-        bool foundBlock = false;
-        char codSectorLibre[MAX_STR_LEN] = { 0 };
-        long posLineaBloque = 0;
-        int  tamRegistro = (int)strlen(registroTxt);
-        if (registroTxt[tamRegistro - 1] != '\n') {
-            // Asegurar que mida el '\n' si no esta presente
-            tamRegistro++;
-        }
-
-        int  espacioLibreBloque = 0;
-        int  tamUtilAntes = 0;
-        int  espacioLibreSectorAntes = 0;
-
-        // 2) Recorrer lineas de dirBloques.txt buscando bloque y sector con espacio
-        while (fgets(linea, MAX_BUF, fdir)) {
-            ++nroBloque;
-            posLineaBloque = ftell(fdir) - (long)strlen(linea);
-
-            // 2.1) Extraer espacioLibreBloque (primer token antes de '#')
-            char copiaBloc[MAX_BUF];
-            strncpy(copiaBloc, linea, MAX_BUF);
-            copiaBloc[MAX_BUF - 1] = '\0';
-            char* tokBloc = strtok(copiaBloc, "#");
-            if (!tokBloc) continue;
-            espacioLibreBloque = atoi(tokBloc);
-            tamUtilAntes = tamBloque - espacioLibreBloque;
-            if (espacioLibreBloque < tamRegistro) {
-                printf("> Bloque %d sin espacio suficiente. Espacio libre bloque: %d bytes; Tamaño del registro: %d bytes\n",
-                    nroBloque, espacioLibreBloque, tamRegistro);
-                continue;
-            }
-
-            // 2.2) Encontrar la primera aparicion de "#_" (inicio de la lista de sectores)
-            char* p = strstr(linea, "#_");
-            if (!p) continue;
-            p += 2; // avanzar justo despues de "#_"
-
-            // 2.3) Recorremos cada par "<espacioLibreSector>#<p>/<s>/<pi>/<se>#_"
-            while (*p) {
-                // 2.3.1) Leer espacioLibreSector
-                char* inicioEspacioSector = p;
-                while (*p && *p != '#') p++;
-                if (*p != '#') break;
-                *p = '\0';
-                int espacioLibreSector = atoi(inicioEspacioSector);
-                *p = '#';
-                p++; // avanzar al codigo del sector
-
-                // 2.3.2) Extraer codigoSector hasta el siguiente '#'
-                char* inicioCodSector = p;
-                while (*p && *p != '#') p++;
-                if (*p != '#') break;
-                *p = '\0';
-                char sectorCode[MAX_STR_LEN];
-                strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
-                sectorCode[MAX_STR_LEN - 1] = '\0';
-                *p = '#';
-
-                // Avanzar al siguiente par
-                char* nextPair = strstr(p, "#_");
-                if (espacioLibreSector < tamRegistro) {
-                    printf("> Bloque %d, Sector %s sin espacio. Espacio libre sector: %d bytes; Tamaño registro: %d bytes\n",
-                        nroBloque, sectorCode, espacioLibreSector, tamRegistro);
-                    if (!nextPair) break;
-                    p = nextPair + 2;
-                    continue;
-                }
-
-                // Sector adecuado encontrado
-                strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
-                espacioLibreSectorAntes = espacioLibreSector;
-                foundBlock = true;
-                break;
-            }
-            if (foundBlock) break;
-        }
-
-        if (!foundBlock) {
-            fclose(fdir);
-            return false;
-        }
-
-        int espacioLibreBloqueAntes = espacioLibreBloque;
-        int tamUtilNuevo = tamUtilAntes + tamRegistro;
-        int espacioBloqueNuevo = tamBloque - tamUtilNuevo;
-
-        // 3) Actualizar la linea en dirBloques.txt: restar tamRegistro de bloque y sector
-        fseek(fdir, posLineaBloque, SEEK_SET);
-        fgets(linea, MAX_BUF, fdir);
-        linea[strcspn(linea, "\r\n")] = '\0';
-
-        // 3.1) Reconstruir linea completa en un buffer nuevo, sin depender de la longitud anterior
-        char* inicioSectores = strstr(linea, "#_");
-        if (!inicioSectores) {
-            fclose(fdir);
-            return false;
-        }
-
-        char bufferLineaNueva[MAX_BUF];
-        int ofs = 0;
-
-        // 3.1.1) Escribir el nuevo espacioLibreBloque y campos fijos
-        ofs += snprintf(bufferLineaNueva + ofs, MAX_BUF - ofs,
-            "%d#2#BLOQUE#%d#%d#_",
-            espacioBloqueNuevo,
-            nroBloque,
-            tamBloque
-        );
-
-        // 3.1.2) Ajustar cada par de sectores
-        {
-            char* psec2 = inicioSectores + 2; // justo despues de "#_"
-            while (*psec2) {
-                int espSec = atoi(psec2);
-                while (*psec2 && *psec2 != '#') ++psec2;
-                if (!*psec2) break;
-                ++psec2;
-
-                char sectorCode2[MAX_STR_LEN] = { 0 };
-                int pos2 = 0;
-                while (*psec2 && *psec2 != '#') {
-                    sectorCode2[pos2++] = *psec2++;
-                }
-                sectorCode2[pos2] = '\0';
-
-                int nuevoEspSec2 = espSec;
-                if (strcmp(sectorCode2, codSectorLibre) == 0) {
-                    nuevoEspSec2 = espSec - tamRegistro;
-                }
-
-                ofs += snprintf(bufferLineaNueva + ofs, MAX_BUF - ofs,
-                    "%d#%s#_",
-                    nuevoEspSec2,
-                    sectorCode2
-                );
-
-                char* next2 = strstr(psec2, "#_");
-                if (!next2) break;
-                psec2 = next2 + 2;
-            }
-        }
-
-        // 3.1.3) Agregar salto de linea
-        if (ofs < MAX_BUF - 1) {
-            bufferLineaNueva[ofs++] = '\n';
-            bufferLineaNueva[ofs] = '\0';
-        }
-        else {
-            bufferLineaNueva[MAX_BUF - 1] = '\n';
-            bufferLineaNueva[MAX_BUF - 0] = '\0';
-        }
-
-        fseek(fdir, posLineaBloque, SEEK_SET);
-        fputs(bufferLineaNueva, fdir);
-        fclose(fdir);
-
-        // 4) Actualizar cabecera de BloqueN.txt
-        char rutaBloqueFis[MAX_PATH_LEN];
-        rutaBloqueFisico(nroBloque, rutaBloqueFis);
-        FILE* fbloc = fopen(rutaBloqueFis, "r+");
-        if (!fbloc) {
-            perror("No se pudo abrir BloqueN.txt para actualizacion");
-            return false;
-        }
-        long posBlocLinea = ftell(fbloc);
-        char lineaBloc[MAX_BUF];
-        fgets(lineaBloc, MAX_BUF, fbloc);
-        lineaBloc[strcspn(lineaBloc, "\r\n")] = '\0';
-
-        // Extraer espacioLibreBloqueActual de la lineaBloque
-        char copiaBloc2[MAX_BUF];
-        strncpy(copiaBloc2, lineaBloc, MAX_BUF);
-        copiaBloc2[MAX_BUF - 1] = '\0';
-        char* tok2 = strtok(copiaBloc2, "#");
-        int espacioLibreBloqueBloque = atoi(tok2);
-        int tamUtilAntesBloc = tamBloque - espacioLibreBloqueBloque;
-        int tamUtilNuevoBloc = tamUtilAntesBloc + tamRegistro;
-        int espacioBloqueNuevoBloc = tamBloque - tamUtilNuevoBloc;
-
-        char* inicioSBloc = strstr(lineaBloc, "#_");
-        if (!inicioSBloc) {
-            fclose(fbloc);
-            return false;
-        }
-        // Ajustar lista de sectores en el bloque fisico
-        char sectoresModBloc[MAX_BUF] = { 0 };
-        char* psec2 = inicioSBloc + 2;
-        while (*psec2) {
-            int espSec = atoi(psec2);
-            while (*psec2 && *psec2 != '#') ++psec2;
-            if (!*psec2) break;
-            ++psec2;
-
-            char sectorCode2[MAX_STR_LEN] = { 0 };
-            int pos2 = 0;
-            while (*psec2 && *psec2 != '#') {
-                sectorCode2[pos2++] = *psec2++;
-            }
-            sectorCode2[pos2] = '\0';
-
-            int nuevoEspSec2 = espSec;
-            if (strcmp(sectorCode2, codSectorLibre) == 0) {
-                nuevoEspSec2 = espSec - tamRegistro;
-            }
-
-            char bufferPar2[64];
-            snprintf(bufferPar2, sizeof(bufferPar2), "%d#%s#_", nuevoEspSec2, sectorCode2);
-            strncat(sectoresModBloc, bufferPar2, sizeof(sectoresModBloc) - strlen(sectoresModBloc) - 1);
-
-            char* next2 = strstr(psec2, "#_");
-            if (!next2) break;
-            psec2 = next2 + 2;
-        }
-
-        // reconstruir
-        char nuevaLineaBloc[MAX_BUF];
-        snprintf(nuevaLineaBloc, MAX_BUF,
-            "%d#2#BLOQUE#%d#%d#_%s\n",
-            espacioBloqueNuevoBloc,
-            nroBloque,
-            tamBloque,
-            sectoresModBloc);
-
-        fseek(fbloc, posBlocLinea, SEEK_SET);
-        fprintf(fbloc, "%s", nuevaLineaBloc);
-        fclose(fbloc);
-
-        // escribir registro en sector fisico
-        rutaSectorDesdeCodigo(codSectorLibre);
-        FILE* fsec = fopen(bufferRuta, "a");
-        if (!fsec) {
-            perror("No se pudo abrir sector para escribir");
-            return false;
-        }
-        int espacioLibreSectorDesp = espacioLibreSectorAntes - tamRegistro;
-
-        int pl, su, pi, se;
-        sscanf(codSectorLibre, "%d/%d/%d/%d", &pl, &su, &pi, &se);
-
-        printf("-> Insertando registro en Plato %d, Superficie %d, Pista %d, Sector %d\n", pl, su, pi, se);
-        printf("   Espacio libre bloque antes: %d bytes; despues: %d bytes\n", espacioLibreBloqueAntes, espacioBloqueNuevo);
-        printf("   Espacio libre sector antes: %d bytes; despues: %d bytes\n", espacioLibreSectorAntes, espacioLibreSectorDesp);
-
-        fprintf(fsec, "%s", registroTxt);
-        fclose(fsec);
-
-        return true;
-    }
-    */
-
 
     bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, int opcion) {
         FILE* fcsv = fopen(csvPath, "r");
@@ -3460,6 +2972,369 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
         fclose(fcsv);
         return true;
     }
+
+    /*
+    bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
+        // --- 0) Obtener tamaño fijo del registro ---
+        int registroSize;
+        obtenerRegistroSize(relacion, &registroSize);
+        if (registroSize <= 0) {
+            fprintf(stderr, "No se encontró longitud fija para %s\n", relacion);
+            return false;
+        }
+
+        // 1) Abrir dirBloques.txt para buscar bloque+sector libres.
+        FILE* fdir = fopen(rutaDirBloques, "r+");
+        if (!fdir) {
+            perror("No se puede abrir dirBloques.txt");
+            return false;
+        }
+
+        char linea[MAX_BUF];
+        int  nroBloque = 0;
+        bool foundBlock = false;
+        char codSectorLibre[MAX_STR_LEN] = { 0 };
+        long posLineaBloque = 0;
+
+        int tamRegistro = registroSize;
+        int espacioLibreBloque = 0;
+        int tamUtilAntes = 0;
+        int espacioLibreSectorAntes = 0;
+
+        // 2) Buscar el primer bloque/sector con espacio suficiente
+        while (true) {
+            posLineaBloque = ftell(fdir);
+            if (!fgets(linea, MAX_BUF, fdir)) break;
+            nroBloque++;
+
+            // Quitar CRLF
+            size_t len_linea = strlen(linea);
+            if (len_linea > 0 && linea[len_linea - 1] == '\n')  linea[--len_linea] = '\0';
+            if (len_linea > 0 && linea[len_linea - 1] == '\r')  linea[--len_linea] = '\0';
+
+            // Extraer espacioLibreBloque (primer token antes de '#')
+            char copiaBloc[MAX_BUF];
+            strncpy(copiaBloc, linea, MAX_BUF - 1);
+            copiaBloc[MAX_BUF - 1] = '\0';
+            char* tokBloc = strtok(copiaBloc, "#");
+            if (!tokBloc) continue;
+            espacioLibreBloque = safe_atoi(tokBloc);
+            tamUtilAntes = tamBloque - espacioLibreBloque;
+            if (espacioLibreBloque < tamRegistro) {
+                continue;
+            }
+
+            // Leer la lista de sectores: buscar primer "#_"
+            char* p = strstr(linea, "#_");
+            if (!p) continue;
+            // Trabajar sobre copia para no modificar la original
+            strncpy(copiaBloc, linea, MAX_BUF - 1);
+            copiaBloc[MAX_BUF - 1] = '\0';
+            p = strstr(copiaBloc, "#_");
+            if (!p) continue;
+            p += 2;
+
+            // Cada par "<espLibreSector>#<codSector>#_"
+            while (*p) {
+                char* inicioEspacioSector = p;
+                while (*p && *p != '#') p++;
+                if (*p != '#') break;
+                *p = '\0';
+                int espacioLibreSector = atoi(inicioEspacioSector);
+                *p = '#';
+                p++;
+
+                char* inicioCodSector = p;
+                while (*p && *p != '#') p++;
+                if (*p != '#') break;
+                *p = '\0';
+                char sectorCode[MAX_STR_LEN];
+                strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
+                sectorCode[MAX_STR_LEN - 1] = '\0';
+                *p = '#';
+
+                char* nextPair = strstr(p, "#_");
+                if (espacioLibreSector < tamRegistro) {
+                    if (!nextPair) break;
+                    p = nextPair + 2;
+                    continue;
+                }
+
+                // Encontré sector válido
+                strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
+                espacioLibreSectorAntes = espacioLibreSector;
+                foundBlock = true;
+                break;
+            }
+            if (foundBlock) break;
+        }
+
+        if (!foundBlock) {
+            fclose(fdir);
+            return false;
+        }
+
+        int espacioLibreBloqueAntes = espacioLibreBloque;
+        int tamUtilNuevo = tamUtilAntes + tamRegistro;
+        int espacioBloqueNuevo = tamBloque - tamUtilNuevo;
+
+        // 3) Volver a la posición de la línea en dirBloques.txt y releerla para calcular raw_len
+        fseek(fdir, posLineaBloque, SEEK_SET);
+        if (!fgets(linea, MAX_BUF, fdir)) {
+            fclose(fdir);
+            return false;
+        }
+
+        // Medir longitud en disco (incluye CRLF)
+        size_t len_linea = strlen(linea);
+        if (len_linea > 0 && linea[len_linea - 1] == '\n') {
+            len_linea--;
+        }
+        size_t raw_len_total = len_linea + 1;
+        {
+            size_t lenNoCrLf = raw_len_total;
+            if (lenNoCrLf > 0 && linea[lenNoCrLf - 1] == '\n') {
+                lenNoCrLf--;
+            }
+            if (lenNoCrLf > 0 && linea[lenNoCrLf - 1] == '\r') {
+                raw_len_total = lenNoCrLf + 2;
+            }
+            else {
+                raw_len_total = lenNoCrLf + 1;
+            }
+        }
+
+        // 4) Reconstruir la nueva línea en dirBloques.txt
+        fseek(fdir, posLineaBloque, SEEK_SET);
+        fgets(linea, MAX_BUF, fdir);
+        linea[strcspn(linea, "\r\n")] = '\0';
+        char* inicioSect = strstr(linea, "#_");
+        if (!inicioSect) {
+            fclose(fdir);
+            return false;
+        }
+
+        char bufferNueva[MAX_BUF];
+        int ofsN = 0;
+        // "<espBloqueNuevo>#2#BLOQUE#<nroBloque>#<tamBloque>#_"
+        ofsN += snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
+            "%d#2#BLOQUE#%d#%d#_",
+            espacioBloqueNuevo,
+            nroBloque,
+            tamBloque);
+
+        // Copiar lista de sectores, restando tamRegistro al usado
+        {
+            char copia2[MAX_BUF];
+            strncpy(copia2, linea, MAX_BUF - 1);
+            copia2[MAX_BUF - 1] = '\0';
+            char* p2 = strstr(copia2, "#_");
+            if (p2) {
+                p2 += 2;
+                while (*p2) {
+                    int espSec = atoi(p2);
+                    while (*p2 && *p2 != '#') ++p2;
+                    if (!*p2) break;
+                    ++p2;
+                    char sectorCode2[MAX_STR_LEN] = { 0 };
+                    int pos2 = 0;
+                    while (*p2 && *p2 != '#') {
+                        sectorCode2[pos2++] = *p2++;
+                    }
+                    sectorCode2[pos2] = '\0';
+                    int nuevoEsp = espSec;
+                    if (strcmp(sectorCode2, codSectorLibre) == 0) {
+                        nuevoEsp = espSec - tamRegistro;
+                    }
+                    ofsN += snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
+                        "%d#%s#_",
+                        nuevoEsp,
+                        sectorCode2);
+                    char* next2 = strstr(p2, "#_");
+                    if (!next2) break;
+                    p2 = next2 + 2;
+                }
+            }
+        }
+
+        // 5) Ajustar bufferNueva para que ocupe EXACTAMENTE raw_len_total bytes (con CRLF)
+        if ((size_t)ofsN > raw_len_total - 2) {
+            // Si la porción útil ya excede raw_len_total-2, truncamos y ponemos CRLF
+            if (raw_len_total >= 2) {
+                bufferNueva[raw_len_total - 2] = '\r';
+                bufferNueva[raw_len_total - 1] = '\n';
+            }
+        }
+        else {
+            // Rellenar con espacios hasta raw_len_total-2
+            for (int i = ofsN; i < (int)raw_len_total - 2; i++) {
+                bufferNueva[i] = ' ';
+            }
+            // Poner CRLF al final
+            bufferNueva[raw_len_total - 2] = '\r';
+            bufferNueva[raw_len_total - 1] = '\n';
+        }
+
+        // 6) Sobreescribir EXACTAMENTE raw_len_total bytes
+        fseek(fdir, posLineaBloque, SEEK_SET);
+        fwrite(bufferNueva, 1, raw_len_total, fdir);
+        fflush(fdir);
+        fclose(fdir);
+
+        // -------------------------------------------------------------
+        // 7) Actualizar BloqueN.txt: reconstruir bitmap y APPEND de registro fijo
+        // -------------------------------------------------------------
+        {
+            char rutaBloque[MAX_PATH_LEN];
+            snprintf(rutaBloque, sizeof(rutaBloque),
+                "%sBLOQUES\\Bloque%d.txt",
+                discoNuevoPath, nroBloque);
+
+            FILE* fbloc = fopen(rutaBloque, "r+");
+            size_t raw_header_len = 0;
+            int    numRegAnt = 0;
+            int    numMaxAnt = 0;
+            char   bitmapAnt[MAX_BUF] = { 0 };
+
+            if (!fbloc) {
+                // Bloque no existe: crear y genera cabecera
+                char headerBuf[MAX_BUF];
+                size_t headerLen;
+                int numMax;
+                calcularCabeceraBloque(tamBloque, registroSize,
+                    headerBuf, &headerLen, &numMax);
+                fbloc = fopen(rutaBloque, "wb");
+                if (fbloc) {
+                    fwrite(headerBuf, 1, headerLen, fbloc);
+                    fflush(fbloc);
+                    fseek(fbloc, -1, SEEK_END);
+                    raw_header_len = headerLen;
+                }
+                numRegAnt = 0;
+                numMaxAnt = numMax;
+                for (int i = 0; i < numMax; i++) {
+                    bitmapAnt[i] = '0';
+                }
+                bitmapAnt[numMax] = '\0';
+            }
+            else {
+                // Leer cabecera existente hasta '/'
+                size_t pos = 0;
+                int c;
+                rewind(fbloc);
+                while ((c = fgetc(fbloc)) != EOF) {
+                    pos++;
+                    if (c == '/') break;
+                    if (pos >= MAX_BUF - 1) break;
+                }
+                raw_header_len = pos;
+                if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
+
+                rewind(fbloc);
+                char cabTmp[MAX_BUF];
+                fread(cabTmp, 1, raw_header_len, fbloc);
+                cabTmp[raw_header_len] = '\0';
+
+                char* p1 = strchr(cabTmp, '#');
+                if (!p1) { fclose(fbloc); return false; }
+                *p1 = '\0';
+                numRegAnt = safe_atoi(cabTmp);
+                char* p2 = p1 + 1;
+                char* p3 = strchr(p2, '#');
+                if (!p3) { fclose(fbloc); return false; }
+                *p3 = '\0';
+                numMaxAnt = safe_atoi(p2);
+                char* p4 = p3 + 1;
+                char* slash2 = strchr(p4, '/');
+                if (!slash2) { fclose(fbloc); return false; }
+                size_t bmpLen = (size_t)(slash2 - p4);
+                if (bmpLen >= MAX_BUF) bmpLen = MAX_BUF - 1;
+                strncpy(bitmapAnt, p4, bmpLen);
+                bitmapAnt[bmpLen] = '\0';
+            }
+
+            // 7.4) Ubicar primer bit '0' en bitmapAnt
+            int idxLibre = -1;
+            for (int i = 0; i < numMaxAnt; i++) {
+                if (bitmapAnt[i] == '0') {
+                    idxLibre = i;
+                    break;
+                }
+            }
+            if (idxLibre < 0) {
+                fclose(fbloc);
+                return false;
+            }
+
+            // 7.5) Actualizar numReg y bitmapAnt
+            numRegAnt++;
+            bitmapAnt[idxLibre] = '1';
+
+            // 7.6) Reconstruir cabecera nueva EXACTAMENTE raw_header_len bytes
+            char newHeader[MAX_BUF];
+            int  ofh = 0;
+            ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
+            for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
+                newHeader[ofh++] = bitmapAnt[i];
+            }
+            newHeader[ofh++] = '/';
+            while (ofh < (int)raw_header_len) {
+                newHeader[ofh++] = ' ';
+            }
+            newHeader[ofh] = '\0';
+
+            // 7.7) Sobreescribir cabecera
+            rewind(fbloc);
+            fwrite(newHeader, 1, raw_header_len, fbloc);
+            fflush(fbloc);
+
+            // 7.8) APPEND del registro de longitud fija relleno con '#'
+            fseek(fbloc, 0, SEEK_END);
+            // Crear buffer fijo de tamRegistro bytes
+            char registroBuf[registroSize];
+            // Llenar todo con '#'
+            memset(registroBuf, '#', registroSize);
+            // Copiar registroTxt (sin CR/LF al final) al inicio de registroBuf
+            size_t lenTxt = strlen(registroTxt);
+            while (lenTxt > 0 && (registroTxt[lenTxt - 1] == '\n' || registroTxt[lenTxt - 1] == '\r')) {
+                lenTxt--;
+            }
+            if (lenTxt > (size_t)registroSize - 1) {
+                lenTxt = (size_t)registroSize - 1;
+            }
+            memcpy(registroBuf, registroTxt, lenTxt);
+            // Asegurar que el último byte sea '|'
+            registroBuf[registroSize - 1] = '|';
+
+            fwrite(registroBuf, 1, registroSize, fbloc);
+            fflush(fbloc);
+            fclose(fbloc);
+
+            // Volcar bloque a sectores
+            this->volcarBloqueASectores(nroBloque);
+        }
+
+        // 8) Actualizar catalogo.txt (igual que antes)
+        {
+            char rutaCatalogo[MAX_PATH_LEN];
+            snprintf(rutaCatalogo, sizeof(rutaCatalogo),
+                "%s%s", discoNuevoPath, "catalogo.txt");
+            FILE* fcat = fopen(rutaCatalogo, "a");
+            if (fcat) {
+                char rutaBloque[MAX_PATH_LEN];
+                snprintf(rutaBloque, sizeof(rutaBloque),
+                    "%sBLOQUES\\Bloque%d.txt",
+                    discoNuevoPath, nroBloque);
+                fprintf(fcat, "%s|%s\n", relacion, rutaBloque);
+                fclose(fcat);
+            }
+        }
+
+        return true;
+    }
+
+    */
+
 
     bool adicionarTodoCSV(const char* csvPath, const char* tabla, int opcion) {
         FILE* fcsv = fopen(csvPath, "r");
@@ -3580,48 +3455,43 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
      *
      *   Restricciones: NO usa memoria dinámica ni STL. Solo buffers estáticos y snprintf/strlen.
      */
+
     void calcularCabeceraBloque(int tamBloque, int registroSize,
         char* bufferHeader,
         size_t* outHeaderLen,
         int* outNumMax)
     {
-        // 1. Estimación inicial: si no hubiera cabecera, cuántos registroSize caben en tamBloque.
+        // 1) Estimar inicialmente cuántos registros caben sin cabecera:
         int numMax = tamBloque / registroSize;
-        if (numMax < 1) {
-            // Ni siquiera cabe un solo registro. Forzamos mínimo 0.
-            numMax = 0;
-        }
+        if (numMax < 0) numMax = 0;
 
-        // Variables para la iteración
-        int    numMaxPrev = -1;
-        size_t headerLenPrev = 0;
-        char   tmpHeader[MAX_BUF];
+        // 2) Iterar hasta que numMax se estabilice al considerar el espacio de la cabecera misma:
+        int numMaxPrev = -1;
+        char tmpHeader[MAX_BUF];
 
-        // 2. Iteramos hasta que numMax deje de cambiar:
         while (numMax != numMaxPrev) {
             numMaxPrev = numMax;
 
-            // 2.1 Construir temporalmente la cabecera con numReg=0, numMax, y bitmap de '0's.
-            //     Formato → "0#<numMax>#0000...0\n"
-            //     Longitud del campo "<numMax>" varía con la cantidad de dígitos.
-            int  ofs = 0;
+            // 2.1) Construir temporalmente la cabecera con el numMax actual:
+            //      Formato (temporal): "0#<numMax>#<numMax de '0's>/"
+            int ofs = 0;
             ofs += snprintf(tmpHeader + ofs, MAX_BUF - ofs, "0#%d#", numMax);
-            // Llenar con '0' numMax veces:
-            for (int i = 0; i < numMax && ofs < MAX_BUF - 2; i++) {
+
+            // Llenar con exactamente numMax ceros ('0')
+            for (int i = 0; i < numMax && ofs < MAX_BUF - 1; i++) {
                 tmpHeader[ofs++] = '0';
             }
-            // Insertar salto de línea final:
-            tmpHeader[ofs++] = '\n';
+
+            // Terminar con '/' (en lugar de '\n')
+            tmpHeader[ofs++] = '/';
             tmpHeader[ofs] = '\0';
 
-            // 2.2 Medir cuánto ocupa en bytes esa cabecera:
-            size_t headerLen = (size_t)strlen(tmpHeader);
+            // 2.2) Calcular longitud de esa cabecera temporal:
+            size_t headerLen = strlen(tmpHeader);
 
-            // 2.3 Ahora calculamos cuántos registros caben realmente si reservamos
-            //     espacio 'headerLen' para la cabecera:
-            if (headerLen >= (size_t)tamBloque) {
-                // La cabecera ya ocupa todo el bloque: 
-                // No cabe ningún registro.
+            // 2.3) Comprobar cuánto espacio queda para registros:
+            if ((int)headerLen >= tamBloque) {
+                // La cabecera ya consume todo el bloque → cero registros caben
                 numMax = 0;
             }
             else {
@@ -3630,102 +3500,27 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
                 if (posibleMax < 0) posibleMax = 0;
                 numMax = posibleMax;
             }
-
-            // 2.4 Si numMax cambió, repetimos; si no, salimos.
-            headerLenPrev = headerLen;
+            // Repetir hasta que numMax deje de cambiar.
         }
 
-        // 3. Resultado final: generar la cadena definitiva en bufferHeader:
-        //    “0#<numMax>#<numMax ceros>\n”
+        // 3) Construir la cabecera definitiva en bufferHeader:
         int ofsFinal = 0;
         ofsFinal += snprintf(bufferHeader + ofsFinal, MAX_BUF - ofsFinal, "0#%d#", numMax);
-        for (int i = 0; i < numMax && ofsFinal < MAX_BUF - 2; i++) {
+
+        // Insertar bitmap de '0's (numMax veces)
+        for (int i = 0; i < numMax && ofsFinal < MAX_BUF - 1; i++) {
             bufferHeader[ofsFinal++] = '0';
         }
-        bufferHeader[ofsFinal++] = '\n';
+
+        // Terminar con '/'
+        bufferHeader[ofsFinal++] = '/';
         bufferHeader[ofsFinal] = '\0';
 
-        // 4. Devolver los valores calculados:
-        *outHeaderLen = (size_t)strlen(bufferHeader);
+        // 4) Devolver resultados
+        *outHeaderLen = ofsFinal;    // no contamos '\0', es exactamente la cantidad de bytes antes del '\0'
         *outNumMax = numMax;
     }
 
-    /*
-    void calcularLongitudFija(const char* rutaCSV) {
-        FILE* fcsv = fopen(rutaCSV, "r");
-        if (!fcsv) {
-            perror("No se puede abrir el CSV para calcular longitudes fijas");
-            return;
-        }
-
-        char linea[MAX_BUF];
-        if (!fgets(linea, MAX_BUF, fcsv)) {
-            fclose(fcsv);
-            return;
-        }
-        linea[strcspn(linea, "\r\n")] = '\0';
-
-        int numFields = 1;
-        for (char* p = linea; *p; ++p) {
-            if (*p == ',') numFields++;
-        }
-
-        int* maxLen = (int*)malloc(sizeof(int) * numFields);
-        if (!maxLen) { fclose(fcsv); return; }
-        for (int i = 0; i < numFields; i++) maxLen[i] = 0;
-
-        {
-            char* copy = _strdup(linea);
-            char* tok = strtok(copy, ",");
-            int idx = 0;
-            while (tok && idx < numFields) {
-                int len = (int)strlen(tok);
-                if (len > maxLen[idx]) maxLen[idx] = len;
-                idx++;
-                tok = strtok(NULL, ",");
-            }
-            free(copy);
-        }
-
-        while (fgets(linea, MAX_BUF, fcsv)) {
-            linea[strcspn(linea, "\r\n")] = '\0';
-            char* copy = _strdup(linea);
-            char* tok = strtok(copy, ",");
-            int idx = 0;
-            while (tok && idx < numFields) {
-                int len = (int)strlen(tok);
-                if (len > maxLen[idx]) maxLen[idx] = len;
-                idx++;
-                tok = strtok(NULL, ",");
-            }
-            free(copy);
-        }
-        fclose(fcsv);
-
-        const char* slash = strrchr(rutaCSV, '/');
-        const char* fname = slash ? slash + 1 : rutaCSV;
-        char nombreRel[MAX_STR_LEN];
-        strncpy(nombreRel, fname, MAX_STR_LEN - 1);
-        nombreRel[MAX_STR_LEN - 1] = '\0';
-        char* ext = strstr(nombreRel, ".csv");
-        if (ext) *ext = '\0';
-
-        FILE* flog = fopen(rutaLongitudFija, "a");
-        if (!flog) {
-            perror("No se puede abrir longitudFija.txt");
-            free(maxLen);
-            return;
-        }
-        fprintf(flog, "%s|%d", nombreRel, numFields);
-        for (int i = 0; i < numFields; i++) {
-            fprintf(flog, "#%d", maxLen[i]);
-        }
-        fprintf(flog, "\n");
-        fclose(flog);
-        free(maxLen);
-    }
-
-    */
 
     int obtenerTamañoRegistro(const char* nombreRel) {
         FILE* f = fopen(rutaLongitudFija, "r");
@@ -3889,9 +3684,4 @@ bool adicionarRegistroUnico(const char* registroTxt, const char* relacion) {
 
         return false;
     }
-
-
-
-
-
 };

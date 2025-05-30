@@ -648,11 +648,11 @@ int main() {
     const string titanicTXT = basePath + "titanic.txt";
     const string housingTXT = basePath + "housing.txt";
 
-    const int def_platos = 4;
-    const int def_pistas = 10;
-    const int def_sectores = 15;
-    const int def_tamSector = 60;
-    const int def_tamBloque = 180;
+    const int def_platos = 5;
+    const int def_pistas = 5;
+    const int def_sectores = 10;
+    const int def_tamSector = 800;
+    const int def_tamBloque = 22400;
 
     cout << "=== Configurar Disco ===\n";
     cout << "1) Usar configuracion por defecto\n";
@@ -709,6 +709,7 @@ int main() {
         cout << "7) Adicionar registro\n";
         cout << "8) Adicionar N registros desde CSV\n";
         cout << "9) Adicionar todo CSV\n";
+        cout << "10) EliminarRegistro\n";
         cout << ">> ";
 
         string opt;
@@ -798,8 +799,10 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion))
+            if (miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion)){
                 cout << "Registros agregados correctamente.\n";
+                //
+            }
             else
                 cout << "No se pudieron agregar los registros.\n";
         }
@@ -818,6 +821,38 @@ int main() {
             else
                 cout << "No se pudieron agregar todos los registros.\n";
         }
+        else if (opt == "10") {
+            cout << "¿Tipo de eliminacion?\n";
+            cout << "1) Longitud fija (bitmap)\n";
+            cout << "2) Longitud variable\n";
+            cout << ">> ";
+            int opcion;
+            cin >> opcion;
+            cin.ignore(1, '\n');
+            
+            if (miDisco.eliminarRegistro("housing", 2))
+                cout << "Eliminado correctamente\n";
+            else
+                cout << "No se pudo eliminar el registro\n";
+        }
+        else if (opt == "11") {
+            cout << "¿Tipo de eliminacion?\n";
+            cout << "1) Longitud fija (bitmap)\n";
+            cout << "2) Longitud variable\n";
+            cout << ">> ";
+            int opcion;
+            cin >> opcion;
+            cin.ignore(1, '\n');
+
+            const char* nombreRelacion = "housing";
+            int lineaObjetivo = 3;
+            const char* registroNuevo = "1750000#3850#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
+
+            if (miDisco.updateRegistro(nombreRelacion, lineaObjetivo, registroNuevo))
+                cout << "Registro actualizado correctamente\n";
+            else
+                cout << "No se pudo actualizar el registro\n";
+                }
         else {
             cout << "Opcion invalida\n";
         }
