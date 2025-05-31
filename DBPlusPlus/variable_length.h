@@ -9,7 +9,7 @@
 #include <iostream>
 #include "Disco.h"  
 
-char schemapath[]="data\\usr\\db\\esquema.txt";
+char schemapath[] = "data\\usr\\db\\esquema.txt";
 
 int get_n_attributes(const char* relacion) {
     FILE* schema = std::fopen(schemapath, "r");
@@ -28,18 +28,18 @@ int get_n_attributes(const char* relacion) {
         }
     }
     std::fclose(schema);
-    if (!found) throw std::runtime_error("Relación no encontrada en el esquema");
+    if (!found) throw std::runtime_error("Relaci?n no encontrada en el esquema");
     // Cada par de '#' delimita dos metadatos (offset y size), por eso dividimos
     return (hash_count + 1) / 2;
 }
 
 /**
- * Convierte un entero en su representación de 2 bytes y la almacena en el arreglo apuntado por par_byte.
- * @param n          El número entero a convertir (debe estar en rango 0..65535).
- * @param par_byte   Puntero a un arreglo de 2 bytes donde se guardará el valor en orden little-endian:
- *                   (*par_byte)[0] = byte de orden más bajo (LSB).
- *                   (*par_byte)[1] = byte de orden más alto (MSB).
- * @throws std::out_of_range si n está fuera del rango permitido.
+ * Convierte un entero en su representaci?n de 2 bytes y la almacena en el arreglo apuntado por par_byte.
+ * @param n          El n?mero entero a convertir (debe estar en rango 0..65535).
+ * @param par_byte   Puntero a un arreglo de 2 bytes donde se guardar? el valor en orden little-endian:
+ *                   (*par_byte)[0] = byte de orden m?s bajo (LSB).
+ *                   (*par_byte)[1] = byte de orden m?s alto (MSB).
+ * @throws std::out_of_range si n est? fuera del rango permitido.
  */
 void num_to_binary(int n, char (*par_byte)[2]) {
     if (n < 0 || n > 0xFFFF) {
@@ -56,18 +56,18 @@ int binary_to_num(const char (*par_byte)[2]) {
 }
 
 /**
- * Formatea un registro de longitud variable según la definición en el esquema.
+ * Formatea un registro de longitud variable seg?n la definici?n en el esquema.
  * @param registro           Cadena que contiene los campos separados por '#'.
- * @param relacion           Clave de relación para buscar en el esquema.
- * @param registro_variable  Buffer de 512 bytes donde se almacenará el registro formateado.
- * @throws std::runtime_error si no se encuentra la relación en el esquema o hay error de E/S.
+ * @param relacion           Clave de relaci?n para buscar en el esquema.
+ * @param registro_variable  Buffer de 512 bytes donde se almacenar? el registro formateado.
+ * @throws std::runtime_error si no se encuentra la relaci?n en el esquema o hay error de E/S.
  */
-//registro[] todos con contenido
-//declaracion:
-//char registro_variable[]=format_registro_variable(registro, relacion);
-//delete[] registro_variable; al terminar de usar registro variable, y antes de hacer otra llamada a la funcion
+ //registro[] todos con contenido
+ //declaracion:
+ //char registro_variable[]=format_registro_variable(registro, relacion);
+ //delete[] registro_variable; al terminar de usar registro variable, y antes de hacer otra llamada a la funcion
 char* format_registro_variable(const char registro[], const char relacion[]) {
-    // 1) Obtener número de atributos
+    // 1) Obtener n?mero de atributos
     int field_number = get_n_attributes(relacion);
     // 2) Separar campos de texto
     std::vector<std::string> fields;
@@ -117,35 +117,36 @@ char* format_registro_variable(const char registro[], const char relacion[]) {
 /**
  * Inserta un registro variable en un bloque y actualiza metadatos.
  * @param registro_variable Buffer con formato de registro (512 bytes).
- * @param relacion          Clave de relación para identificar esquema.
+ * @param relacion          Clave de relaci?n para identificar esquema.
  * @param espacio_libre_bloque Espacio libre en el bloque.
  * @param bloque_variable   Puntero al buffer del bloque donde insertar.
  * @return true si se inserta correctamente; false si no cabe.
  */
 bool format_bloque_variable(const char registro_variable[], const char relacion[], int espacio_libre_bloque, char* bloque_variable, Disco& disco) {
-    // 1. Obtener número de atributos usando get_n_attributes
+    // 1. Obtener n?mero de atributos usando get_n_attributes
     int field_number = get_n_attributes(relacion);
     int header_len = field_number * 4;
 
-    // 2. Calcular longitud total del registro: suma cabecera y tamaños
+    // 2. Calcular longitud total del registro: suma cabecera y tama?os
     int registro_len = header_len;
     for (int i = 0; i < field_number; ++i) {
         // offset at index 2*i*2+2 gives size at header
-        char bin_size[2] = { registro_variable[4*i + 2], registro_variable[4*i + 3] };
+        char bin_size[2] = { registro_variable[4 * i + 2], registro_variable[4 * i + 3] };
         registro_len += binary_to_num(reinterpret_cast<const char(*)[2]>(&bin_size));
     }
 
     // 3. Leer metadatos del bloque: registro_n y last_pos
-    // Asegurar que bin_meta esté limpio antes de usar
-    char bin_meta[2] = {0, 0};
+    // Asegurar que bin_meta est? limpio antes de usar
+    char bin_meta[2] = { 0, 0 };
     int registro_n = 0;
     int last_pos = 0;
     // bytes 0-1 = registro_n
     bin_meta[0] = bloque_variable[0];
     bin_meta[1] = bloque_variable[1];
     registro_n = binary_to_num(&bin_meta);
-    bin_meta[0] = {0}; //reinicio del buffer
-    bin_meta[1] = {0};
+
+    bin_meta[0] = 0;//reinicio del buffer
+    bin_meta[1] = 0;
     // bytes 2-3 = last_position
     bin_meta[0] = bloque_variable[2];
     bin_meta[1] = bloque_variable[3];
@@ -153,20 +154,20 @@ bool format_bloque_variable(const char registro_variable[], const char relacion[
     if (last_pos == 0) last_pos = disco.get_tam_bloque() - 1;
 
     // 4. Verificar espacio y escribir registro
-    if (espacio_libre_bloque - last_pos < registro_len) return false;
+    if (last_pos + 1 < registro_len) return false;
     int write_pos = last_pos - registro_len + 1;
     std::memcpy(bloque_variable + write_pos, registro_variable, registro_len);
     last_pos = write_pos;
     registro_n++;
 
-    // 5. Actualizar cabecera en bloque: nueva last_pos y tamaño
+    // 5. Actualizar cabecera en bloque: nueva last_pos y tama?o
     int idx = 4 + (registro_n - 1) * 4;
     num_to_binary(last_pos, &bin_meta);
-    bloque_variable[idx]     = bin_meta[0];
+    bloque_variable[idx] = bin_meta[0];
     bloque_variable[idx + 1] = bin_meta[1];
     idx += 2;
     num_to_binary(registro_len, &bin_meta);
-    bloque_variable[idx]     = bin_meta[0];
+    bloque_variable[idx] = bin_meta[0];
     bloque_variable[idx + 1] = bin_meta[1];
     return true;
 }
@@ -176,8 +177,8 @@ bool format_bloque_variable(const char registro_variable[], const char relacion[
 /**
  * Parsea un registro formateado y construye un string con offsets y datos.
  * @param registro_variable  Buffer binario del registro.
- * @param field_num          Número de campos en la cabecera.
- * @param output             Referencia a puntero donde se devolverá el buffer (heap).
+ * @param field_num          N?mero de campos en la cabecera.
+ * @param output             Referencia a puntero donde se devolver? el buffer (heap).
  * @return Puntero al buffer con el contenido parseado (liberar con delete[]).
  */
 
@@ -225,7 +226,7 @@ char* read_registro_variable(const char registro_variable[], int field_num, char
     std::string tmp;
     for (int i = 0; i < field_num; ++i) {
         int off = offsets[i];
-        int sz  = sizes[i];
+        int sz = sizes[i];
         tmp.append(registro_variable + off, sz);
         if (i < field_num - 1) tmp.push_back('#');
     }
@@ -234,6 +235,75 @@ char* read_registro_variable(const char registro_variable[], int field_num, char
     output[tmp.size()] = '\0';
     return output;
 }
+
+/**
+ * Lee los ?ltimos n bytes de un bloque de tama?o fijo (512 bytes) y devuelve un buffer de texto.
+ * @param bloque   Buffer de bloque (512 bytes).
+ * @param n        N?mero de bytes a leer desde el final del bloque.
+ * @return Puntero a un buffer (new char[n+1]) con los n bytes le?dos y terminador '\0'.
+ *         Debe liberarse con delete[].
+ */
+char* read_record_from_block(const char bloque[], int write_pos, int registro_len) {
+    char* out = new char[registro_len + 1];
+    std::memcpy(out, bloque + write_pos, registro_len);
+    out[registro_len] = '\0';
+    return out;
+}
+
+char* read_bloque_content(const char bloque[], const char relacion[]) {
+    // 1) Leer n?mero de registros en la cabecera del bloque (bytes 0-1)
+    char binary_buffer[2] = { 0, 0 };
+    binary_buffer[0] = bloque[0];
+    binary_buffer[1] = bloque[1];
+    int n_registros = binary_to_num(reinterpret_cast<const char(*)[2]>(&binary_buffer));
+
+    // 2) Inicializar ?ndices para offset y size en la cabecera del bloque
+    int offset_idx = 4; // despu?s de registro_n (2 bytes) y last_pos (2 bytes)
+    int size_idx = 6;
+
+    // 3) Obtener longitud de cabecera interna para cada registro
+    int field_count = get_n_attributes(relacion);
+    int header_len = field_count * 4;
+
+    // 4) Buffer temporal y acumulador de resultados
+    char temp[180];
+    std::string result;
+
+    // 5) Iterar sobre cada registro en el bloque
+    for (int r = 0; r < n_registros; ++r) {
+        // Leer offset del registro
+        binary_buffer[0] = bloque[offset_idx];
+        binary_buffer[1] = bloque[offset_idx + 1];
+        int offset = binary_to_num(reinterpret_cast<const char(*)[2]>(&binary_buffer));
+
+        // Leer tama?o total del registro
+        binary_buffer[0] = bloque[size_idx];
+        binary_buffer[1] = bloque[size_idx + 1];
+        int size = binary_to_num(reinterpret_cast<const char(*)[2]>(&binary_buffer));
+
+        // 6) Copiar s?lo la parte de datos (saltando la cabecera interna)
+        int data_len = size - header_len;
+        for (int i = 0; i < data_len && i < 511; ++i) {
+            temp[i] = bloque[offset + header_len + i];
+        }
+        temp[data_len] = '\0';
+
+        // Agregar al string de resultado
+        result += temp;
+        if (r < n_registros - 1) result.push_back('\n');
+
+        // Avanzar los ?ndices para el siguiente registro
+        offset_idx += 4;
+        size_idx += 4;
+    }
+
+    // 7) Reservar buffer final en heap y copiar
+    char* output = new char[result.size() + 1];
+    std::memcpy(output, result.c_str(), result.size());
+    output[result.size()] = '\0';
+    return output;
+}
+
 // Ejemplo de uso de read_registro_variable:
 // char* parsed;
 // read_registro_variable(registro_variable, field_count, parsed);
@@ -255,7 +325,7 @@ bool format_bloque_variable(const char registro_variable[], const char relacion[
         }
     }
     std::fclose(schema);
-    if (!found) throw std::runtime_error("Relación no encontrada en el esquema");
+    if (!found) throw std::runtime_error("Relaci?n no encontrada en el esquema");
 
     // 2. Calcular longitud total del registro
     int total_fields = field_number;
@@ -297,7 +367,7 @@ bool format_bloque_variable(const char registro_variable[], const char relacion[
         bloque_variable[index_array]     = binary_buffer[0];
         bloque_variable[index_array + 1] = binary_buffer[1];
         index_array += 2;
-        // Tamaño del registro
+        // Tama?o del registro
         num_to_binary(registro_len, &binary_buffer);
         bloque_variable[index_array]     = binary_buffer[0];
         bloque_variable[index_array + 1] = binary_buffer[1];

@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include "variable_length.h"
 
 #define MAX_BUF      512
 #define MAX_STR_LEN 32
@@ -777,14 +778,14 @@ int main() {
             else
                 cout << "No se pudo agregar el registro.\n";
         }
-            //cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
-            //cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
-            ////fgets(reg, 512, stdin);
-            //string input = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
-            //if (input.back() != '\n')
-            //    input.push_back('\n');
-            ////const char* reg = ;
-            //miDisco.adicionarRegistroUnico(input.c_str(), "housing");
+        //cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
+        //cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
+        ////fgets(reg, 512, stdin);
+        //string input = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
+        //if (input.back() != '\n')
+        //    input.push_back('\n');
+        ////const char* reg = ;
+        //miDisco.adicionarRegistroUnico(input.c_str(), "housing");
         else if (opt == "8") {
             int n;
             cout << "¿Cuantos registros desea agregar? ";
@@ -799,7 +800,7 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion)){
+            if (miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion)) {
                 cout << "Registros agregados correctamente.\n";
                 //
             }
@@ -829,30 +830,68 @@ int main() {
             int opcion;
             cin >> opcion;
             cin.ignore(1, '\n');
-            
+
             if (miDisco.eliminarRegistro("housing", 2))
                 cout << "Eliminado correctamente\n";
             else
                 cout << "No se pudo eliminar el registro\n";
         }
         else if (opt == "11") {
-            cout << "¿Tipo de eliminacion?\n";
-            cout << "1) Longitud fija (bitmap)\n";
-            cout << "2) Longitud variable\n";
-            cout << ">> ";
-            int opcion;
-            cin >> opcion;
-            cin.ignore(1, '\n');
+            // --- Inserción de longitud variable ---
+            cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
+            string tabla;
 
-            const char* nombreRelacion = "housing";
-            int lineaObjetivo = 3;
-            const char* registroNuevo = "1750000#3850#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
+            cout << "Ingrese registro (campos separados por '#', terminado en '\\n'):\n";
+            string input;
+            string input2;
 
-            if (miDisco.updateRegistro(nombreRelacion, lineaObjetivo, registroNuevo))
-                cout << "Registro actualizado correctamente\n";
-            else
-                cout << "No se pudo actualizar el registro\n";
-                }
+            tabla = "titanic";
+            input = "1#0#3#Braund# Mr. Owen Harris#male#22#1#0#A/5 21171#7.25##S";
+            input2 = "2#1#1#Cumings# Mrs. John Bradley (Florence Briggs Thayer)#female#38#1#0#PC 17599#71.2833#C85#C";
+
+            if (input.back() != '\n') input.push_back('\n');
+
+            // Formatear el registro variable
+            char* reg_var = format_registro_variable(input.c_str(), tabla.c_str());
+            if (!reg_var) {
+                cerr << "Error al formatear registro variable.\n";
+                continue;
+            }
+
+            // Preparar bloque vacío
+            char* bloqueVar = new char[tamBloque];
+            memset(bloqueVar, 0, tamBloque);
+
+            // Empaquetar en el bloque
+            bool ok = format_bloque_variable(reg_var, tabla.c_str(), tamBloque, bloqueVar, miDisco);
+            delete[] reg_var;
+
+            if (!ok) {
+                cerr << "Error: no se pudo empaquetar el registro en un bloque variable.\n";
+                delete[] bloqueVar;
+                continue;
+            }
+
+            // Volcar el bloque completo a un fichero binario "Bloque1_var.bin"
+            // (Se asume que se usa siempre el Bloque1 para demo; puedes parametrizar)
+            ofstream fout("bloque.txt", ios::binary | ios::trunc);
+            if (!fout) {
+                cerr << "Error al abrir Bloque1_var.bin para escritura\n";
+            }
+            else {
+                fout.write(bloqueVar, tamBloque);
+                fout.close();
+                cout << "Bloque variable escrito en BLOQUES_VAR\\Bloque1_var.bin\n";
+            }
+            delete[] bloqueVar;
+
+            // Mostrar contenido final del bloque
+            // (read_bloque_content devuelve en heap, hay que liberarlo)
+            // Para simplificar, leemos desde el bloque en memoria original:
+            // char* contenido = read_bloque_content(bloqueVar, tabla.c_str());
+            // cout << "Contenido del bloque:\n" << contenido << "\n";
+            // delete[] contenido;
+            }
         else {
             cout << "Opcion invalida\n";
         }
