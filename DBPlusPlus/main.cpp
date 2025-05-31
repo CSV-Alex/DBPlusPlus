@@ -701,67 +701,40 @@ int main() {
     cout << "\n*** Bienvenido a MEGATRON 3000 ***\n\n";
 
     while (true) {
-        cout << "1) Adicionar relacion\n";
-        cout << "2) Ejecutar consulta SQL\n";
-        cout << "3) Consultar bloques por relacion\n";
-        cout << "4) Volcar bloques a sectores\n";
-        cout << "5) Mostrar caracteristicas del disco\n";
-        cout << "6) Salir\n";
-        cout << "7) Adicionar registro\n";
-        cout << "8) Adicionar N registros desde CSV\n";
-        cout << "9) Adicionar todo CSV\n";
-        cout << "10) EliminarRegistro\n";
+        cout << "1) Mostrar caracteristicas del disco\n"; ///
+        cout << "2) Adicionar registro\n"; ///
+        cout << "3) Adicionar N registros desde CSV\n"; ///
+        cout << "4) Adicionar todo CSV\n"; ///
+        cout << "5) Eliminar registro\n"; ///
+        cout << "6) Inserción de longitud variabl (Demo)\n"; ///
+        cout << "7) Ejecutar consulta SQL\n"; ///
+        cout << "8) Adicionar/Volcar relacion a Sectores\n"; ///
+        cout << "9) Salir\n"; ///
         cout << ">> ";
 
         string opt;
         getline(cin, opt);
-        if (opt == "6") break;
+        if (opt == "9") break;
 
         if (opt == "1") {
-            cout << "Nombre de la tabla: ";
-            string tabla; getline(cin, tabla);
-            miDisco.adicionarRelacion(discoPath.c_str(), tabla.c_str(), basePath.c_str());
-        }
-        else if (opt == "2") {
-            string sel, from, where;
-            cout << "SELECT "; getline(cin, sel);
-            cout << "FROM ";   getline(cin, from);
-            cout << "WHERE ";  getline(cin, where);
-            agregarTablaCatalogo(basePath.c_str(), from.c_str());
-            ejecutar_query(sel.c_str(), from.c_str(), where.c_str(),
-                schemaPath.c_str(), basePath.c_str(),
-                miDisco, discoPath.c_str());
-            cout << "Tamaño de la tabla: " << relationSizeBytes(from.c_str(), basePath.c_str()) << " bytes\n";
-        }
-        else if (opt == "3") {
-            cout << "Nombre de la relacion: ";
-            string tabla; getline(cin, tabla);
-            miDisco.consultarRelacionBloques(tabla.c_str());
-        }
-        else if (opt == "4") {
-            cout << "Nombre de la relacion: ";
-            string tabla; getline(cin, tabla);
-            miDisco.volcarRelacionASectores(tabla.c_str());
-        }
-        else if (opt == "5") {
             miDisco.printDisco();
             miDisco.printCapacidadesDetalle();
             miDisco.mostrarArbolDisco();
         }
         // Supongamos tabla="titanic"
-        else if (opt == "7") {
+        else if (opt == "2") {
             //char reg[512];
             cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
-            cout << "892#Doe, John#M#32#0#0#A/5 21171#12.50##S\n" << endl;
+            cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
             //fgets(reg, 512, stdin);
-            string input = "892#Doe, John#M#32#0#0#A/5 21171#12.50##S\n";
+            string input = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
             if (input.back() != '\n')
                 input.push_back('\n');
             //const char* reg = ;
 
             cout << "¿Tipo de inserción?\n";
-            cout << "1) Longitud fija (bitmap)\n";
-            cout << "2) Longitud variable\n";
+            cout << "1) Longitud variable\n";
+            cout << "2) Longitud fija (bitmap)\n";
             cout << ">> ";
             int opcion;
             cin >> opcion;
@@ -778,23 +751,16 @@ int main() {
             else
                 cout << "No se pudo agregar el registro.\n";
         }
-        //cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
-        //cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
-        ////fgets(reg, 512, stdin);
-        //string input = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
-        //if (input.back() != '\n')
-        //    input.push_back('\n');
-        ////const char* reg = ;
-        //miDisco.adicionarRegistroUnico(input.c_str(), "housing");
-        else if (opt == "8") {
+
+        else if (opt == "3") {
             int n;
             cout << "¿Cuantos registros desea agregar? ";
             cin >> n;
             cin.ignore(1, '\n');
 
             cout << "¿Tipo de inserción?\n";
-            cout << "1) Longitud fija (bitmap)\n";
-            cout << "2) Longitud variable\n";
+            cout << "1) Longitud variable\n";
+            cout << "2) Longitud fija (bitmap)\n";
             cout << ">> ";
             int opcion;
             cin >> opcion;
@@ -808,10 +774,10 @@ int main() {
                 cout << "No se pudieron agregar los registros.\n";
         }
 
-        else if (opt == "9") {
+        else if (opt == "4") {
             cout << "¿Tipo de inserción?\n";
-            cout << "1) Longitud fija (bitmap)\n";
-            cout << "2) Longitud variable\n";
+            cout << "1) Longitud variable\n";
+            cout << "2) Longitud fija (bitmap)\n";
             cout << ">> ";
             int opcion;
             cin >> opcion;
@@ -822,10 +788,10 @@ int main() {
             else
                 cout << "No se pudieron agregar todos los registros.\n";
         }
-        else if (opt == "10") {
+        else if (opt == "5") {
             cout << "¿Tipo de eliminacion?\n";
-            cout << "1) Longitud fija (bitmap)\n";
-            cout << "2) Longitud variable\n";
+            cout << "1) Longitud variable\n";
+            cout << "2) Longitud fija (bitmap)\n";
             cout << ">> ";
             int opcion;
             cin >> opcion;
@@ -836,7 +802,7 @@ int main() {
             else
                 cout << "No se pudo eliminar el registro\n";
         }
-        else if (opt == "11") {
+        else if (opt == "6") {
             // --- Inserción de longitud variable ---
             cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
             string tabla;
@@ -891,7 +857,26 @@ int main() {
             // char* contenido = read_bloque_content(bloqueVar, tabla.c_str());
             // cout << "Contenido del bloque:\n" << contenido << "\n";
             // delete[] contenido;
+        }
+
+        else if (opt == "7") {
+            string sel, from, where;
+            cout << "SELECT "; getline(cin, sel);
+            cout << "FROM ";   getline(cin, from);
+            cout << "WHERE ";  getline(cin, where);
+            agregarTablaCatalogo(basePath.c_str(), from.c_str());
+            ejecutar_query(sel.c_str(), from.c_str(), where.c_str(),
+                schemaPath.c_str(), basePath.c_str(),
+                miDisco, discoPath.c_str());
+            cout << "Tamaño de la tabla: " << relationSizeBytes(from.c_str(), basePath.c_str()) << " bytes\n";
+        }
+
+        else if (opt == "8") {
+            cout << "Nombre de la relacion: ";
+            string tabla; getline(cin, tabla);
+            miDisco.volcarRelacionASectores(tabla.c_str());
             }
+
         else {
             cout << "Opcion invalida\n";
         }
