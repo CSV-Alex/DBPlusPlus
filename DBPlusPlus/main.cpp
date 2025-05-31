@@ -630,7 +630,7 @@ void ejecutar_query(const char* selectField,
 
         agregarTablaCatalogo(basePath, bareSaveName);
         relationFormatMin(saveNamePath, esquemaPath);
-        disco.adicionarRelacion(discoPath, bareSaveName, basePath);
+        //disco.adicionarRelacion(discoPath, bareSaveName, basePath);
 
         return;
     }
