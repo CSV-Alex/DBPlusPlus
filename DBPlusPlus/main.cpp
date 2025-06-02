@@ -7,7 +7,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-#include "variable_length.h"
+#include "LVariable.h"
+#include "LFija.h"
 
 #define MAX_BUF      512
 #define MAX_STR_LEN 32
@@ -695,8 +696,8 @@ int main() {
     convertCsvToTxt(housingCSV, housingTXT);
     relationFormatMin(titanicTXT.c_str(), schemaPath.c_str());
     relationFormatMin(housingTXT.c_str(), schemaPath.c_str());
-    miDisco.calcularLongitudFija(titanicTXT.c_str());
-    miDisco.calcularLongitudFija(housingTXT.c_str());
+    calcularLongitudFija(titanicTXT.c_str());
+    calcularLongitudFija(housingTXT.c_str());
 
     cout << "\n*** Bienvenido a MEGATRON 3000 ***\n\n";
 
@@ -742,9 +743,9 @@ int main() {
 
             bool ok = false;
             if (opcion == 1)
-                ok = miDisco.adicionarRegistroUnicoBitmap("Housing", input.c_str());
+                ok = adicionarRegistroUnicoBitmap("Housing", input.c_str());
             else
-                ok = miDisco.adicionarRegistroUnico(input.c_str(), "housing");
+                ok = adicionarRegistroUnico(input.c_str(), "housing", miDisco);
 
             if (ok)
                 cout << "Registro agregado correctamente.\n";
@@ -766,7 +767,7 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (miDisco.adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion)) {
+            if (adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco)) {
                 cout << "Registros agregados correctamente.\n";
                 //
             }
@@ -783,7 +784,7 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (miDisco.adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion))
+            if (adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco))
                 cout << "Todos los registros del CSV agregados correctamente.\n";
             else
                 cout << "No se pudieron agregar todos los registros.\n";
@@ -797,7 +798,7 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (miDisco.eliminarRegistro("housing", 2))
+            if (eliminarRegistro("housing", 2))
                 cout << "Eliminado correctamente\n";
             else
                 cout << "No se pudo eliminar el registro\n";

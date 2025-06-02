@@ -129,6 +129,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Disco.cpp" />
+    <ClCompile Include="DiscoPath.cpp" />
+    <ClCompile Include="LFija.h" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NonSense.cpp" />
     <ClCompile Include="Titanic.cpp" />
@@ -146,6 +148,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Disco.h" />
+    <ClInclude Include="DiscoPaths.h" />
+    <ClInclude Include="LVariable.h" />
     <ClInclude Include="Titanic.h" />
     <ClInclude Include="TitanicData.h" />
     <ClInclude Include="Utils.h" />
