@@ -239,7 +239,6 @@ static void calcularLongitudFija(const char* rutaTXT) {
     fclose(flog);
 }
 
-
 /// Buscar forma de reemplazarlo por obtenerTamañoRegistro
 static void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
     FILE* flog = fopen(rutaLongitudFija, "r");
@@ -294,12 +293,12 @@ static void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
 }
 
 /// Observar
-static void obtenerLongitudesPorCampo(const char* relacion, int* numFields, int* maxLenArr) {
+static bool obtenerLongitudesPorCampo(const char* relacion, int* numFields, int* maxLenArr) {
     FILE* flog = fopen(rutaLongitudFija, "r");
     if (!flog) {
         perror("No se puede abrir longitudfija.txt para lectura");
         *numFields = 0;
-        return;
+        return false;
     }
 
     char linea[MAX_BUF];
@@ -320,7 +319,7 @@ static void obtenerLongitudesPorCampo(const char* relacion, int* numFields, int*
             if (nf < 1) {
                 fclose(flog);
                 *numFields = 0;
-                return;
+                return false;
             }
             if (nf > MAX_FIELDS) nf = MAX_FIELDS;
             *numFields = nf;
@@ -343,13 +342,14 @@ static void obtenerLongitudesPorCampo(const char* relacion, int* numFields, int*
             }
 
             fclose(flog);
-            return;
+            return true;
         }
     }
 
     // Si llegamos aquí, no encontramos la relación
     fclose(flog);
     *numFields = 0;
+    return false;
 }
 
 static bool eliminarRegistro(const char* nombreRelacion, int lineaObjetivo) {
@@ -667,6 +667,82 @@ static bool eliminarRegistro(const char* nombreRelacion, int lineaObjetivo) {
     return true;
 }
 
+static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
+    int numFields = 0;
+    int maxLen[MAX_FIELDS] = { 0 };
+    printf("DEBUG: Llamando a crearRLF para relación '%s' con registroTxt: '%s'\n", relacion, registroTxt);
+
+    if (!obtenerLongitudesPorCampo(relacion, &numFields, maxLen)) {
+        printf("DEBUG: obtenerLongitudesPorCampo falló para '%s'\n", relacion);
+        return false;
+    }
+    printf("DEBUG: Longitudes por campo para '%s': ", relacion);
+    for (int i = 0; i < numFields; ++i) {
+        printf("%d ", maxLen[i]);
+    }
+    printf("\n");
+
+    // Hacemos una copia local para usar strtok sin modificar el original
+    char copy[MAX_BUF];
+    strncpy(copy, registroTxt, MAX_BUF - 1);
+    copy[MAX_BUF - 1] = '\0';
+
+    char* tok = strtok(copy, "#");
+    int ofs = 0;
+
+    for (int i = 0; i < numFields; i++) {
+        if (!tok) {
+            printf("DEBUG: Faltan campos en registroTxt para el campo %d\n", i);
+            return false;
+        }
+
+        int lenVal = (int)strlen(tok);
+        int fieldLen = maxLen[i];
+        int toCopy = (lenVal < fieldLen) ? lenVal : fieldLen;
+
+        // Copiamos el contenido real (o truncado) del campo
+        memcpy(outBuffer + ofs, tok, toCopy);
+
+        // Si el valor es más corto, rellenamos con '@'
+        if (lenVal < fieldLen) {
+            for (int k = toCopy; k < fieldLen; k++) {
+                outBuffer[ofs + k] = '@';
+            }
+        }
+
+        // Debug: mostramos cómo queda el campo antes del '#'
+        printf("DEBUG: Campo %d (fijo): '", i);
+        for (int k = 0; k < fieldLen; ++k) {
+            if (k < toCopy) putchar(tok[k]);
+            else putchar('@');
+        }
+        printf("'\n");
+
+        ofs += fieldLen;
+
+        // Insertamos el separador '#' justo después de cada campo
+        outBuffer[ofs] = '#';
+        ofs += 1;
+
+        // Debug: mostramos el '#' insertado
+        printf("DEBUG: Añadido separador '#'\n");
+
+        // Continuamos al siguiente token
+        tok = strtok(NULL, "#");
+    }
+
+    *outLen = ofs;
+
+    // Mostrar el registro fijo completo (con '#' tras cada campo)
+    printf("DEBUG: Registro fijo generado (longitud %d): [", *outLen);
+    for (int i = 0; i < *outLen; ++i) {
+        putchar(outBuffer[i]);
+    }
+    printf("]\n");
+
+    return true;
+}
+
 static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* registroTxt) {
     return false;
 }
@@ -677,12 +753,41 @@ static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* regi
 static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion, Disco& disco) {
     // --- 0) Antes de abrir dirBloques, obtenemos el tamaño fijo del registro ---
     int registroSize;
-    std::cout << "DEBUG0" << relacion << std::endl;
-    std::cout << "DEBUG1" << registroTxt << std::endl;
+    // Add declarations for regBuf and regLen at the top of the file or in the appropriate scope.  
+    static char regBuf[MAX_BUF]; // Buffer to store the fixed-length record.  
+    static int regLen;           // Variable to store the length of the fixed-length record.
+
+    std::cout << "DEBUG: Entrando a adicionarRegistroUnico para '%s' con registroTxt: '%s'\n", relacion, registroTxt;
+
+    std::cout << "Mensaje para asegurar que se actualiza la funcion correctamente " << std::endl;
+
+    // Copia segura del registroTxt sin salto de línea final
+    char registroSinLF[MAX_BUF];
+    strncpy(registroSinLF, registroTxt, MAX_BUF - 1);
+    registroSinLF[MAX_BUF - 1] = '\0';
+    size_t l = strlen(registroSinLF);
+    while (l > 0 && (registroSinLF[l - 1] == '\n' || registroSinLF[l - 1] == '\r')) {
+        registroSinLF[--l] = '\0';
+    }
+
+    if (!crearRLF(registroSinLF, relacion, regBuf, &regLen)) {
+        printf("DEBUG: crearRLF falló en adicionarRegistroUnico\n");
+        return false;
+    }
+
+    printf("DEBUG: crearRLF terminó correctamente. regLen=%d\n", regLen);
+
+    // DEBUG: Verificar que no hay '\n' en regBuf[0..regLen-1]
+    for (int i = 0; i < regLen; ++i) {
+        if (regBuf[i] == '\n' || regBuf[i] == '\r') {
+            printf("ERROR: detectado salto de línea en regBuf en posición %d\n", i);
+        }
+    }
 
     // Antes de llamar a obtenerRegistroSize:
     printf(">>> Leyendo %s para ver su contenido:\n", rutaLongitudFija);
     FILE* ftmp = fopen(rutaLongitudFija, "r");
+
     if (ftmp) {
         char buf[MAX_BUF];
         while (fgets(buf, MAX_BUF, ftmp)) {
@@ -1053,18 +1158,28 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
         // 7.8) Ir al final del archivo y **hacer append del registro** + '|'
         fseek(fbloc, 0, SEEK_END);
-        // Aquí va el nuevo código:
-        size_t len = strlen(registroTxt);
-        while (len > 0 && (registroTxt[len - 1] == '\n' || registroTxt[len - 1] == '\r')) {
-            len--;
+
+        // DEBUG: Mostrar el registro fijo que se va a insertar
+        printf("DEBUG: Insertando registro fijo en bloque: [");
+        for (int i = 0; i < regLen; ++i) {
+            if (regBuf[i] == '@')
+                putchar('@');
+            else if (regBuf[i] == '\0')
+                putchar('_');
+            else
+                putchar(regBuf[i]);
         }
-        // Si registroTxt NO incluye un '|' al final, nosotros añadimos el '|':
-        fwrite(registroTxt, 1, len, fbloc);
+        printf("]\n");
+
+        //// Si registroTxt NO incluye un '|' al final, nosotros añadimos el '|':
+        //fwrite(registroTxt, 1, len, fbloc);
+        fwrite(regBuf, 1, regLen, fbloc);
         fputc('|', fbloc);
         fflush(fbloc);
 
         fclose(fbloc);
 
+        std::cout << "DEBUG: Antes de entrar a los volcar a los Sectores " << std::endl;
         // --- NUEVO: Volcar el bloque a sectores ---
         disco.volcarBloqueASectores(nroBloque);
     }
@@ -1091,6 +1206,8 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     return true;
 }
+
+
 
 static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, int opcion, Disco& disco) {
     FILE* fcsv = fopen(csvPath, "r");

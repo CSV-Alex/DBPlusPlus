@@ -744,8 +744,11 @@ int main() {
             bool ok = false;
             if (opcion == 1)
                 ok = adicionarRegistroUnicoBitmap("Housing", input.c_str());
-            else
+            else if (opcion == 2) {
                 ok = adicionarRegistroUnico(input.c_str(), "housing", miDisco);
+            }
+            else
+                std::cout << "Opcion Invalida " << std::endl; break;
 
             if (ok)
                 cout << "Registro agregado correctamente.\n";
