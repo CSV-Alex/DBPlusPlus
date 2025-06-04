@@ -699,7 +699,7 @@ int main() {
     calcularLongitudFija(titanicTXT.c_str());
     calcularLongitudFija(housingTXT.c_str());
 
-    cout << "\n*** Bienvenido a MEGATRON 3000 ***\n\n";
+    cout << "\n***** Bienvenido a MEGATRON 3000 *****\n\n";
 
     while (true) {
         cout << "1) Mostrar caracteristicas del disco\n"; ///
@@ -707,17 +707,26 @@ int main() {
         cout << "3) Adicionar N registros desde CSV\n"; ///
         cout << "4) Adicionar todo CSV\n"; ///
         cout << "5) Eliminar registro\n"; ///
-        cout << "6) Inserción de longitud variabl (Demo)\n"; ///
-        cout << "7) Ejecutar consulta SQL\n"; ///
-        cout << "8) Adicionar/Volcar relacion a Sectores\n"; ///
-        cout << "9) Salir\n"; ///
+        cout << "6) Modificar registro\n"; ///
+        cout << "7) Inserción de longitud variabl (Demo)\n"; ///
+        cout << "8) Ejecutar consulta SQL\n"; ///
+        cout << "9) Adicionar/Volcar relacion a Sectores\n"; ///
+        cout << "10) Salir\n"; ///
         cout << ">> ";
 
         string opt;
         getline(cin, opt);
-        if (opt == "9") break;
+        if (opt == "10") break;
 
-        if (opt == "1") {
+        if (opt == "0") {
+            int numeroBloque;
+            cin >> numeroBloque;
+            cin.ignore(1, '\n');
+
+            //mostrarSectoresBloque(numeroBloque);
+            cout << "Mostrado Correctamente\n";
+        }
+        else if (opt == "1") {
             miDisco.printDisco();
             miDisco.printCapacidadesDetalle();
             miDisco.mostrarArbolDisco();
@@ -747,13 +756,14 @@ int main() {
             else if (opcion == 2) {
                 ok = adicionarRegistroUnico(input.c_str(), "housing", miDisco);
             }
-            else
+            else {
                 std::cout << "Opcion Invalida " << std::endl; break;
+            }
 
             if (ok)
-                cout << "Registro agregado correctamente.\n";
+                cout << "Registro agregado correctamente\n";
             else
-                cout << "No se pudo agregar el registro.\n";
+                cout << "No se pudo agregar el registro\n";
         }
 
         else if (opt == "3") {
@@ -801,12 +811,29 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (eliminarRegistro("housing", 2))
-                cout << "Eliminado correctamente\n";
-            else
-                cout << "No se pudo eliminar el registro\n";
+            if (eliminarRegistro("housing", 2)) {
+                cout << "Eliminado correctamente \n";
+                cout << "Entrando a Eliminar Registro \n" << std::endl;
+            }
+            else {
+                cout << "No se pudo eliminar el registro \n";
+            }
         }
+
         else if (opt == "6") {
+            cout << "Tipo de Modificacion?\n";
+            cout << "1) Longitud variable\n";
+            cout << "2) Longitud fija\n";
+            cout << ">> ";
+
+            const char* nuevoReg = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#furnished";
+
+            if (modificarRegistro("housing", 4, nuevoReg)) {
+                cout << "Modificado correctamente\n";
+            }
+        }
+
+        else if (opt == "7") {
             // --- Inserción de longitud variable ---
             cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
             string tabla;
@@ -863,7 +890,7 @@ int main() {
             // delete[] contenido;
         }
 
-        else if (opt == "7") {
+        else if (opt == "8") {
             string sel, from, where;
             cout << "SELECT "; getline(cin, sel);
             cout << "FROM ";   getline(cin, from);
@@ -875,7 +902,7 @@ int main() {
             cout << "Tamaño de la tabla: " << relationSizeBytes(from.c_str(), basePath.c_str()) << " bytes\n";
         }
 
-        else if (opt == "8") {
+        else if (opt == "9") {
             cout << "Nombre de la relacion: ";
             string tabla; getline(cin, tabla);
             miDisco.volcarRelacionASectores(tabla.c_str());

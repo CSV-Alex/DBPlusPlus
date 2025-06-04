@@ -266,32 +266,33 @@ public:
 
     void volcarBloqueASectores(int bloqueN) {
         if (bloqueN < 1 || bloqueN > nroBloques) {
-            std::cout << "> Bloque invalido: " << bloqueN << "\n";
+            std::cout << "> Bloque inválido: " << bloqueN << "\n";
             return;
         }
 
+        // 1) Leer la línea correspondiente en dirBloques.txt (para parsear sectores asociados)
         if (!leerLineaDirBloque(bloqueN)) {
-            std::cout << "> No se pudo leer dirBloques.txt en linea " << bloqueN << "\n";
+            std::cout << "> No se pudo leer dirBloques.txt en línea " << bloqueN << "\n";
             return;
         }
 
+        // 2) Abrir el archivo del bloque en modo binario (para leer header + registros)
         char rutaBloque[MAX_PATH_LEN];
         snprintf(rutaBloque, sizeof(rutaBloque),
             "DISCO\\BLOQUES\\Bloque%d.txt", bloqueN);
         FILE* fbloc = fopen(rutaBloque, "rb");
         if (!fbloc) {
-            std::perror("No se pudo abrir BloqueN.txt");
+            std::perror("Error al abrir BloqueN.txt");
             return;
         }
 
-        // Medir cuantos bytes hay en el bloque
+        // 3) Determinar el tamaño total del bloque (header + registros)
         fseek(fbloc, 0, SEEK_END);
         long tamDatos = ftell(fbloc);
         fseek(fbloc, 0, SEEK_SET);
 
         int maxSect = (int)(tamBloque / tamSector);
-
-        //[maxSect][MAX_STR_LEN]
+        // reservar arreglo de cadenas para códigos "p/s/pi/se"
         char (*sectoresFisicos)[MAX_STR_LEN] =
             (char (*)[MAX_STR_LEN])malloc(maxSect * MAX_STR_LEN);
         if (!sectoresFisicos) {
@@ -300,7 +301,7 @@ public:
             return;
         }
 
-        // 6) Extraer p/s/pi/se
+        // 4) Parsear la lista de sectores (p/s/pi/se) que pertenecen a este bloque
         int totSect = parsearSectoresBloque(
             sectoresFisicos,
             maxSect,
@@ -314,50 +315,141 @@ public:
             return;
         }
 
-        long bytesRestantes = tamDatos;
-        int  sectorActual = 0;
+        //// 5) SALTAR la cabecera hasta encontrar '/' (fin del header en BloqueN.txt)
+        //while (true) {
+        //    int ch = fgetc(fbloc);
+        //    if (ch == EOF) {
+        //        // no había nada más que la cabecera
+        //        free(sectoresFisicos);
+        //        fclose(fbloc);
+        //        return;
+        //    }
+        //    if (ch == '/') {
+        //        // hemos leído la '/' final del header
+        //        break;
+        //    }
+        //}
+        // Ahora fbloc apunta al primer byte del primer registro (o EOF si no hay registros).
 
-        while (bytesRestantes > 0 && sectorActual < totSect) {
-            // Construir ruta fisica del sector p/s/pi/se
-            rutaSectorDesdeCodigo(sectoresFisicos[sectorActual]);
-            std::cout << "[DEBUG] Abriendo sector fisico para escritura: "
-                << bufferRuta << std::endl;
+        // 6) Inicializar variables de control de sector físico
+        int sectorIdx = 0;                            // índice en sectoresFisicos[]
+        long espacioRestante = tamSector;             // cuánto cabe aún en el sector actual
+        FILE* fsec = nullptr;                         // puntero al archivo del sector en uso
 
-            FILE* fsec = fopen(bufferRuta, "wb");
+        // Función auxiliar para abrir el siguiente sector (sectorIdx)
+        auto abrirSiguienteSector = [&]() -> bool {
+            if (fsec) {
+                fclose(fsec);
+                fsec = nullptr;
+            }
+            if (sectorIdx >= totSect) {
+                // ya no quedan sectores físicos disponibles
+                return false;
+            }
+            // Generar ruta real del sector: "DISCO\PlatoX\SX\PistaX\SectorX.txt"
+            rutaSectorDesdeCodigo(sectoresFisicos[sectorIdx]);
+            std::cout << "[DEBUG] Abriendo sector físico para escritura: "
+                << bufferRuta << "\n";
+            fsec = fopen(bufferRuta, "wb");
             if (!fsec) {
                 std::perror("Error abriendo sector para escritura");
+                return false;
+            }
+            espacioRestante = tamSector;
+            return true;
+            };
+
+        // Abrir el primer sector (sectorIdx = 0)
+        if (!abrirSiguienteSector()) {
+            std::cout << "> No se pudo abrir el primer sector físico.\n";
+            free(sectoresFisicos);
+            fclose(fbloc);
+            return;
+        }
+
+        // 7) Recorrer registro por registro: leer desde fbloc hasta encontrar '|'
+        while (true) {
+            // 7.1) Marcar posición de inicio del registro
+            long inicioRegistro = ftell(fbloc);
+            if (inicioRegistro < 0) break;
+
+            // 7.2) Leer hasta encontrar '|' o EOF, contando longitud del registro
+            long lenRegistro = 0;
+            bool encontroSeparador = false;
+            while (true) {
+                int ch = fgetc(fbloc);
+                if (ch == EOF) {
+                    break;
+                }
+                lenRegistro++;
+                if (ch == '|') {
+                    encontroSeparador = true;
+                    break;
+                }
+            }
+            if (lenRegistro == 0) {
+                // no quedan registros nuevos
+                break;
+            }
+            // Si llegamos a EOF sin hallar '|', lenRegistro cuenta los bytes leídos; 
+            // para este código asumimos que TODO registro válido debe terminar en '|'.
+            if (!encontroSeparador) {
+                // registro corrupto (sin '|'), salimos
+                std::cout << "> Advertencia: registro sin separador '|' completo.\n";
                 break;
             }
 
-            // Leer hasta tamSector bytes de fbloc
-            long bytesAEscribir = (bytesRestantes > tamSector)
-                ? tamSector
-                : bytesRestantes;
-            char* bufferSector = (char*)malloc(bytesAEscribir);
-            if (!bufferSector) {
-                std::cout << "> Error: no alcanzo memoria para bufferSector\n";
-                fclose(fsec);
+            // 7.3) Reservar buffer temporal para copiar ese registro completo
+            char* registroBuf = (char*)malloc(lenRegistro);
+            if (!registroBuf) {
+                std::cout << "> Error de memoria al reservar registroBuf\n";
                 break;
             }
+            // 7.4) Volver al inicio de este registro y leerlo en registroBuf
+            fseek(fbloc, inicioRegistro, SEEK_SET);
+            size_t leidos = fread(registroBuf, 1, lenRegistro, fbloc);
+            if ((long)leidos != lenRegistro) {
+                std::cout << "> Error al leer registro desde Bloque" << bloqueN << "\n";
+                free(registroBuf);
+                break;
+            }
+            // Después de leer, el puntero de fbloc ya está posicionado justo luego del '|'.
 
-            size_t leidos = fread(bufferSector, 1, bytesAEscribir, fbloc);
-            if (leidos > 0) {
-                fwrite(bufferSector, 1, leidos, fsec);
+            // 7.5) Si el registro NO cabe en espacioRestante, abrir nuevo sector:
+            if (lenRegistro > espacioRestante) {
+                sectorIdx++;
+                if (!abrirSiguienteSector()) {
+                    std::cout << "> No quedan sectores para colocar el registro.\n";
+                    free(registroBuf);
+                    break;
+                }
             }
 
-            free(bufferSector);
+            // 7.6) Escribir el registro completo en el sector actual
+            size_t escritos = fwrite(registroBuf, 1, lenRegistro, fsec);
+            if ((long)escritos != lenRegistro) {
+                std::perror("Error al escribir registro en sector");
+                free(registroBuf);
+                break;
+            }
+            espacioRestante -= lenRegistro;
+            free(registroBuf);
+
+            // 7.7) Continuar con el siguiente registro (fbloc ya está en posición)
+        }
+
+        // 8) Cerrar el último sector abierto
+        if (fsec) {
             fclose(fsec);
-
-            bytesRestantes -= leidos;
-            ++sectorActual;
+            fsec = nullptr;
         }
 
         free(sectoresFisicos);
         fclose(fbloc);
 
         std::cout << "> Bloque " << bloqueN
-            << " volcado a " << sectorActual
-            << " sectores.\n";
+            << " volcado en " << (sectorIdx + 1)
+            << " sectores (registros enteros).\n";
     }
 
     void volcarRelacionASectores(const char* relacion) {

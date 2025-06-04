@@ -352,321 +352,6 @@ static bool obtenerLongitudesPorCampo(const char* relacion, int* numFields, int*
     return false;
 }
 
-static bool eliminarRegistro(const char* nombreRelacion, int lineaObjetivo) {
-    if (lineaObjetivo <= 0) return false;
-
-    // --- 1) Abrir el archivo de bloque (aquí, Bloque1.txt) en modo "r+" ---
-    const char rutaBloque[] = "DISCO/BLOQUES/Bloque1.txt";
-    FILE* archivo = fopen(rutaBloque, "r+");
-    if (!archivo) {
-        return false;
-    }
-
-    //------------------------------------------------------------
-    // (A)  Leer y actualizar la cabecera interna del bloque (bitmap)
-    //------------------------------------------------------------
-    // Leer la primera “línea” completa (puede incluir datos extras si no había CRLF)
-    char buffer[MAX_LINE];
-    if (!fgets(buffer, sizeof(buffer), archivo)) {
-        fclose(archivo);
-        return false;
-    }
-    // Quitar CR/LF al final
-    size_t lenBmp = strlen(buffer);
-    while (lenBmp > 0 && (buffer[lenBmp - 1] == '\n' || buffer[lenBmp - 1] == '\r')) {
-        buffer[--lenBmp] = '\0';
-    }
-
-    // Buscar el slash '/' que marca el fin del bitmap
-    char* slash = strchr(buffer, '/');
-    if (!slash) {
-        fclose(archivo);
-        return false;
-    }
-    // headerBitsLen = (posSlash - inicio) + 1  → incluye el '/'
-    size_t headerBitsLen = (slash - buffer) + 1;
-
-    // Contar cuántas '1' hay hasta la líneaObjetivo, y ubicar el índice del bit
-    int contador1s = 0;
-    int bitIndex = -1;
-    for (size_t i = 0; i + 1 < headerBitsLen; i++) {
-        if (buffer[i] == '1') {
-            contador1s++;
-            if (contador1s == lineaObjetivo) {
-                bitIndex = (int)i;
-                break;
-            }
-        }
-    }
-    if (bitIndex < 0) {
-        // No había suficientes '1' en el bitmap
-        fclose(archivo);
-        return false;
-    }
-
-    // Marcar esa posición a '0'
-    buffer[bitIndex] = '0';
-
-    // Ahora reescribimos los primeros headerBitsLen bytes + "\r\n"
-    fseek(archivo, 0, SEEK_SET);
-    fwrite(buffer, 1, headerBitsLen, archivo);
-    fputc('\r', archivo);
-    fputc('\n', archivo);
-    fflush(archivo);
-
-    // raw_header_len = headerBitsLen + 2 (CRLF)
-    size_t raw_header_len = headerBitsLen + 2;
-
-    //------------------------------------------------------------
-    // (B)  Detectar cuánto mide el registro “viejo” para liberarlo internamente
-    //------------------------------------------------------------
-    // Posicionarse justo después de la cabecera física
-    fseek(archivo, (long)raw_header_len, SEEK_SET);
-
-    // Contar hasta lineaObjetivo-1 separadores '|' para hallar inicio del registro
-    long inicioReg = ftell(archivo);
-    int contSeparadores = 0;
-    int c;
-    while ((c = fgetc(archivo)) != EOF) {
-        if (c == '|') {
-            contSeparadores++;
-            if (contSeparadores == lineaObjetivo - 1) {
-                inicioReg = ftell(archivo);
-                break;
-            }
-        }
-    }
-    if (contSeparadores < lineaObjetivo - 1) {
-        fclose(archivo);
-        return false;
-    }
-
-    // Ahora buscar el '|' que cierra el registro viejo
-    long finReg = inicioReg;
-    while ((c = fgetc(archivo)) != EOF) {
-        finReg = ftell(archivo);
-        if (c == '|') {
-            break;
-        }
-    }
-    if (finReg <= inicioReg) {
-        fclose(archivo);
-        return false;
-    }
-
-    // oldLen = cuántos bytes ocupa el registro (incluyendo todos sus campos, sin el '|')
-    long oldLen = finReg - inicioReg;
-
-    // Sobrescribir oldLen bytes con '#' (invalida el registro)
-    fseek(archivo, inicioReg, SEEK_SET);
-    for (long i = 0; i < oldLen; i++) {
-        fputc('#', archivo);
-    }
-    fflush(archivo);
-    fclose(archivo);
-
-    //------------------------------------------------------------
-    // (C)  ACTUALIZAR dirBloques.txt: sumar registroSize a bloque y a sector
-    //------------------------------------------------------------
-    // 1) Abrir dirBloques.txt en “r+” para lectura/modificación in-place
-    FILE* fdir = fopen(rutaDirBloques, "r+");
-    if (!fdir) {
-        return false;
-    }
-
-    char linea[MAX_BUF];
-    long  posLineaBloque = 0;
-    int   nroBloque = 0;
-    bool  foundBlock = false;
-
-    // Leer línea por línea hasta dar con “BLOQUE#1” (nroBloque == 1)
-    while (fgets(linea, MAX_BUF, fdir)) {
-        // Guardar posición de inicio de esta línea (antes de leerla)
-        posLineaBloque = ftell(fdir) - (long)strlen(linea);
-        nroBloque++;
-
-        // Quitar CR/LF al final para parsear
-        size_t len_linea = strlen(linea);
-        while (len_linea > 0 && (linea[len_linea - 1] == '\n' || linea[len_linea - 1] == '\r')) {
-            linea[--len_linea] = '\0';
-        }
-
-        // Extraer el token “#BLOQUE#<nroBloque>#” para comparar
-        // Primera parte = "<espLibreBloque>#2#BLOQUE#<nroBloque>#<tamBloque>#_…"
-        // Podemos hacer strchr para encontrar “#BLOQUE#” y luego atoi(nroBloque).
-        char* pb = strstr(linea, "#BLOQUE#");
-        if (!pb) continue;
-        // Avanzar “#BLOQUE#”
-        pb += strlen("#BLOQUE#");
-        // Leer el número de bloque de texto
-        int bloqueoLeido = atoi(pb);
-        if (bloqueoLeido != 1) continue; // aquí solo nos interesa Bloque1
-
-        // Si llegamos acá, esta es la línea a modificar
-        foundBlock = true;
-        break;
-    }
-
-    if (!foundBlock) {
-        fclose(fdir);
-        return false;
-    }
-
-    // “línea” contiene la línea completa (sin CRLF) y posLineaBloque apunta a su inicio en el archivo.
-    // Debemos:
-    //   a) extraer espacioLibreBloque (primer token antes de '#'),
-    //   b) sumarle oldLen,
-    //   c) recorrer cada par “<espLibreSector>#<codSector>#_”,
-    //      y, para el primer sector que corresponda a nuestro Bloque1, sumarle oldLen,
-    //   d) reconstruir la línea con los nuevos espacios.
-
-    // --- (C.1) Extraer espacioLibreBloque y tamBloque (aunque tamBloque se mantiene igual) ---
-    char copia[MAX_BUF];
-    strncpy(copia, linea, MAX_BUF - 1);
-    copia[MAX_BUF - 1] = '\0';
-
-    // Primer token = espacioLibreBloque
-    char* tokEspBloq = strtok(copia, "#");
-    if (!tokEspBloq) {
-        fclose(fdir);
-        return false;
-    }
-    int espacioLibreBloqueAntes = atoi(tokEspBloq);
-    int espacioLibreBloqueNuevo = espacioLibreBloqueAntes + (int)oldLen;
-
-    // Saltar “#2#BLOQUE#<nroBloque>#”
-    // Ya avanzamos un token; ahora salteamos dos más (“2” y “BLOQUE”) y leemos <nroBloque> y <tamBloque>
-    char* tok_2 = strtok(NULL, "#");        // “2”
-    char* tok_BLOQUE = strtok(NULL, "#");   // “BLOQUE”
-    char* tok_numBloque = strtok(NULL, "#");// “1”
-    char* tok_tamBloque = strtok(NULL, "#");// “<tamBloque>”
-    if (!tok_tamBloque) {
-        fclose(fdir);
-        return false;
-    }
-    int tamBloqLeido = atoi(tok_tamBloque);
-
-    // (C.2) Ahora reconstruimos la cabecera hasta “#_”
-    // Empezaremos poniendo “<espacioLibreBloqueNuevo>#2#BLOQUE#1#<tamBloque>#_”
-    char nuevaLinea[MAX_BUF];
-    int ofs = 0;
-    ofs += snprintf(nuevaLinea + ofs, MAX_BUF - ofs,
-        "%d#2#BLOQUE#%d#%d#_",
-        espacioLibreBloqueNuevo,
-        1,
-        tamBloqLeido);
-
-    // (C.3) Ahora recorremos la lista de sectores: cada par “<espLibreSector>#<codSector>#_”
-    // Para el primer sector cuyo “<codSector>” empiece por “BLOQUE1” (o contenga ese identificador),
-    // le sumamos oldLen. A los demás, los copiamos igual.
-    //
-    // Como no sabemos exactamente el formato de <codSector> (¿“1/1/1/3”?),
-    // usaremos la heurística: el primer <codSector> que empiece por “1/” corresponde a Bloque1.
-    // (Si su esquema real varía, basta ajustar esa comparación.)
-
-    // Volvemos a apuntar a la parte “#_<lista sectores>” en la línea original:
-    char* inicioSect = strstr(linea, "#_");
-    if (!inicioSect) {
-        fclose(fdir);
-        return false;
-    }
-    // Avanzar dos caracteres para saltar “#_”
-    inicioSect += 2;
-
-    bool sectorActualizado = false;
-    char* p = inicioSect;
-    while (*p) {
-        // Leer espacioLibreSector (cadena numérica hasta '#')
-        char* p_iniEsp = p;
-        while (*p && *p != '#') p++;
-        if (!*p) break;
-        *p = '\0';
-        int espLibreSectorAntes = atoi(p_iniEsp);
-        *p = '#';
-        p++;
-
-        // Leer codSector (cadena hasta siguiente '#')
-        char* p_iniCod = p;
-        while (*p && *p != '#') p++;
-        if (!*p) break;
-        *p = '\0';
-        char codSector[MAX_STR_LEN];
-        strncpy(codSector, p_iniCod, MAX_STR_LEN - 1);
-        codSector[MAX_STR_LEN - 1] = '\0';
-        *p = '#';
-        p++;
-
-        // Saber dónde termina este par: buscamos "#_" desde p
-        char* nextPair = strstr(p, "#_");
-
-        // Decidir si este es el sector que queremos “liberar”:
-        //   (aquí, heurística: si codSector empieza con “1/”  → bloque 1)
-        //   Tú puedes cambiar la condición a: strstr(codSector, "<tuIdentificador>") == codSector
-        int espLibreSectorNuevo = espLibreSectorAntes;
-        if (!sectorActualizado && strncmp(codSector, "1/", 2) == 0) {
-            espLibreSectorNuevo += (int)oldLen;
-            sectorActualizado = true;
-        }
-
-        // Agregar al buffer: “<espLibreSectorNuevo>#<codSector>#_”
-        ofs += snprintf(nuevaLinea + ofs, MAX_BUF - ofs,
-            "%d#%s#_",
-            espLibreSectorNuevo,
-            codSector);
-
-        // Avanzar p a “nextPair + 2” o romper
-        if (!nextPair) break;
-        p = nextPair + 2;
-    }
-
-    // Si nunca encontramos un sector “1/…” (muy raro), dejamos la lista idéntica a como estaba.
-    if (!sectorActualizado) {
-        // Copiamos “\<espLibreSectorAntes>#<codSector>#_” tal cual de la línea original
-        // para todos los pares; como ya tenemos “nuevaLinea” parcial, simplemente reescribimos todo lo que
-        // quedaba en “linea” desde “#_<lista sectores completa>” hasta el final.
-        char* todaListaSect = strstr(linea, "#_");
-        if (todaListaSect) {
-            ofs += snprintf(nuevaLinea + ofs, MAX_BUF - ofs,
-                "%s", todaListaSect + 2);
-        }
-    }
-
-    // (C.4) Ahora “nuevaLinea” tiene la línea completa SIN CR/LF. Debemos imponernos
-    // EXACTAMENTE el mismo número de bytes que ocupaba en disco (medido con fgets),
-    // de modo que no “corramos” el resto del archivo. Para ello, medimos la longitud original:
-    size_t len_original = strlen(linea);   // ya quitamos CR/LF antes, así que esto es la longitud sin CRLF
-    // raw_len_total = len_original + 2 (CRLF)
-    size_t raw_len_total = len_original + 2;
-
-    // (C.5) Si “ofs” (longitud de parte útil en nuevaLinea) > raw_len_total-2, truncamos.
-    //       En otro caso, rellenamos con espacios hasta raw_len_total-1, y al final ponemos '\n'.
-    if ((size_t)ofs > raw_len_total - 2) {
-        // Truncar y asegurar que en la penúltima posición quede '\r', última '\n'
-        if (raw_len_total >= 2) {
-            nuevaLinea[raw_len_total - 2] = '\r';
-            nuevaLinea[raw_len_total - 1] = '\n';
-        }
-    }
-    else {
-        // Rellenar de espacios hasta raw_len_total-2
-        size_t i;
-        for (i = ofs; i < raw_len_total - 2; i++) {
-            nuevaLinea[i] = ' ';
-        }
-        // Luego CRLF
-        nuevaLinea[raw_len_total - 2] = '\r';
-        nuevaLinea[raw_len_total - 1] = '\n';
-    }
-
-    // (C.6) Escribir EXACTAMENTE raw_len_total bytes en position posLineaBloque
-    fseek(fdir, posLineaBloque, SEEK_SET);
-    fwrite(nuevaLinea, 1, raw_len_total, fdir);
-    fflush(fdir);
-    fclose(fdir);
-
-    return true;
-}
-
 static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
     int numFields = 0;
     int maxLen[MAX_FIELDS] = { 0 };
@@ -742,6 +427,412 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
     return true;
 }
+
+
+static bool eliminarRegistro(const char* relacion, int posicion) {
+    std::cout << "Entrando a eliminarRegistro para relación '" << relacion
+        << "', posición " << posicion << "\n";
+    char rutaBloques[MAX_PATH_LEN] = "DISCO\\BLOQUES\\";
+    // 1) Determinar bloque (aquí simplificamos: Bloque1.txt).
+    int bloqueN = 1;
+    char rutaBloque[MAX_PATH_LEN];
+
+
+    snprintf(rutaBloque, sizeof(rutaBloque), "%sBloque%d.txt", rutaBloques, bloqueN);
+
+    // 2) Abrir BloqueN.txt en modo lectura/escritura binario
+    FILE* fbloc = fopen(rutaBloque, "r+b");
+
+    std::cout << rutaBloques << std::endl;
+    std::cout << rutaBloque << std::endl;
+
+    if (!fbloc) {
+        std::perror("Error al abrir BloqueN.txt");
+        return false;
+    }
+
+    // 3) Leer cabecera hasta '/' para extraer raw_header_len, numRegAnt, numMaxAnt y bitmap[]
+    char cabTmp[MAX_BUF];
+    size_t raw_header_len = 0;
+    int numRegAnt = 0, numMaxAnt = 0;
+    // Aseguramos espacio para bitmap con terminador
+    static char bitmap[MAX_FIELDS + 1];
+
+    // 3.1) Medir bytes hasta '/'
+    {
+        long pos = 0;
+        int ch;
+        rewind(fbloc);
+        while ((ch = fgetc(fbloc)) != EOF) {
+            pos++;
+            if (ch == '/') break;
+            if (pos >= MAX_BUF - 1) break;
+        }
+        if (ch != '/') {
+            std::cerr << "Cabecera corrupta o faltante '/' en Bloque" << bloqueN << "\n";
+            fclose(fbloc);
+            return false;
+        }
+        raw_header_len = pos;
+        if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
+    }
+
+    // 3.2) Leer la cabecera en cabTmp
+    rewind(fbloc);
+    fread(cabTmp, 1, raw_header_len, fbloc);
+    cabTmp[raw_header_len] = '\0';
+
+    // 3.3) Parsear "<numRegAnt>#<numMaxAnt>#<bitmap>/"
+    {
+        // "<numRegAnt>"
+        char* p1 = strchr(cabTmp, '#');
+        if (!p1) {
+            std::cerr << "Formato inválido de cabecera (sin '#')\n";
+            fclose(fbloc);
+            return false;
+        }
+        *p1 = '\0';
+        numRegAnt = atoi(cabTmp);
+
+        // "#<numMaxAnt>"
+        char* p2 = p1 + 1;
+        char* p3 = strchr(p2, '#');
+        if (!p3) {
+            std::cerr << "Formato inválido de cabecera (sin segundo '#')\n";
+            fclose(fbloc);
+            return false;
+        }
+        *p3 = '\0';
+        numMaxAnt = atoi(p2);
+        if (numMaxAnt < 1) {
+            std::cerr << "numMaxAnt inválido: " << numMaxAnt << "\n";
+            fclose(fbloc);
+            return false;
+        }
+        if (numMaxAnt > MAX_FIELDS) {
+            std::cerr << "Advertencia: numMaxAnt (" << numMaxAnt
+                << ") excede MAX_FIELDS (" << MAX_FIELDS << ").\n";
+            numMaxAnt = MAX_FIELDS;
+        }
+
+        // "#<bitmap>/"
+        char* p4 = p3 + 1; // apunta al primer dígito del bitmap
+        char* slash = strchr(p4, '/');
+        if (!slash) {
+            std::cerr << "Formato inválido de cabecera (sin '/')\n";
+            fclose(fbloc);
+            return false;
+        }
+        size_t bmpLen = (size_t)(slash - p4);
+        if ((int)bmpLen > numMaxAnt) bmpLen = numMaxAnt;
+        strncpy(bitmap, p4, bmpLen);
+        bitmap[bmpLen] = '\0';
+    }
+
+    // 4) Verificar rango de posición [1..numMaxAnt]
+    if (posicion < 1 || posicion > numMaxAnt) {
+        std::cout << "La posición " << posicion << " está fuera de rango [1.." << numMaxAnt << "]\n";
+        fclose(fbloc);
+        return false;
+    }
+
+    int idx = posicion - 1; // índice base 0
+    if (bitmap[idx] == '0') {
+        std::cout << "La línea " << posicion << " no contiene ningún registro.\n";
+        fclose(fbloc);
+        return false;
+    }
+
+    // 5) Cambiar bitmap[idx] de '1' a '0' y decrementar numRegAnt
+    bitmap[idx] = '0';
+    numRegAnt--;
+
+    // 6) Reconstruir nueva cabecera EXACTAMENTE con raw_header_len bytes
+    char newHeader[MAX_BUF];
+    int ofh = 0;
+    ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
+    // Copiar bitmap actualizado
+    for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
+        newHeader[ofh++] = bitmap[i];
+    }
+    // Poner '/'
+    if (ofh < (int)raw_header_len) {
+        newHeader[ofh++] = '/';
+    }
+    // Rellenar con espacios hasta raw_header_len
+    while (ofh < (int)raw_header_len) {
+        newHeader[ofh++] = ' ';
+    }
+    // No agregamos '\0' extra
+    newHeader[ofh] = '\0';
+
+    // 7) Sobrescribir cabecera en BloqueN.txt
+    rewind(fbloc);
+    fwrite(newHeader, 1, raw_header_len, fbloc);
+    fflush(fbloc);
+
+    // 8) Obtener registroSize (longitud fija en bytes) usando la función correcta
+    int registroSize = 0;
+    obtenerRegistroSize(relacion, &registroSize);
+    if (registroSize <= 0) {
+        std::cerr << "Error obteniendo tamaño fijo de registro para '" << relacion << "'.\n";
+        return false;
+    }
+
+    // 9) Calcular offset donde empieza el registro (sin contar '|')
+    //    Cada registro ocupa (registroSize + 1) bytes en el archivo (el +1 es el delimitador '|').
+    long offsetRegistro = (long)raw_header_len + (long)idx * (registroSize + 1);
+
+    // Posicionar el cursor en el primer byte del registro
+    if (fseek(fbloc, offsetRegistro, SEEK_SET) != 0) {
+        std::cerr << "Error en fseek hacia offset de registro: " << offsetRegistro << "\n";
+        fclose(fbloc);
+        return false;
+    }
+
+    // 10) Reemplazar esos registroSize bytes por '@'
+    char* relleno = (char*)malloc(registroSize);
+    if (!relleno) {
+        std::cerr << "Error de memoria al reservar relleno.\n";
+        fclose(fbloc);
+        return false;
+    }
+    memset(relleno, '@', registroSize);
+    size_t escr = fwrite(relleno, 1, registroSize, fbloc);
+    free(relleno);
+    if ((int)escr != registroSize) {
+        std::cerr << "Error al escribir '@' en el registro. Bytes escritos: " << escr << "\n";
+        fclose(fbloc);
+        return false;
+    }
+    fflush(fbloc);
+    // NOTA: No movemos el separador '|'; permanece intacto.
+
+    fclose(fbloc);
+    std::cout << "Registro en posición " << posicion << " eliminado correctamente.\n";
+    return true;
+}
+
+static bool modificarRegistro(const char* relacion, int posicion, const char* nuevoRegistroTxt) {
+    std::cout << "Entrando a modificarRegistro para relación '" << relacion
+        << "', posición " << posicion << "\n";
+
+    // 1) Determinar bloque (aquí simplificamos: Bloque1.txt).
+    int bloqueN = 1;
+    char rutaBloques[MAX_PATH_LEN] = "DISCO\\BLOQUES\\";
+    char rutaBloque[MAX_PATH_LEN];
+    snprintf(rutaBloque, sizeof(rutaBloque), "%sBloque%d.txt", rutaBloques, bloqueN);
+
+    // 2) Abrir BloqueN.txt en modo lectura/escritura binario
+    FILE* fbloc = fopen(rutaBloque, "r+b");
+    if (!fbloc) {
+        std::perror("Error al abrir BloqueN.txt");
+        return false;
+    }
+
+    // 3) Leer cabecera igual que en eliminarRegistro
+    char cabTmp[MAX_BUF];
+    size_t raw_header_len = 0;
+    int    numRegAnt = 0, numMaxAnt = 0;
+    static char bitmap[MAX_FIELDS + 1] = { 0 };
+
+    {
+        // 3.1) Medir hasta encontrar '/'
+        long pos = 0;
+        int  ch;
+        rewind(fbloc);
+        while ((ch = fgetc(fbloc)) != EOF) {
+            pos++;
+            if (ch == '/') break;
+            if (pos >= MAX_BUF - 1) break;
+        }
+        if (ch != '/') {
+            std::cerr << "Cabecera corrupta o faltante '/' en Bloque" << bloqueN << "\n";
+            fclose(fbloc);
+            return false;
+        }
+        raw_header_len = pos;
+        if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
+    }
+
+    // 3.2) Leer la cabecera en cabTmp
+    rewind(fbloc);
+    fread(cabTmp, 1, raw_header_len, fbloc);
+    cabTmp[raw_header_len] = '\0';
+
+    // 3.3) Parsear "<numRegAnt>#<numMaxAnt>#<bitmap>/"
+    {
+        char* p1 = strchr(cabTmp, '#');
+        if (!p1) { fclose(fbloc); return false; }
+        *p1 = '\0';
+        numRegAnt = atoi(cabTmp);
+
+        char* p2 = p1 + 1;
+        char* p3 = strchr(p2, '#');
+        if (!p3) { fclose(fbloc); return false; }
+        *p3 = '\0';
+        numMaxAnt = atoi(p2);
+        if (numMaxAnt < 1) {
+            std::cerr << "numMaxAnt inválido: " << numMaxAnt << "\n";
+            fclose(fbloc);
+            return false;
+        }
+        if (numMaxAnt > MAX_FIELDS) {
+            // Si excede MAX_FIELDS, lo recortamos para no desbordar bitmap[]
+            std::cerr << "Advertencia: numMaxAnt (" << numMaxAnt
+                << ") excede MAX_FIELDS (" << MAX_FIELDS << ").\n";
+            numMaxAnt = MAX_FIELDS;
+        }
+
+        char* p4 = p3 + 1; // inicia bitmap
+        char* slash = strchr(p4, '/');
+        if (!slash) {
+            std::cerr << "Formato inválido de cabecera (sin '/')\n";
+            fclose(fbloc);
+            return false;
+        }
+        size_t bmpLen = (size_t)(slash - p4);
+        if ((int)bmpLen > numMaxAnt) bmpLen = numMaxAnt;
+        strncpy(bitmap, p4, bmpLen);
+        bitmap[bmpLen] = '\0';
+    }
+    fclose(fbloc);
+
+    // 4) Verificar posición válida
+    if (posicion < 1 || posicion > numMaxAnt) {
+        std::cout << "La posición " << posicion << " está fuera de rango [1.." << numMaxAnt << "]\n";
+        return false;
+    }
+    int idx = posicion - 1;
+    if (bitmap[idx] == '0') {
+        std::cout << "No hay registro en la línea " << posicion << " para modificar.\n";
+        return false;
+    }
+
+    // 5) “Borrar” el registro existente usando eliminarRegistro
+    if (!eliminarRegistro(relacion, posicion)) {
+        std::cout << "Error al eliminar el registro existente.\n";
+        return false;
+    }
+
+    // 6) Generar buffer fijo del nuevo registro
+    char regBuf[MAX_BUF];
+    int  regLen = 0;
+    if (!crearRLF(nuevoRegistroTxt, relacion, regBuf, &regLen)) {
+        std::cout << "Error al generar registro fijo para modificación.\n";
+        return false;
+    }
+
+    // 7) Reabrir BloqueN.txt para escribir el nuevo registro en la misma posición
+    fbloc = fopen(rutaBloque, "r+b");
+    if (!fbloc) {
+        std::perror("Error al reabrir BloqueN.txt");
+        return false;
+    }
+
+    // 8) Calcular registroSize (longitud fija sin contar '|')
+    int registroSize = 0;
+    obtenerRegistroSize(relacion, &registroSize);
+    std::cout << "DEBUG" << registroSize << std::endl;
+    if (registroSize <= 0) {
+        // No hay definición de longitud para esta relación
+        fprintf(stderr, "No se encontró longitud fija para %s\n", relacion);
+        return false;
+    }
+
+    // 9) Calcular offset: raw_header_len + idx * (registroSize + 1)
+    long offsetRegistro = (long)raw_header_len + (long)idx * (registroSize + 1);
+    if (fseek(fbloc, offsetRegistro, SEEK_SET) != 0) {
+        std::cerr << "Error en fseek hacia offset de registro: " << offsetRegistro << "\n";
+        fclose(fbloc);
+        return false;
+    }
+
+    // 10) Escribir el nuevo registro fijo + '|'
+    fwrite(regBuf, 1, registroSize, fbloc);
+    fputc('|', fbloc);
+    fflush(fbloc);
+    fclose(fbloc);
+
+    // 11) Actualizar el bitmap: cambiar bitmap[idx] de '0' a '1' y reescribir cabecera
+    fbloc = fopen(rutaBloque, "r+b");
+    if (!fbloc) {
+        std::perror("Error al reabrir BloqueN.txt para actualizar cabecera");
+        return false;
+    }
+
+    // Leer cabecera de nuevo
+    {
+        char cabTmp2[MAX_BUF];
+        size_t raw_header_len2 = 0;
+        int c, count = 0;
+        rewind(fbloc);
+        while ((c = fgetc(fbloc)) != EOF) {
+            count++;
+            if (c == '/') break;
+            if (count >= MAX_BUF - 1) break;
+        }
+        if (c != '/') {
+            std::cerr << "Cabecera corrupta al reescribir bitmap.\n";
+            fclose(fbloc);
+            return false;
+        }
+        raw_header_len2 = count;
+        if (raw_header_len2 > MAX_BUF - 1) raw_header_len2 = MAX_BUF - 1;
+
+        rewind(fbloc);
+        fread(cabTmp2, 1, raw_header_len2, fbloc);
+        cabTmp2[raw_header_len2] = '\0';
+
+        char* p1 = strchr(cabTmp2, '#');
+        *p1 = '\0';
+        numRegAnt = atoi(cabTmp2);
+
+        char* p2 = p1 + 1;
+        char* p3 = strchr(p2, '#');
+        *p3 = '\0';
+        numMaxAnt = atoi(p2);
+        if (numMaxAnt > MAX_FIELDS) numMaxAnt = MAX_FIELDS;
+
+        char* p4 = p3 + 1;
+        char* slash = strchr(p4, '/');
+        size_t bmpLen = (size_t)(slash - p4);
+        if ((int)bmpLen > numMaxAnt) bmpLen = numMaxAnt;
+        strncpy(bitmap, p4, bmpLen);
+        bitmap[bmpLen] = '\0';
+
+        raw_header_len = raw_header_len2;
+    }
+
+    // Cambiar el bit idx de '0' a '1' y numRegAnt++
+    bitmap[idx] = '1';
+    numRegAnt++;
+
+    // Reconstruir cabecera
+    char newHeader[MAX_BUF];
+    int ofh = 0;
+    ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
+    for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
+        newHeader[ofh++] = bitmap[i];
+    }
+    if (ofh < (int)raw_header_len) {
+        newHeader[ofh++] = '/';
+    }
+    while (ofh < (int)raw_header_len) {
+        newHeader[ofh++] = ' ';
+    }
+    newHeader[ofh] = '\0';
+
+    // Sobrescribir cabecera
+    rewind(fbloc);
+    fwrite(newHeader, 1, raw_header_len, fbloc);
+    fflush(fbloc);
+    fclose(fbloc);
+
+    std::cout << "Registro en posición " << posicion << " modificado correctamente.\n";
+    return true;
+}
+
 
 static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* registroTxt) {
     return false;
