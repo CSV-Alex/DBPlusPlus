@@ -702,6 +702,7 @@ int main() {
     cout << "\n***** Bienvenido a MEGATRON 3000 *****\n\n";
 
     while (true) {
+        cout << "0) Mostrar Ruta Bloque (Dinamico)\n"; ///
         cout << "1) Mostrar caracteristicas del disco\n"; ///
         cout << "2) Adicionar registro\n"; ///
         cout << "3) Adicionar N registros desde CSV\n"; ///
@@ -720,10 +721,12 @@ int main() {
 
         if (opt == "0") {
             int numeroBloque;
+            cout << "Numero de Bloque que desea consultar: ";
             cin >> numeroBloque;
             cin.ignore(1, '\n');
-
-            //mostrarSectoresBloque(numeroBloque);
+            
+            // Mostrar PATHs
+            mostrarSectoresDeBloque(numeroBloque, miDisco);
             cout << "Mostrado Correctamente\n";
         }
         else if (opt == "1") {
@@ -906,7 +909,7 @@ int main() {
             cout << "Nombre de la relacion: ";
             string tabla; getline(cin, tabla);
             miDisco.volcarRelacionASectores(tabla.c_str());
-            }
+        }
 
         else {
             cout << "Opcion invalida\n";

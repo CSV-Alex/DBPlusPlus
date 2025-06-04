@@ -131,6 +131,7 @@
     <ClCompile Include="Disco.cpp" />
     <ClCompile Include="DiscoPath.cpp" />
     <ClCompile Include="LFija.h" />
+    <ClCompile Include="LVariable.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NonSense.cpp" />
     <ClCompile Include="Titanic.cpp" />

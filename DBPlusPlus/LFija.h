@@ -10,8 +10,16 @@
 #include "Disco.h"
 #include "DiscoPaths.h"
 
-static int getTamBloqueFromDisco(const Disco& disco) {
+static int getTamBloqueFromDisco(Disco& disco) {
     return disco.getTamBloque();
+}
+
+static const char* getBufferRutaFromDisco(const Disco& disco) {
+    return disco.getBufferRuta();
+}
+
+static const char* getBufferLecturaFromDisco(const Disco& disco) {
+    return disco.getBufferLectura();
 }
 
 // Convierte una cadena a entero de forma segura.
@@ -351,6 +359,101 @@ static bool obtenerLongitudesPorCampo(const char* relacion, int* numFields, int*
     *numFields = 0;
     return false;
 }
+
+static void mostrarSectoresDeBloque(int bloqueN, Disco& disco) {
+    std::cout << "[DEBUG] Abriendo dirBloques.txt..." << std::endl;
+    FILE* fdir = fopen(rutaDirBloques, "r");
+    if (!fdir) {
+        std::perror("[DEBUG] Error al abrir dirBloques.txt");
+        return;
+    }
+
+    char linea[MAX_BUF];
+    int  numLinea = 0;
+    bool encontrado = false;
+
+    std::cout << "[DEBUG] Buscando bloqueN=" << bloqueN << " en dirBloques.txt..." << std::endl;
+    // 1) Leer línea a línea hasta llegar a la línea bloqueN
+    while (fgets(linea, sizeof(linea), fdir)) {
+        numLinea++;
+        if (numLinea == bloqueN) {
+            encontrado = true;
+            std::cout << "[DEBUG] Línea encontrada para bloqueN=" << bloqueN << ": " << linea << std::endl;
+            break;
+        }
+    }
+    fclose(fdir);
+
+    if (!encontrado) {
+        std::cout << "[DEBUG] No existe el bloque " << bloqueN << " en dirBloques.txt.\n";
+        return;
+    }
+
+    // 2) Eliminar CR/LF al final de la línea, si los hay
+    size_t len = strlen(linea);
+    while (len > 0 && (linea[len - 1] == '\n' || linea[len - 1] == '\r')) {
+        linea[--len] = '\0';
+    }
+    std::cout << "[DEBUG] Línea limpia: " << linea << std::endl;
+
+    std::cout << "Sectores físicos asociados al Bloque " << bloqueN << ":\n";
+
+    char* p = linea;
+    int sectorCount = 0;
+    while (true) {
+        // Buscar la marca "#_":
+        char* marca = strstr(p, "#_");
+        if (!marca) {
+            std::cout << "[DEBUG] No se encontró más la marca \"#_\". Fin de sectores." << std::endl;
+            break;
+        }
+        p = marca + 2;  // p apunta justo después de "#_": al inicio de <espLibreSector>
+
+        // 3.1) Avanzar hasta el siguiente '#', para saltar <espLibreSector>
+        char* pHash1 = strchr(p, '#');
+        if (!pHash1) {
+            std::cout << "[DEBUG] No se encontró '#' después de espacio libre sector." << std::endl;
+            break;
+        }
+        // Ahora pHash1 apunta al '#', justo antes de <codSector>.
+        char* pCod = pHash1 + 1;
+
+        // 3.2) El <codSector> termina en el siguiente '#'
+        char* pHash2 = strchr(pCod, '#');
+        if (!pHash2) {
+            std::cout << "[DEBUG] No se encontró '#' después de código de sector." << std::endl;
+            break;
+        }
+
+        // 3.3) Copiar el código entre pCod y pHash2 (longitud = pHash2 - pCod)
+        int  lenCod = (int)(pHash2 - pCod);
+        if (lenCod <= 0) {
+            std::cout << "[DEBUG] Longitud de código de sector inválida: " << lenCod << std::endl;
+            p = pHash2 + 1;
+            continue;
+        }
+        if (lenCod >= MAX_STR_LEN) lenCod = MAX_STR_LEN - 1;
+
+        char codSector[MAX_STR_LEN];
+        strncpy(codSector, pCod, lenCod);
+        codSector[lenCod] = '\0';
+
+        std::cout << "[DEBUG] codSector extraído: " << codSector << std::endl;
+
+        // 4) Convertir “codSector” a ruta completa con rutaSectorDesdeCodigo
+        disco.rutaSectorDesdeCodigo(codSector);
+        std::cout << "[DEBUG] Ruta sector generada: " << disco.getBufferRuta() << std::endl;
+
+        // 5) Mostrar la ruta resultante
+        std::cout << "  " << disco.getBufferRuta() << "\n";
+        sectorCount++;
+
+        // 6) Continuar la búsqueda a partir de pHash2+1
+        p = pHash2 + 1;
+    }
+    std::cout << "[DEBUG] Total sectores mostrados: " << sectorCount << std::endl;
+}
+
 
 static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
     int numFields = 0;
@@ -1351,7 +1454,7 @@ static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, i
     return true;
 }
 
-static bool adicionarTodoCSV(const char* csvPath, const char* tabla, int opcion, Disco &disco) {
+static bool adicionarTodoCSV(const char* csvPath, const char* tabla, int opcion, Disco& disco) {
     FILE* fcsv = fopen(csvPath, "r");
     if (!fcsv) {
         perror("No se puede abrir CSV para lectura");
@@ -1397,4 +1500,3 @@ static bool adicionarTodoCSV(const char* csvPath, const char* tabla, int opcion,
     fclose(fcsv);
     return true;
 }
-

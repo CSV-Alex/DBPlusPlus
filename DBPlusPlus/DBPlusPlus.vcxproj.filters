@@ -45,6 +45,18 @@
     <ClCompile Include="Utils.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="DiscoPath.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="LFija.h">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="NonSense.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="LVariable.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="data\usr\db\titanic.tsv">
@@ -77,6 +89,12 @@
     </ClInclude>
     <ClInclude Include="Utils.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="DiscoPaths.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LVariable.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

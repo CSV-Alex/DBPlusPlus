@@ -47,7 +47,7 @@ private:
         }
         return *a == *b;
     }
-    
+
     /// Importante
     static void make_dir(const char* dirPath) {
         if (_mkdir(dirPath) != 0) {
@@ -56,7 +56,7 @@ private:
             }
         }
     }
-    
+
     bool leerLineaDirBloque(int lineaNum) {
         FILE* f = fopen(rutaDirBloques, "r");
         if (!f) return false;
@@ -104,18 +104,6 @@ private:
         return count;
     }
 
-    void rutaSectorDesdeCodigo(const char* codigoSector) {
-        int p, s, pi, se;
-        if (sscanf(codigoSector, "%d/%d/%d/%d", &p, &s, &pi, &se) == 4) {
-            snprintf(bufferRuta, MAX_PATH_LEN,
-                "DISCO\\Plato%d\\S%d\\Pista%d\\Sector%d.txt",
-                p, s, pi, se);
-        }
-        else {
-            bufferRuta[0] = '\0';
-        }
-    }
-
 public:
 
     Disco(int _platos, int _pistas, int _sectores,
@@ -146,7 +134,19 @@ public:
 
     ~Disco() {
     }
-    
+
+    void rutaSectorDesdeCodigo(const char* codigoSector) {
+        int p, s, pi, se;
+        if (sscanf(codigoSector, "%d/%d/%d/%d", &p, &s, &pi, &se) == 4) {
+            snprintf(bufferRuta, MAX_PATH_LEN,
+                "DISCO\\Plato%d\\S%d\\Pista%d\\Sector%d.txt",
+                p, s, pi, se);
+        }
+        else {
+            bufferRuta[0] = '\0';
+        }
+    }
+
     // --- Add your getters here ---
     int getPlatos() const { return platos; }
     int getPistas() const { return pistas; }
@@ -157,6 +157,9 @@ public:
     long long getCapacidadTotal() const { return capacidadTotal; }
     long long getCapacidadLibre() const { return capacidadLibre; }
     int getNroBloques() const { return nroBloques; }
+    const char* getBufferRuta() const { return bufferRuta; }
+    const char* getBufferLectura() const { return bufferLectura; }
+
 
     void crearEstructuraDisco() {
         char rutaTemp[MAX_PATH_LEN];
@@ -260,7 +263,7 @@ public:
         std::cout << "===================================\n\n";
     }
 
-    int get_tam_bloque(){ //funcion para tamaño de disco
+    int get_tam_bloque() { //funcion para tamaño de disco
         return (int)tamBloque;
     }
 
@@ -571,3 +574,4 @@ public:
     }
 
 };
+
