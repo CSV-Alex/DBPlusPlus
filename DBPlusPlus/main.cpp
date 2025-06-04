@@ -721,13 +721,20 @@ int main() {
 
         if (opt == "0") {
             int numeroBloque;
+            int opcion;
             cout << "Numero de Bloque que desea consultar: ";
             cin >> numeroBloque;
             cin.ignore(1, '\n');
-            
+
             // Mostrar PATHs
-            mostrarSectoresDeBloque(numeroBloque, miDisco);
+            cout << "Ingrese opcion\n";
+            cout << "1) Con Espacios Libres\n";
+            cout << "2) Rutas Solamente\n";
+            cout << ">> ";
+            cin >> opcion;
+            mostrarSectoresDeBloque(numeroBloque, opcion, miDisco);
             cout << "Mostrado Correctamente\n";
+            cout << "Mensaje Probar Final\n";
         }
         else if (opt == "1") {
             miDisco.printDisco();
@@ -829,14 +836,15 @@ int main() {
             cout << "2) Longitud fija\n";
             cout << ">> ";
 
-            const char* nuevoReg = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#furnished";
+            const char* nuevoReg = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
 
-            if (modificarRegistro("housing", 4, nuevoReg)) {
+            if (modificarRegistro("housing", 2, nuevoReg)) {
                 cout << "Modificado correctamente\n";
             }
         }
 
         else if (opt == "7") {
+            /*
             // --- Inserción de longitud variable ---
             cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
             string tabla;
@@ -891,6 +899,7 @@ int main() {
             // char* contenido = read_bloque_content(bloqueVar, tabla.c_str());
             // cout << "Contenido del bloque:\n" << contenido << "\n";
             // delete[] contenido;
+            */
         }
 
         else if (opt == "8") {

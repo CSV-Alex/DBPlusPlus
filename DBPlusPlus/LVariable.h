@@ -714,7 +714,7 @@ bool modificar(int NBloque, int r_index, const char relacion[], const char atrib
     // 9) Pasar fileData2 a buffer de tamaño tamBloque, rellenando con '\0'
     char* bloque_buffer = new char[tamBloque];
     std::memset(bloque_buffer, 0, tamBloque);
-    int copy_len = std::min((int)fileData2.size(), tamBloque);
+    int copy_len = min((int)fileData2.size(), tamBloque);
     std::memcpy(bloque_buffer, fileData2.data(), copy_len);
 
     // 10) Calcular espacio libre actual como tamBloque - fileData2.size()

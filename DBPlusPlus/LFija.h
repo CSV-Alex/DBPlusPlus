@@ -10,6 +10,8 @@
 #include "Disco.h"
 #include "DiscoPaths.h"
 
+#define MAX_TOKENS    256
+
 static int getTamBloqueFromDisco(Disco& disco) {
     return disco.getTamBloque();
 }
@@ -360,100 +362,213 @@ static bool obtenerLongitudesPorCampo(const char* relacion, int* numFields, int*
     return false;
 }
 
-static void mostrarSectoresDeBloque(int bloqueN, Disco& disco) {
-    std::cout << "[DEBUG] Abriendo dirBloques.txt..." << std::endl;
-    FILE* fdir = fopen(rutaDirBloques, "r");
-    if (!fdir) {
-        std::perror("[DEBUG] Error al abrir dirBloques.txt");
+static void mostrarSectoresDeBloque(int bloqueN, int opcion, Disco disco) {
+    if (opcion != 1 && opcion != 2) {
+        std::cout << "Opción inválida. Use 1 (mostrar espacios libres) o 2 (solo rutas).\n";
         return;
     }
 
+    // 1) Abrir dirBloques.txt
+    FILE* fdir = fopen(rutaDirBloques, "r");
+    if (!fdir) {
+        std::perror("Error al abrir dirBloques.txt");
+        return;
+    }
+
+    // 2) Leer línea por línea hasta llegar a bloqueN
     char linea[MAX_BUF];
     int  numLinea = 0;
     bool encontrado = false;
 
-    std::cout << "[DEBUG] Buscando bloqueN=" << bloqueN << " en dirBloques.txt..." << std::endl;
-    // 1) Leer línea a línea hasta llegar a la línea bloqueN
     while (fgets(linea, sizeof(linea), fdir)) {
         numLinea++;
         if (numLinea == bloqueN) {
             encontrado = true;
-            std::cout << "[DEBUG] Línea encontrada para bloqueN=" << bloqueN << ": " << linea << std::endl;
             break;
         }
     }
     fclose(fdir);
 
     if (!encontrado) {
-        std::cout << "[DEBUG] No existe el bloque " << bloqueN << " en dirBloques.txt.\n";
+        std::cout << "No existe el bloque " << bloqueN << " en dirBloques.txt.\n";
         return;
     }
 
-    // 2) Eliminar CR/LF al final de la línea, si los hay
+    // 3) Eliminar CR/LF final
     size_t len = strlen(linea);
     while (len > 0 && (linea[len - 1] == '\n' || linea[len - 1] == '\r')) {
         linea[--len] = '\0';
     }
-    std::cout << "[DEBUG] Línea limpia: " << linea << std::endl;
 
-    std::cout << "Sectores físicos asociados al Bloque " << bloqueN << ":\n";
+    // 4) Tokenizar la línea usando '#' como separador
+    //    tokens[] almacenará punteros a cada subcadena.
+    char buffer[MAX_BUF];
+    strncpy(buffer, linea, MAX_BUF - 1);
+    buffer[MAX_BUF - 1] = '\0';
 
-    char* p = linea;
+    char* tokens[MAX_TOKENS];
+    int    ntok = 0;
+    char* tk = strtok(buffer, "#");
+    while (tk && ntok < MAX_TOKENS) {
+        tokens[ntok++] = tk;
+        tk = strtok(nullptr, "#");
+    }
+
+    if (ntok < 5) {
+        std::cout << "Formato inesperado en dirBloques.txt (muy pocos tokens).\n";
+        return;
+    }
+
+    // 5) tokens[0] = <espLibreBloque>
+    //    tokens[1] = "2"
+    //    tokens[2] = "BLOQUE"
+    //    tokens[3] = "<nroBloque>"
+    //    tokens[4] = "<tamBloque>"
+    const char* espLibreBloque = tokens[0];
+
+    // 6) A partir de tokens[5], buscaremos pares:
+    //       tokens[i] que empiece con '_'  -> representa "_<espLibreSector>"
+    //       tokens[i+1]                    -> "<codSector>"
+    //    Repetir hasta ntok-1
+
+    std::cout << "Bloque " << bloqueN;
+    if (opcion == 1) {
+        std::cout << " (espacio libre del bloque: " << espLibreBloque << ")";
+    }
+    std::cout << ":\n";
+
     int sectorCount = 0;
-    while (true) {
-        // Buscar la marca "#_":
-        char* marca = strstr(p, "#_");
-        if (!marca) {
-            std::cout << "[DEBUG] No se encontró más la marca \"#_\". Fin de sectores." << std::endl;
-            break;
-        }
-        p = marca + 2;  // p apunta justo después de "#_": al inicio de <espLibreSector>
-
-        // 3.1) Avanzar hasta el siguiente '#', para saltar <espLibreSector>
-        char* pHash1 = strchr(p, '#');
-        if (!pHash1) {
-            std::cout << "[DEBUG] No se encontró '#' después de espacio libre sector." << std::endl;
-            break;
-        }
-        // Ahora pHash1 apunta al '#', justo antes de <codSector>.
-        char* pCod = pHash1 + 1;
-
-        // 3.2) El <codSector> termina en el siguiente '#'
-        char* pHash2 = strchr(pCod, '#');
-        if (!pHash2) {
-            std::cout << "[DEBUG] No se encontró '#' después de código de sector." << std::endl;
-            break;
-        }
-
-        // 3.3) Copiar el código entre pCod y pHash2 (longitud = pHash2 - pCod)
-        int  lenCod = (int)(pHash2 - pCod);
-        if (lenCod <= 0) {
-            std::cout << "[DEBUG] Longitud de código de sector inválida: " << lenCod << std::endl;
-            p = pHash2 + 1;
+    for (int i = 5; i + 1 < ntok; i++) {
+        // Verificar que tokens[i][0] sea '_'
+        if (tokens[i][0] != '_') {
             continue;
         }
-        if (lenCod >= MAX_STR_LEN) lenCod = MAX_STR_LEN - 1;
+        // Extraer espacio libre de sector (después del '_')
+        const char* espLibreSector = tokens[i] + 1;
+        // El siguiente token debe ser el codSector
+        const char* codSector = tokens[i + 1];
 
-        char codSector[MAX_STR_LEN];
-        strncpy(codSector, pCod, lenCod);
-        codSector[lenCod] = '\0';
-
-        std::cout << "[DEBUG] codSector extraído: " << codSector << std::endl;
-
-        // 4) Convertir “codSector” a ruta completa con rutaSectorDesdeCodigo
+        // Guardar la ruta completa en buffer interno de Disco (usando codSector)
         disco.rutaSectorDesdeCodigo(codSector);
-        std::cout << "[DEBUG] Ruta sector generada: " << disco.getBufferRuta() << std::endl;
+        const char* rutaCompleta = disco.getBufferRuta();
 
-        // 5) Mostrar la ruta resultante
-        std::cout << "  " << disco.getBufferRuta() << "\n";
+        // Mostrar según la opción
+        if (opcion == 1) {
+            std::cout << "  > Sector: " << rutaCompleta
+                << " (espacio libre: " << espLibreSector << ")\n";
+        }
+        else { // opcion == 2
+            std::cout << "  > " << rutaCompleta << "\n";
+        }
+
         sectorCount++;
-
-        // 6) Continuar la búsqueda a partir de pHash2+1
-        p = pHash2 + 1;
+        i++; // Saltar el token de codSector para la próxima iteración
     }
-    std::cout << "[DEBUG] Total sectores mostrados: " << sectorCount << std::endl;
+
+    std::cout << "Total de sectores mostrados: " << sectorCount << "\n";
 }
 
+static bool ajustarDirBloques(int bloqueN,
+    const char* codSector,
+    int  deltaBloque,
+    int  deltaSector)
+{
+    // 1) Abrir dirBloques.txt en "r+"
+    FILE* fdir = fopen(rutaDirBloques, "r+");
+    if (!fdir) return false;
+
+    // 2) Buscar línea bloqueN
+    char linea[MAX_BUF];
+    int  numLinea = 0;
+    long posLinea = 0;
+    while (fgets(linea, MAX_BUF, fdir)) {
+        numLinea++;
+        if (numLinea == bloqueN) break;
+        posLinea = ftell(fdir);
+    }
+    if (numLinea != bloqueN) {
+        fclose(fdir);
+        return false;
+    }
+
+    // 3) Determinar raw_len_total: longitud en disco de esa línea
+    size_t lenNoCrLf = strlen(linea);
+    // Ajuste Windows vs Unix:
+    size_t raw_len_total = lenNoCrLf + 1;
+    if (lenNoCrLf > 0 && linea[lenNoCrLf - 1] == '\r') raw_len_total++;
+
+    // 4) Limpiar el '\r\n'
+    while (lenNoCrLf > 0 && (linea[lenNoCrLf - 1] == '\n' || linea[lenNoCrLf - 1] == '\r')) {
+        linea[--lenNoCrLf] = '\0';
+    }
+
+    // 5) Tokenizar con strtok(linea, "#")
+    char copia[MAX_BUF];
+    strncpy(copia, linea, MAX_BUF - 1);
+    copia[MAX_BUF - 1] = '\0';
+    char* tokens[MAX_TOKENS];
+    int   ntok = 0;
+    char* tk = strtok(copia, "#");
+    while (tk && ntok < MAX_TOKENS) {
+        tokens[ntok++] = tk;
+        tk = strtok(nullptr, "#");
+    }
+
+    if (ntok < 5) { fclose(fdir); return false; }
+    // tokens[0]=espLibreBloque, tokens[1]="2", tokens[2]="BLOQUE",
+    // tokens[3]=nroBloque, tokens[4]=tamBloque,
+    // tokens[5]=_<espLibreSector1>, tokens[6]=<codSector1>, tokens[7]=_<espLibreSector2>, ...
+
+    // 6) Calcular nuevo espacio libre del bloque:
+    int espacioLibreBloqueAntes = atoi(tokens[0]);
+    int espacioLibreBloqueNuevo = espacioLibreBloqueAntes + deltaBloque;
+
+    // 7) Volver a armar la línea completa:
+    //    a) Primer bloque: "<espLibreBloqueNuevo>#2#BLOQUE#<bloqueN>#<tamBloque>#_"
+    char bufferNueva[MAX_BUF];
+    int  ofs = 0;
+    int  tamBloqueTotal = atoi(tokens[4]);
+    ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
+        "%d#2#BLOQUE#%d#%d#_",
+        espacioLibreBloqueNuevo,
+        bloqueN,
+        tamBloqueTotal);
+
+    //    b) Para cada par i=5,7,9,... (tokens[i] empieza con '_' = "_<espLibreSector>"):
+    for (int i = 5; i + 1 < ntok; i += 2) {
+        if (tokens[i][0] != '_') continue;
+        int espLibreSectorAntes = atoi(tokens[i] + 1);
+        const char* codSectorX = tokens[i + 1];
+        int nuevoEsp = espLibreSectorAntes;
+        if (strcmp(codSectorX, codSector) == 0) {
+            nuevoEsp = espLibreSectorAntes + deltaSector;
+        }
+        ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
+            "%d#%s#_",
+            nuevoEsp,
+            codSectorX);
+    }
+
+    // 8) Rellenar con espacios hasta raw_len_total-1, luego "\n"
+    if (ofs > (int)raw_len_total - 1) {
+        // Si se pasó, truncamos justo antes de '\n'
+        if (raw_len_total >= 1) bufferNueva[raw_len_total - 1] = '\n';
+    }
+    else {
+        for (int i = ofs; i < (int)raw_len_total - 1; i++) {
+            bufferNueva[i] = ' ';
+        }
+        bufferNueva[raw_len_total - 1] = '\n';
+    }
+    // (no agregamos '\0' final porque usaremos fwrite)
+
+    // 9) Sobreescribir esa línea en el archivo
+    fseek(fdir, posLinea, SEEK_SET);
+    fwrite(bufferNueva, 1, raw_len_total, fdir);
+    fflush(fdir);
+    fclose(fdir);
+    return true;
+}
 
 static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
     int numFields = 0;
@@ -531,7 +646,6 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
     return true;
 }
 
-
 static bool eliminarRegistro(const char* relacion, int posicion) {
     std::cout << "Entrando a eliminarRegistro para relación '" << relacion
         << "', posición " << posicion << "\n";
@@ -539,7 +653,6 @@ static bool eliminarRegistro(const char* relacion, int posicion) {
     // 1) Determinar bloque (aquí simplificamos: Bloque1.txt).
     int bloqueN = 1;
     char rutaBloque[MAX_PATH_LEN];
-
 
     snprintf(rutaBloque, sizeof(rutaBloque), "%sBloque%d.txt", rutaBloques, bloqueN);
 
@@ -935,7 +1048,6 @@ static bool modificarRegistro(const char* relacion, int posicion, const char* nu
     std::cout << "Registro en posición " << posicion << " modificado correctamente.\n";
     return true;
 }
-
 
 static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* registroTxt) {
     return false;
