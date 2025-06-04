@@ -2,7 +2,7 @@
 #include <fstream>
 #include <cstring>  
 #include <cstdio>
-#include "variable_length.h"
+#include "LVariable.h"
 #include "Disco.h"
 #include <cassert>
 
@@ -26,7 +26,7 @@ int main() {
 
     char* reg_var = format_registro_variable(registro, relacion);
     char* reg_var2 = format_registro_variable(registro2, relacion);
-    // Prepara bloque vacío con meta inicial
+    // Prepara bloque vacï¿½o con meta inicial
     char bloque[180] = "";
     //std::memset(bloque, 0, sizeof(bloque));//solo para este bloque
     // registro_n=0, last_pos=0
@@ -70,9 +70,9 @@ int main() {
     for (int i = start_pos; i < 512 && registro_variable[i] != '\0'; ++i) {
             text_part.push_back(registro_variable[i]);
         }
-        std::cout << "Texto desde posición " << start_pos << ": " << text_part << std::endl; //esto falla en titanic
+        std::cout << "Texto desde posiciï¿½n " << start_pos << ": " << text_part << std::endl; //esto falla en titanic
 
-    // Liberar memoria si se reservó dinámicamente
+    // Liberar memoria si se reservï¿½ dinï¿½micamente
     */
     //parsed=read_registro_variable(registro_variable,field_number,parsed);
     //std::printf("Parsed: %s\n", parsed);
