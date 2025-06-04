@@ -192,14 +192,69 @@ public:
         }
     }
 
+
+    static int leerBloqueConSeparador(FILE* f, char* lineaBuf, int maxLen) {
+        int pos = 0;
+        int c;
+
+        // 1) Buscar el primer '|'
+        while ((c = fgetc(f)) != EOF) {
+            if (c == '|') {
+                lineaBuf[pos++] = (char)c;
+                break;
+            }
+        }
+        if (c == EOF) {
+            return 0; // no quedan bloques
+        }
+
+        // 2) Leer hasta el siguiente '|' o hasta llenarnos
+        while ((c = fgetc(f)) != EOF && pos < maxLen - 1) {
+            lineaBuf[pos++] = (char)c;
+            if (c == '|') {
+                break; // bloque completo
+            }
+        }
+        lineaBuf[pos] = '\0';
+        return pos;
+    }
+
+    // -----------------------------------------------------------------
+    //  LEE TODOS LOS BLOQUES “|…|” EN dirBloques.txt Y RETORNA EL MÁXIMO
+    // -----------------------------------------------------------------
+    static int obtenerLongitudMaximaBloque1() {
+        FILE* f = fopen("DISCO\\dirBloques.txt", "r");
+        if (!f) return -1;
+
+        char linea[MAX_BUF];
+        int maxLen = 0;
+        int len;
+
+        // Leer bloque por bloque (delimitado por '|') hasta EOF
+        while ((len = leerBloqueConSeparador(f, linea, MAX_BUF)) > 0) {
+            // len incluye ambos caracteres '|' de apertura y cierre
+            if (len > maxLen) {
+                maxLen = len;
+            }
+        }
+
+        fclose(f);
+        return maxLen;  // será el tamaño fijo al que rellenar después
+    }
+
+
+
     void crearBloquesLogicos() {
-        std::ofstream fdir("DISCO\\dirBloques.txt", std::ios::out);
-        if (!fdir.is_open()) {
-            std::perror("Error creando dirBloques.txt");
+        // --------------------------------------------------
+        //  1) Escribir dirBloques.txt “en crudo” (sin padding)
+        // --------------------------------------------------
+        std::ofstream fdir_crudo("DISCO\\dirBloques.txt", std::ios::out);
+        if (!fdir_crudo.is_open()) {
+            std::perror("Error creando dirBloques.txt (crudo)");
             return;
         }
 
-        std::cout << " Creando disco... " << std::endl;
+        std::cout << " Creando disco (fase 1: crudo)... " << std::endl;
 
         make_dir("DISCO\\BLOQUES");
 
@@ -207,14 +262,16 @@ public:
         int curPista = 1;
         int curSector = 1;
 
+        // FASE 1: Generar cada bloque sin padding ni barras |…|
         for (int i = 1; i <= nroBloques; ++i) {
-            fdir << tamBloque << "#2#BLOQUE#" << i << "#" << tamBloque << "#_";
+            // Escribimos el encabezado “crudo” como antes:
+            fdir_crudo << tamBloque << "#2#BLOQUE#" << i << "#" << tamBloque << "#_";
 
             int asignados = 0;
             while (asignados < sectoresPorBloque) {
                 for (int p = 1; p <= platos && asignados < sectoresPorBloque; ++p) {
                     for (int s = 1; s <= 2 && asignados < sectoresPorBloque; ++s) {
-                        fdir << tamSector << "#"
+                        fdir_crudo << tamSector << "#"
                             << p << "/"
                             << s << "/"
                             << curPista << "/"
@@ -231,16 +288,137 @@ public:
                     }
                 }
             }
+            // Ahora ponemos un salto de línea para separar bloques crudos:
+            fdir_crudo << std::endl;
+        }
+        fdir_crudo.close();
 
-            fdir << std::endl;
-
-            char rutaBloque[MAX_PATH_LEN];
-            std::snprintf(rutaBloque, sizeof(rutaBloque), "DISCO\\BLOQUES\\Bloque%d.txt", i);
-
+        // ------------------------------------------------------
+        //  2) Calcular la longitud máxima entre todos los bloques crudos
+        // ------------------------------------------------------
+        // Para ello, primero tenemos que “envolver” cada línea
+        // cruda dentro de barras “|…|” para medirla con leerBloqueConSeparador.
+        // Entonces reescribimos temporalmente cada línea cruda con barras
+        // y sin padding, luego midiendo su longitud, quedándonos con el mayor.
+        //
+        // A) Abrir el archivo crudo para leer:
+        FILE* fcrudo = fopen("DISCO\\dirBloques.txt", "r");
+        if (!fcrudo) {
+            std::perror("Error al abrir dirBloques.txt (crudo) para calcular máximo");
+            return;
         }
 
-        fdir.close();
+        // B) Leer línea a línea (cada bloque crudo está en su propia línea),
+        //    envolverla con '|' y medir su longitud. Conservar el máximo.
+        char lineaCruda[MAX_BUF];
+        int maxLen = 0;
+        while (fgets(lineaCruda, MAX_BUF, fcrudo)) {
+            // Quitar '\r' o '\n' al final de la línea cruda:
+            size_t L = strlen(lineaCruda);
+            while (L > 0 && (lineaCruda[L - 1] == '\r' || lineaCruda[L - 1] == '\n')) {
+                lineaCruda[--L] = '\0';
+            }
+            // Construir temporalmente "|<lineaCruda>|"
+            int longTemp = (int)(L + 2); // +2 por ambos '|'
+            if (longTemp > maxLen) {
+                maxLen = longTemp;
+            }
+        }
+        fclose(fcrudo);
+
+        // Guardar ese valor en la variable global:
+        int maxLenBloque = maxLen;
+        std::cout << "  Longitud fija por bloque = " << maxLenBloque << " bytes\n";
+
+        // -------------------------------------------------
+        //  3) Borrar el archivo crudo y reescribir con padding
+        // -------------------------------------------------
+        // Borramos el dirBloques.txt “crudo”:
+        std::remove("DISCO\\dirBloques.txt");
+
+        // Ahora reabrimos para escribir “padded + delimitado”:
+        std::ofstream fdir_pad("DISCO\\dirBloques.txt", std::ios::out);
+        if (!fdir_pad.is_open()) {
+            std::perror("Error recreando dirBloques.txt (pad)");
+            return;
+        }
+
+        std::cout << " Creando disco (fase 2: padded)... " << std::endl;
+
+        // Debemos volver a generar cada bloque EXACTAMENTE igual que antes,
+        // pero rodearlo con '|' y rellenar con '@' hasta maxLenBloque.
+        curPista = 1;
+        curSector = 1;
+        for (int i = 1; i <= nroBloques; ++i) {
+            // 3.a) Armar el contenido “crudo” de este bloque en un buffer temporal:
+            //     (sin barras ni padding aún)
+            char tmp[MAX_BUF];
+            int ofs = 0;
+            ofs += snprintf(tmp + ofs, MAX_BUF - ofs,
+                "%lld#2#BLOQUE#%d#%lld#_",
+                tamBloque, i, tamBloque);
+
+            int asignados = 0;
+            while (asignados < sectoresPorBloque) {
+                for (int p = 1; p <= platos && asignados < sectoresPorBloque; ++p) {
+                    for (int s = 1; s <= 2 && asignados < sectoresPorBloque; ++s) {
+                        ofs += snprintf(tmp + ofs, MAX_BUF - ofs,
+                            "%lld#%d/%d/%d/%d#_",
+                            tamSector, p, s, curPista, curSector);
+                        ++asignados;
+                    }
+                }
+                curSector++;
+                if (curSector > sectores) {
+                    curSector = 1;
+                    curPista++;
+                    if (curPista > pistas) {
+                        curPista = 1;
+                    }
+                }
+            }
+            tmp[ofs] = '\0';  // finalizamos la cadena cruda
+
+            // 3.b) Ahora construimos “|<tmp_contenido_puro> … <padding>@|”
+            //     en otro buffer de tamaño fijo maxLenBloque:
+            char bloqueFinal[MAX_BUF];
+            int ptr = 0;
+
+            // Agregar la barra inicial
+            bloqueFinal[ptr++] = '|';
+
+            // Copiar tmp (contenido crudo) justo después:
+            int lenCrudo = (int)strlen(tmp);
+            if (ptr + lenCrudo >= MAX_BUF) {
+                // No debería suceder si MAX_BUF es lo suficientemente grande
+                lenCrudo = MAX_BUF - ptr - 1;
+            }
+            memcpy(bloqueFinal + ptr, tmp, lenCrudo);
+            ptr += lenCrudo;
+
+            // Agregar padding '@' hasta llegar a (maxLenBloque - 1)
+            while (ptr < maxLenBloque - 1) {
+                bloqueFinal[ptr++] = '@';
+            }
+            // Finalmente, agregar la barra final '|' en la posición (maxLenBloque - 1)
+            bloqueFinal[ptr++] = '|';
+
+            // Por seguridad, si ptr < MAX_BUF, ponemos terminador:
+            if (ptr < MAX_BUF) {
+                bloqueFinal[ptr] = '\0';
+            }
+
+            // 3.c) Escribimos exactamente maxLenBloque bytes de bloqueFinal:
+            fdir_pad.write(bloqueFinal, maxLenBloque);
+            // NO escribimos '\n'. Seguimos con el siguiente bloque “en línea”.
+
+            // Esa operación deja intactos todos los bloques posteriores,
+            // porque cada uno ocupa EXACTAMENTE maxLenBloque bytes.
+        }
+
+        fdir_pad.close();
     }
+
 
     void mostrarArbolDisco() {
         std::cout << "\n=== arbol de Creacion del Disco ===\n";
@@ -267,6 +445,8 @@ public:
         return (int)tamBloque;
     }
 
+
+    //ESTE ES DE REFERENCIA, ESTO ES UNA BASE A LO QUE FUNCIONABA ANTERIORMENTE
     void volcarBloqueASectores(int bloqueN) {
         if (bloqueN < 1 || bloqueN > nroBloques) {
             std::cout << "> Bloque inválido: " << bloqueN << "\n";
