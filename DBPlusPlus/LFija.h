@@ -914,6 +914,10 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
         printf("DEBUG: No se encontró sectorCode para sectorIndex=%d\n", sectorIndex);
     }
 
+    // 2.9) Después de eliminar, volcar BloqueN a sectores para que el cambio se refleje
+    printf("DEBUG: Llamando a volcarBloqueASectores tras eliminación en Bloque %d\n", bloqueN);
+    disco.volcarBloqueASectores(bloqueN);
+
     fclose(fbloc);
 
     // 3) Actualizar dirBloques.txt: sumar espacio libre a bloque y al sector correspondiente
@@ -1564,7 +1568,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         nroBloque, escritosDir, fixedLen);
 
     // -------------------------------------------------------------
-    // 5) Ahora crear/abrir BloqueN.txt, actualizar su cabecera y escribir el registro
+    // 5) Ahora crear/abrir BloqueN.txt y aprovechar espacio libre (bitmap)
     // -------------------------------------------------------------
     char rutaBloque[MAX_PATH_LEN];
     snprintf(rutaBloque, sizeof(rutaBloque),
@@ -1572,11 +1576,11 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         discoNuevoPath, nroBloque);
     printf("DEBUG: Ruta BloqueN.txt = '%s'\n", rutaBloque);
 
-    FILE* fbloc = fopen(rutaBloque, "r+");
+    FILE* fbloc = fopen(rutaBloque, "r+b");
     size_t raw_header_len = 0;
     int numRegAnt = 0;
     int numMaxAnt = 0;
-    char bitmapAnt[MAX_BUF] = { 0 };
+    static char bitmapAnt[MAX_BUF];
 
     if (!fbloc) {
         // Bloque no existe: crearlo con calcularCabeceraBloque(...)
@@ -1605,11 +1609,50 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         // Mover cursor justo antes del '|'
         fseek(fbloc, -1, SEEK_END);
         raw_header_len = headerLen;
-        numRegAnt = 0;
-        numMaxAnt = numMax;
-        for (int i = 0; i < numMax; i++) bitmapAnt[i] = '0';
-        bitmapAnt[numMax] = '\0';
-        printf("DEBUG: numRegAnt=0, numMaxAnt=%d, bitmapAnt='%s'\n", numMaxAnt, bitmapAnt);
+        numRegAnt = 1;                // Ya insertamos este registro
+        numMaxAnt = 0;                // Se determinará después
+        for (int i = 0; i < numMaxAnt; i++) bitmapAnt[i] = '0';
+        bitmapAnt[numMaxAnt] = '\0';
+
+        // 10) Escribir el registro inmediatamente después de la cabecera
+        long offsetInicial = raw_header_len;
+        fseek(fbloc, offsetInicial, SEEK_SET);
+        size_t escritosReg2 = fwrite(regBuf, 1, regLen, fbloc);
+        fputc('|', fbloc);
+        fflush(fbloc);
+        if (escritosReg2 != (size_t)regLen) {
+            printf("ERROR: Se escribieron %zu bytes de registro, esperados %d\n", escritosReg2, regLen);
+        }
+        else {
+            printf("DEBUG: Registro de %d bytes escrito correctamente (+ '|').\n", regLen);
+        }
+        fclose(fbloc);
+
+        // 11) Volcar a sectores
+        printf("DEBUG: Llamando a volcarBloqueASectores para nuevo bloque #%d\n", nroBloque);
+        disco.volcarBloqueASectores(nroBloque);
+
+        // 12) Actualizar catalogo.txt
+        char rutaCatalogo2[MAX_PATH_LEN];
+        snprintf(rutaCatalogo2, sizeof(rutaCatalogo2),
+            "%s%s", discoNuevoPath, "catalogo.txt");
+        printf("DEBUG: Abriendo catalogo.txt en modo 'a' para agregar %s|Bloque%d.txt\n",
+            relacion, nroBloque);
+        FILE* fcat2 = fopen(rutaCatalogo2, "a");
+        if (fcat2) {
+            char rutaBloqueCat[MAX_PATH_LEN];
+            snprintf(rutaBloqueCat, sizeof(rutaBloqueCat),
+                "%sBLOQUES\\Bloque%d.txt", discoNuevoPath, nroBloque);
+            fprintf(fcat2, "%s|%s\n", relacion, rutaBloqueCat);
+            fclose(fcat2);
+            printf("DEBUG: Entrada agregada a catalogo.txt: '%s|%s'\n", relacion, rutaBloqueCat);
+        }
+        else {
+            perror("ERROR: No se pudo abrir catalogo.txt para escritura");
+        }
+
+        printf("DEBUG: adicionarRegistroUnico (nuevo bloque) finalizado para Bloque #%d\n", nroBloque);
+        return true;
     }
     else {
         // Bloque existe: leer cabecera hasta '/'
@@ -1626,132 +1669,156 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         printf("DEBUG: raw_header_len detectado = %zu\n", raw_header_len);
 
         rewind(fbloc);
-        char cabTmp[MAX_BUF];
+        char cabTmp3[MAX_BUF];
         if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
-        size_t leidosCab = fread(cabTmp, 1, raw_header_len, fbloc);
-        cabTmp[leidosCab] = '\0';
+        size_t leidosCab3 = fread(cabTmp3, 1, raw_header_len, fbloc);
+        cabTmp3[leidosCab3] = '\0';
         printf("DEBUG: Contenido leído de cabecera (%zu bytes): '%.*s'\n",
-            leidosCab, (int)leidosCab, cabTmp);
+            leidosCab3, (int)leidosCab3, cabTmp3);
 
         // Parsear numRegAnt#numMaxAnt#bitmapAnt/
-        char* p1 = strchr(cabTmp, '#');
-        if (!p1) {
-            printf("ERROR: No se encontró '#' en cabTmp. Cabecera corrupta.\n");
-            fclose(fbloc);
-            return false;
-        }
-        *p1 = '\0';
-        numRegAnt = safe_atoi(cabTmp);
-        char* p2 = p1 + 1;
-        char* p3 = strchr(p2, '#');
-        if (!p3) {
-            printf("ERROR: No se encontró segundo '#' en cabTmp. Cabecera corrupta.\n");
-            fclose(fbloc);
-            return false;
-        }
-        *p3 = '\0';
-        numMaxAnt = safe_atoi(p2);
-        char* p4 = p3 + 1;
-        char* slashPtr = strchr(p4, '/');
-        if (!slashPtr) {
-            printf("ERROR: No se encontró '/' en cabTmp. Cabecera corrupta.\n");
-            fclose(fbloc);
-            return false;
-        }
-        size_t bmpLen2 = (size_t)(slashPtr - p4);
-        if (bmpLen2 >= MAX_BUF) bmpLen2 = MAX_BUF - 1;
-        strncpy(bitmapAnt, p4, bmpLen2);
-        bitmapAnt[bmpLen2] = '\0';
-        printf("DEBUG: Lectura cabecera exitosa: numRegAnt=%d, numMaxAnt=%d, bitmapAnt='%s'\n",
+        char* q1 = strchr(cabTmp3, '#');
+        *q1 = '\0';
+        numRegAnt = safe_atoi(cabTmp3);
+        *q1 = '#';
+        char* q2 = q1 + 1;
+        char* q3 = strchr(q2, '#');
+        *q3 = '\0';
+        numMaxAnt = safe_atoi(q2);
+        *q3 = '#';
+        char* q4 = q3 + 1;
+        char* slash3 = strchr(q4, '/');
+        size_t bmpLen3 = (size_t)(slash3 - q4);
+        if (bmpLen3 >= MAX_BUF) bmpLen3 = MAX_BUF - 1;
+        strncpy(bitmapAnt, q4, bmpLen3);
+        bitmapAnt[bmpLen3] = '\0';
+        printf("DEBUG: (Anexar/Reuso) Lectura cabecera existente: numRegAnt=%d, numMaxAnt=%d, bitmapAnt='%s'\n",
             numRegAnt, numMaxAnt, bitmapAnt);
-    }
 
-    // 6) Buscar slot libre en bitmapAnt[]
-    int idxLibre = -1;
-    for (int i = 0; i < numMaxAnt; i++) {
-        if (bitmapAnt[i] == '0') {
-            idxLibre = i;
-            break;
+        // 6) Buscar slot libre en bitmapAnt[] para reuso
+        int idxLibre = -1;
+        for (int i = 0; i < numMaxAnt; i++) {
+            if (bitmapAnt[i] == '0') {
+                idxLibre = i;
+                break;
+            }
         }
-    }
-    if (idxLibre < 0) {
-        printf("DEBUG: El bloque #%d está lleno (bitmap completo)\n", nroBloque);
+
+        if (idxLibre >= 0) {
+            // Reutilizar hueco: idxLibre
+            printf("DEBUG: Se encontró espacio libre en Bloque%d en índice %d\n", nroBloque, idxLibre);
+            // 7) Actualizar numRegAnt y bitmapAnt[idxLibre]
+            numRegAnt++;
+            bitmapAnt[idxLibre] = '1';
+            printf("DEBUG: (Reuso) Nuevo numRegAnt = %d, bitmapAnt = '%s'\n", numRegAnt, bitmapAnt);
+
+            // 8) Reconstruir cabecera EXACTA: poner espacios hasta raw_header_len-1, luego '/'
+            rewind(fbloc);
+            char newHeader2[MAX_BUF];
+            int ofh2 = 0;
+            ofh2 += snprintf(newHeader2 + ofh2, MAX_BUF - ofh2, "%d#%d#", numRegAnt, numMaxAnt);
+            for (int i = 0; i < numMaxAnt && ofh2 < (int)(raw_header_len - 1); i++) {
+                newHeader2[ofh2++] = bitmapAnt[i];
+            }
+            // Llenar con espacios hasta la posición raw_header_len-1
+            while (ofh2 < (int)(raw_header_len - 1)) {
+                newHeader2[ofh2++] = ' ';
+            }
+            // Poner '/' en la última posición de cabecera
+            newHeader2[raw_header_len - 1] = '/';
+            // No más caracteres
+            newHeader2[raw_header_len] = '\0';
+            printf("DEBUG: (Reuso) Reconstruyendo cabecera: '%.*s'\n", (int)raw_header_len, newHeader2);
+
+            // 9) Sobrescribir cabecera en BloqueN.txt
+            fwrite(newHeader2, 1, raw_header_len, fbloc);
+            fflush(fbloc);
+
+            // 10) Calcular offset para insertar el registro reusado
+            long offsetRegistroReuse = (long)raw_header_len + (long)idxLibre * (registroSize + 1);
+            printf("DEBUG: offsetRegistroReuse en Bloque%d = %ld\n", nroBloque, offsetRegistroReuse);
+
+            // 11) Reemplazar '@' con regBuf en esa posición
+            if (fseek(fbloc, offsetRegistroReuse, SEEK_SET) != 0) {
+                fprintf(stderr, "ERROR: fseek falló al offsetRegistroReuse\n");
+                fclose(fbloc);
+                return false;
+            }
+            size_t escritosReuse = fwrite(regBuf, 1, regLen, fbloc);
+            fputc('|', fbloc);
+            fflush(fbloc);
+            if (escritosReuse != (size_t)regLen) {
+                printf("ERROR: Se escribieron %zu bytes de RLF reusado, esperados %d\n", escritosReuse, regLen);
+            }
+            else {
+                printf("DEBUG: Registro de %d bytes reusado en posición %d (+ '|').\n", regLen, idxLibre);
+            }
+
+            fclose(fbloc);
+            // 12) Volcar bloque reasignado a sectores
+            printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (reuso)\n", nroBloque);
+            disco.volcarBloqueASectores(nroBloque);
+
+            printf("DEBUG: adicionarRegistroUnico (reuso) finalizado para Bloque #%d\n", nroBloque);
+            return true;
+        }
+
+        // 13) No hay hueco: anexar al final
+        printf("DEBUG: Bloque #%d sin espacio libre, se agregará al final.\n", nroBloque);
+        // Calcular offsetAppend = raw_header_len + numRegAnt_old * (registroSize+1)
+        long offsetAppend = (long)raw_header_len + (long)(numRegAnt) * (registroSize + 1);
+        printf("DEBUG: offsetAppend en Bloque%d = %ld\n", nroBloque, offsetAppend);
+
+        // Actualizar cabecera (numRegAnt+1, marcar nuevo bitmap)
+        numRegAnt++;
+        if (numRegAnt <= numMaxAnt) {
+            bitmapAnt[numRegAnt - 1] = '1';
+        }
+        printf("DEBUG: (Anexar) Nuevo numRegAnt = %d, bitmapAnt = '%s'\n",
+            numRegAnt, bitmapAnt);
+
+        // Reconstruir cabecera EXACTA: espacios hasta raw_header_len-1, luego '/'
+        rewind(fbloc);
+        char newHeader3[MAX_BUF];
+        int ofh3 = 0;
+        ofh3 += snprintf(newHeader3 + ofh3, MAX_BUF - ofh3, "%d#%d#", numRegAnt, numMaxAnt);
+        for (int i = 0; i < numMaxAnt && ofh3 < (int)(raw_header_len - 1); i++) {
+            newHeader3[ofh3++] = bitmapAnt[i];
+        }
+        while (ofh3 < (int)(raw_header_len - 1)) {
+            newHeader3[ofh3++] = ' ';
+        }
+        newHeader3[raw_header_len - 1] = '/';
+        newHeader3[raw_header_len] = '\0';
+        printf("DEBUG: (Anexar) Reconstruyendo cabecera: '%.*s'\n", (int)raw_header_len, newHeader3);
+
+        fwrite(newHeader3, 1, raw_header_len, fbloc);
+        fflush(fbloc);
+
+        // Insertar regBuf + '|' en offsetAppend
+        if (fseek(fbloc, offsetAppend, SEEK_SET) != 0) {
+            fprintf(stderr, "ERROR: fseek falló al offsetAppend\n");
+            fclose(fbloc);
+            return false;
+        }
+        size_t escritosAppend = fwrite(regBuf, 1, regLen, fbloc);
+        fputc('|', fbloc);
+        fflush(fbloc);
+        if (escritosAppend != (size_t)regLen) {
+            printf("ERROR: Se escribieron %zu bytes de RLF anexado, esperados %d\n", escritosAppend, regLen);
+        }
+        else {
+            printf("DEBUG: Registro de %d bytes anexado correctamente (+ '|').\n", regLen);
+        }
+
         fclose(fbloc);
-        return false;
-    }
-    printf("DEBUG: idxLibre en bitmap = %d (bit pasa de '0' a '1')\n", idxLibre);
+        // 14) Volcar bloque anexado a sectores
+        printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (anexar)\n", nroBloque);
+        disco.volcarBloqueASectores(nroBloque);
 
-    // 7) Actualizar numRegAnt y bitmapAnt[idxLibre]
-    numRegAnt++;
-    bitmapAnt[idxLibre] = '1';
-    printf("DEBUG: Nuevo numRegAnt = %d, bitmapAnt = '%s'\n", numRegAnt, bitmapAnt);
-
-    // 8) Reconstruir cabecera EXACTAMENTE raw_header_len bytes
-    char newHeader[MAX_BUF];
-    int ofh = 0;
-    ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
-    for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
-        newHeader[ofh++] = bitmapAnt[i];
+        printf("DEBUG: adicionarRegistroUnico (anexar) finalizado para Bloque #%d\n", nroBloque);
+        return true;
     }
-    newHeader[ofh++] = '/';
-    while (ofh < (int)raw_header_len) {
-        newHeader[ofh++] = ' ';
-    }
-    newHeader[ofh] = '\0';
-    printf("DEBUG: Contenido de newHeader (long %zu): '%.*s'\n",
-        raw_header_len, (int)raw_header_len, newHeader);
-
-    // Sobreescribir cabecera en BloqueN.txt
-    rewind(fbloc);
-    size_t escritosCabecera = fwrite(newHeader, 1, raw_header_len, fbloc);
-    fflush(fbloc);
-    if (escritosCabecera != raw_header_len) {
-        printf("ERROR: Se escribieron %zu bytes de cabecera, esperados %zu\n",
-            escritosCabecera, raw_header_len);
-    }
-    else {
-        printf("DEBUG: Cabecera reescrita exitosamente (%zu bytes)\n", escritosCabecera);
-    }
-
-    // 9) Agregar el RLF (regBuf) + '|' al final
-    fseek(fbloc, 0, SEEK_END);
-    printf("DEBUG: Escribiendo registro en BloqueN.txt al final...\n");
-    size_t escritosReg = fwrite(regBuf, 1, regLen, fbloc);
-    fputc('|', fbloc);
-    fflush(fbloc);
-    if (escritosReg != (size_t)regLen) {
-        printf("ERROR: Se escribieron %zu bytes de registro, esperados %d\n", escritosReg, regLen);
-    }
-    else {
-        printf("DEBUG: Registro de %d bytes escrito correctamente (+ '|').\n", regLen);
-    }
-    fclose(fbloc);
-    printf("DEBUG: BloqueN.txt cerrado.\n");
-
-    // 10) Volcar a sectores
-    printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d\n", nroBloque);
-    disco.volcarBloqueASectores(nroBloque);
-
-    // 11) Actualizar catalogo.txt
-    char rutaCatalogo[MAX_PATH_LEN];
-    snprintf(rutaCatalogo, sizeof(rutaCatalogo),
-        "%s%s", discoNuevoPath, "catalogo.txt");
-    printf("DEBUG: Abriendo catalogo.txt en modo 'a' para agregar %s|Bloque%d.txt\n", relacion, nroBloque);
-    FILE* fcat = fopen(rutaCatalogo, "a");
-    if (fcat) {
-        char rutaBloqueCat[MAX_PATH_LEN];
-        snprintf(rutaBloqueCat, sizeof(rutaBloqueCat),
-            "%sBLOQUES\\Bloque%d.txt", discoNuevoPath, nroBloque);
-        fprintf(fcat, "%s|%s\n", relacion, rutaBloqueCat);
-        fclose(fcat);
-        printf("DEBUG: Entrada agregada a catalogo.txt: '%s|%s'\n", relacion, rutaBloqueCat);
-    }
-    else {
-        perror("ERROR: No se pudo abrir catalogo.txt para escritura");
-    }
-
-    printf("DEBUG: adicionarRegistroUnico finalizado con éxito para Bloque #%d\n", nroBloque);
-    return true;
 }
 
 static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, int opcion, Disco& disco) {
