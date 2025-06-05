@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <cassert>
 #include "LVariable.h"
 #include "LFija.h"
 
@@ -823,6 +824,10 @@ int main() {
                 cout << "Eliminado correctamente\n";
                 cout << "Entrando a Eliminar Registro \n" << std::endl;
             }
+            if(opcion==2){
+                //bool ok = eliminar_registro_variable(125,2, miDisco.getTamBloque());
+                //assert(ok);
+            }
             else {
                 cout << "No se pudo eliminar el registro \n";
             }
@@ -839,65 +844,50 @@ int main() {
             if (modificarRegistro("housing", 4, nuevoReg, miDisco)) {
                 cout << "Modificado correctamente\n";
             }
+            if(modify_registro_variable(125, 2, "titanic", "Sex", "Male",miDisco)){
+
+            }
         }
 
-        else if (opt == "7") {
-            /*
+        else if (opt == "7") { //demo
             // --- Inserción de longitud variable ---
             cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
-            string tabla;
 
             cout << "Ingrese registro (campos separados por '#', terminado en '\\n'):\n";
-            string input;
-            string input2;
 
-            tabla = "titanic";
-            input = "1#0#3#Braund# Mr. Owen Harris#male#22#1#0#A/5 21171#7.25##S";
-            input2 = "2#1#1#Cumings# Mrs. John Bradley (Florence Briggs Thayer)#female#38#1#0#PC 17599#71.2833#C85#C";
+            char relacion[] = "titanic";
+            char input[] = "1#0#3#Braund# Mr. Owen Harris#male#22#1#0#A/5 21171#7.25##S";
+            char input2[] = "2#1#1#Cumings# Mrs. John Bradley (Florence Briggs Thayer)#female#38#1#0#PC 17599#71.2833#C85#C";
+            char input3[] = "7#0#1#McCarthy# Mr. Timothy J#male#54#0#0#17463#51.8625#E46#S";
 
-            if (input.back() != '\n') input.push_back('\n');
 
-            // Formatear el registro variable
-            char* reg_var = format_registro_variable(input.c_str(), tabla.c_str());
-            if (!reg_var) {
-                cerr << "Error al formatear registro variable.\n";
-                continue;
+            char* reg_var = format_registro_variable(input, relacion);
+            char* reg_var2 = format_registro_variable(input2, relacion);
+            char* reg_var3 = format_registro_variable(input3, relacion);
+                
+            char bloque[miDisco.getTamBloque()] = "";
+            int espacio=miDisco.getTamBloque();
+                // Formatear el registro variable
+            bool ok =insert_registro_variable(reg_var, espacio, bloque, miDisco);
+            assert(ok);
+            std::cout << "format_bloque_variable paso la prueba." << std::endl;
+            ok = insert_registro_variable(reg_var2, espacio, bloque, miDisco);
+            assert(ok);
+            std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
+
+            ok = insert_registro_variable(reg_var3, espacio, bloque, miDisco);
+            assert(ok);
+            std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
+
+            if (volcar_bloque_a_archivo(bloque, tamBloque)) {
+            std::cout << "Se volcó el bloque con éxito en bloque.txt\n";
+            } else {
+            std::cout << "No se pudo volcar el bloque a bloque.txt\n";
             }
-
-            // Preparar bloque vacío
-            char* bloqueVar = new char[tamBloque];
-            memset(bloqueVar, 0, tamBloque);
-
-            // Empaquetar en el bloque
-            bool ok = format_bloque_variable(reg_var, tabla.c_str(), tamBloque, bloqueVar, miDisco);
-            delete[] reg_var;
-
-            if (!ok) {
-                cerr << "Error: no se pudo empaquetar el registro en un bloque variable.\n";
-                delete[] bloqueVar;
-                continue;
-            }
-
-            // Volcar el bloque completo a un fichero binario "Bloque1_var.bin"
-            // (Se asume que se usa siempre el Bloque1 para demo; puedes parametrizar)
-            ofstream fout("bloque.txt", ios::binary | ios::trunc);
-            if (!fout) {
-                cerr << "Error al abrir Bloque1_var.bin para escritura\n";
-            }
-            else {
-                fout.write(bloqueVar, tamBloque);
-                fout.close();
-                cout << "Bloque variable escrito en BLOQUES_VAR\\Bloque1_var.bin\n";
-            }
-            delete[] bloqueVar;
-
-            // Mostrar contenido final del bloque
-            // (read_bloque_content devuelve en heap, hay que liberarlo)
-            // Para simplificar, leemos desde el bloque en memoria original:
-            // char* contenido = read_bloque_content(bloqueVar, tabla.c_str());
-            // cout << "Contenido del bloque:\n" << contenido << "\n";
-            // delete[] contenido;
-            */
+            
+            //ok=eliminar_registro_variable(1,2, miDisco.getTamBloque());
+            //assert(ok);
+            //std::cout << "Eliminación completa" << std::endl;
         }
 
         else if (opt == "8") {
