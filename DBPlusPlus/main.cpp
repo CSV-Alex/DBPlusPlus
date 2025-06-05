@@ -820,13 +820,15 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (eliminarRegistro("housing", 2, miDisco)) {
-                cout << "Eliminado correctamente\n";
-                cout << "Entrando a Eliminar Registro \n" << std::endl;
+             if(opcion ==2){
+                if (eliminarRegistro("housing", 2, miDisco)) {
+                    cout << "Eliminado correctamente\n";
+                    cout << "Entrando a Eliminar Registro \n" << std::endl;
+                }
             }
-            if(opcion==2){
-                //bool ok = eliminar_registro_variable(125,2, miDisco.getTamBloque());
-                //assert(ok);
+            if(opcion==1){
+                bool ok = eliminar_registro_variable(1,2, miDisco.getTamBloque(),miDisco);
+                assert(ok);
             }
             else {
                 cout << "No se pudo eliminar el registro \n";

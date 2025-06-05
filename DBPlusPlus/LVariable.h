@@ -743,9 +743,9 @@ int insert_registro_variable(const char registro_variable[], int& espacio_libre_
 }
 
 
-bool eliminar_registro_variable(int bloqueN, int r_index, int tamBloque) {
+bool eliminar_registro_variable(int bloqueN, int r_index, int tamBloque, Disco& disco) {
     // --- 1) Abrir y leer TODO el contenido en fileData (binario) ---
-    std::string filename = "Bloque" + std::to_string(bloqueN) + ".txt";
+    std::string filename = "DISCO\\BLOQUES\\Bloque" + std::to_string(bloqueN) + ".txt";
     std::ifstream ifs(filename, std::ios::binary);
     if (!ifs.is_open()) {
         std::cerr << "Error: no se pudo abrir " << filename << "\n";
@@ -866,6 +866,12 @@ bool eliminar_registro_variable(int bloqueN, int r_index, int tamBloque) {
     }
     ofs << nuevoFileData;
     ofs.close();
+
+    if (!actualizarDirBloquesVariable(bloqueN, disco)) {
+        std::cerr << "WARN: No se pudo actualizar dirBloques.txt al eliminar el registro en bloque "
+                  << bloqueN << "\n";
+        // Aun así, devolvemos true porque la eliminación física ya se hizo.
+    }
 
     return true;
 }
@@ -1001,7 +1007,7 @@ bool modify_registro_variable(int NBloque, int r_index, const char relacion[], c
     }
 
     // 8) Eliminar el registro viejo
-    if (!eliminar_registro_variable(NBloque, r_index, disco.getTamBloque())) {
+    if (!eliminar_registro_variable(NBloque, r_index, disco.getTamBloque(),disco)) {
         std::cerr << "Error: no se pudo eliminar registro viejo\n";
         delete[] nuevo_registro;
         return false;
