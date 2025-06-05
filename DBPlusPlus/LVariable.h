@@ -287,6 +287,184 @@ char* format_registro_variable(const char registro[], const char relacion[]) {
 }
 
 
+static bool actualizarDirBloquesVariable(int bloqueN, int registroSize, Disco& disco) {
+    // 1) Obtener la longitud fija de cada entrada en dirBloques.txt
+    int fixedLen = disco.obtenerLongitudMaximaBloque1();
+    if (fixedLen <= 0) {
+        std::cerr << "ERROR: No se pudo obtener fixedLen para dirBloques variable.\n";
+        return false;
+    }
+
+    // 2) Abrir dirBloques.txt en modo lectura/escritura
+    FILE* fdir = std::fopen(rutaDirBloques, "r+");
+    if (!fdir) {
+        perror("ERROR: No se puede abrir dirBloques.txt");
+        return false;
+    }
+
+    // 3) Recorrer cada bloque (línea fija de length fixedLen)
+    int lineaNum = 0;
+    char bufferBlock[MAX_BUF + 1];
+    long posDB = 0;
+    bool found = false;
+
+    // Declaramos lenDB fuera del bucle para usarlo después
+    int lenDB = 0;
+
+    while (true) {
+        posDB = std::ftell(fdir);
+        lenDB = disco.leerBloqueConSeparador(fdir, bufferBlock, MAX_BUF);
+        if (lenDB <= 0) {
+            // fin de archivo o error al leer
+            break;
+        }
+        lineaNum++;
+        if (lineaNum == bloqueN) {
+            found = true;
+            // Asegurar terminación en '\0'
+            if (lenDB < MAX_BUF) bufferBlock[lenDB] = '\0';
+            else                  bufferBlock[MAX_BUF] = '\0';
+            break;
+        }
+    }
+
+    if (!found) {
+        std::cerr << "ERROR: No se encontró la línea para Bloque " << bloqueN << "\n";
+        std::fclose(fdir);
+        return false;
+    }
+
+    // 4) Verificar que lo leído (lenDB) no exceda fixedLen
+    if (lenDB > fixedLen) {
+        std::cerr << "ERROR: lenDB (" << lenDB << ") > fixedLen (" << fixedLen << ")\n";
+        std::fclose(fdir);
+        return false;
+    }
+
+    // 5) Extraer espacioLibreBloqueAnt (entre el primer '|' y el primer '#')
+    //    bufferBlock es "|<espBloque>#2#BLOQUE#...|"
+    char temp[MAX_BUF];
+    std::memcpy(temp, bufferBlock + 1, lenDB - 2);
+    temp[lenDB - 2] = '\0';
+    char* pHash0 = std::strchr(temp, '#');
+    if (!pHash0) {
+        std::cerr << "ERROR: Formato inesperado (sin '#') en la entrada de dirBloques.\n";
+        std::fclose(fdir);
+        return false;
+    }
+    *pHash0 = '\0';
+    int espacioLibreBloqueAnt = std::atoi(temp);
+    *pHash0 = '#';
+
+    // 6) Calcular espacioLibreBloqueNuevo
+    int espacioLibreBloqueNuevo = espacioLibreBloqueAnt - registroSize;
+    if (espacioLibreBloqueNuevo < 0) {
+        std::cerr << "WARN: espacioLibreBloque quedó negativo ("
+            << espacioLibreBloqueNuevo << "). Se normaliza a 0.\n";
+        espacioLibreBloqueNuevo = 0;
+    }
+
+    // 7) Extraer lista de sectores a partir de "#_"
+    char* inicioSectores = std::strstr(bufferBlock, "#_");
+    if (!inicioSectores) {
+        std::cerr << "ERROR: no se encontró '#_' para iniciar lista de sectores.\n";
+        std::fclose(fdir);
+        return false;
+    }
+    inicioSectores += 2;  // saltar "#_"
+
+    struct SectorInfo { int esp; std::string cod; };
+    std::vector<SectorInfo> sectores;
+    {
+        const char* p = inicioSectores;
+        while (*p && *p != '|') {
+            if (!std::isdigit(*p)) break;
+            int espSec = std::atoi(p);
+            while (*p && *p != '#') ++p;
+            if (!*p) break;
+            ++p;  // apunta a inicio de codSec
+
+            char codBuf[MAX_STR_LEN];
+            int idx = 0;
+            while (*p && *p != '#') {
+                if (idx < MAX_STR_LEN - 1) codBuf[idx++] = *p;
+                ++p;
+            }
+            codBuf[idx] = '\0';
+            if (!*p) break;
+            ++p;  // apunta a '_'
+            if (*p == '_') ++p;
+
+            sectores.push_back({ espSec, std::string(codBuf) });
+        }
+    }
+
+    // 8) Buscar primer sector con espacio suficiente
+    int idxSectorAUsar = -1;
+    for (int i = 0; i < (int)sectores.size(); ++i) {
+        if (sectores[i].esp >= registroSize) {
+            idxSectorAUsar = i;
+            break;
+        }
+    }
+    if (idxSectorAUsar < 0) {
+        std::cerr << "ERROR: ningún sector con espacio >= " << registroSize
+            << " en Bloque " << bloqueN << "\n";
+        std::fclose(fdir);
+        return false;
+    }
+
+    // 9) Restar registroSize al sector encontrado
+    int espacioAnt = sectores[idxSectorAUsar].esp;
+    int espacioNuevo = espacioAnt - registroSize;
+    if (espacioNuevo < 0) espacioNuevo = 0;
+    sectores[idxSectorAUsar].esp = espacioNuevo;
+
+    // 10) Reconstruir la nueva entrada EXACTA de longitud fixedLen
+    std::string nuevaEntrada;
+    nuevaEntrada.reserve(fixedLen);
+
+    nuevaEntrada.push_back('|');
+    nuevaEntrada += std::to_string(espacioLibreBloqueNuevo);
+    nuevaEntrada += "#2#BLOQUE#";
+    nuevaEntrada += std::to_string(bloqueN);
+    nuevaEntrada += "#";
+    nuevaEntrada += std::to_string(disco.getTamBloque());
+    nuevaEntrada += "#_";
+
+    for (auto& s : sectores) {
+        nuevaEntrada += std::to_string(s.esp);
+        nuevaEntrada += "#";
+        nuevaEntrada += s.cod;
+        nuevaEntrada += "#_";
+    }
+
+    int ofs = static_cast<int>(nuevaEntrada.size());
+    if (ofs < fixedLen - 1) {
+        int cuantosAt = (fixedLen - 1) - ofs;
+        nuevaEntrada.append(cuantosAt, '@');
+        nuevaEntrada.push_back('|');
+    }
+    else {
+        // recortar y forzar '|' al final si excede
+        nuevaEntrada.resize(fixedLen);
+        nuevaEntrada[fixedLen - 1] = '|';
+    }
+
+    // 11) Sobrescribir EXACTAMENTE fixedLen bytes en dirBloques.txt
+    std::fseek(fdir, posDB, SEEK_SET);
+    size_t escritos = std::fwrite(nuevaEntrada.data(), 1, fixedLen, fdir);
+    std::fflush(fdir);
+    std::fclose(fdir);
+
+    if ((int)escritos != fixedLen) {
+        std::cerr << "ERROR: se escribieron " << escritos
+            << " bytes en dirBloques.txt (esperados " << fixedLen << ")\n";
+        return false;
+    }
+
+    return true;
+}
 
 
 int insert_registro_variable(const char registro_variable[], int& espacio_libre_bloque, char* bloque_variable, Disco& disco) {
@@ -823,6 +1001,13 @@ static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* 
 
     // 7) Volcar bloque 1 a los sectores físicos
     disco.volcarBloqueASectores(nroBloque);
+
+    // 8) ACTUALIZAR dirBloques.txt RESTANDO regLen al bloque y al primer sector disponible
+    if (!actualizarDirBloquesVariable(nroBloque, regLen, disco)) {
+        std::cerr << "ERROR: no se pudo actualizar dirBloques.txt para Bloque " << nroBloque << "\n";
+        // A pesar del error en dirBloques, el RLV ya quedó insertado en el bloque físico
+        // Tú decides si quieres considerar esto como fallo total o no.
+    }
 
     delete[] bloque_buffer;
     return true;
