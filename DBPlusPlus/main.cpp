@@ -692,7 +692,7 @@ int main() {
     }
 
     Disco miDisco(platos, pistas, sectores, tamSector, tamBloque);
-
+    miDisco.printDisco();
     convertCsvToTxt(titanicCSV, titanicTXT);
     convertCsvToTxt(housingCSV, housingTXT);
     relationFormatMin(titanicTXT.c_str(), schemaPath.c_str());
