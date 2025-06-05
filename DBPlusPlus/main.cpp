@@ -791,15 +791,15 @@ int main() {
             cin.ignore(1, '\n');
 
             if (adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco)) {
-                cout << "Registros agregados correctamente.\n";
+                cout << "HRegdsadsaistros agregados correctamente.\n";
                 //
             }
             else
-                cout << "No se pudieron agregar los registros.\n";
+                cout << "No se puddsaieron dsaadsdsagregar los registros.\n";
         }
 
         else if (opt == "4") {
-            cout << "¿Tipo de inserción?\n";
+            cout << "¿Tipo de inserdasdsción?\n";
             cout << "1) Longitud variable\n";
             cout << "2) Longitud fija (bitmap)\n";
             cout << ">> ";
@@ -821,12 +821,12 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (eliminarRegistro("housing", 2)) {
-                cout << "Eliminado correctamente \n";
+            if (eliminarRegistro("housing", 2, miDisco)) {
+                cout << "Eliminado correctamente\n";
                 cout << "Entrando a Eliminar Registro \n" << std::endl;
             }
             else {
-                cout << "No se pudo eliminar el registro \n";
+                cout << "No se pudo eliminar el adsdasadsregistro \n";
             }
         }
 
@@ -838,7 +838,7 @@ int main() {
 
             const char* nuevoReg = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
 
-            if (modificarRegistro("housing", 2, nuevoReg)) {
+            if (modificarRegistro("housing", 2, nuevoReg, miDisco)) {
                 cout << "Modificado correctamente\n";
             }
         }
