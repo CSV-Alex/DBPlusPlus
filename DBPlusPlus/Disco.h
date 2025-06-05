@@ -676,6 +676,109 @@ public:
             << " sectores (registros enteros).\n";
     }
 
+    void volcarBloqueASectoresVariable(int bloqueN) {
+        if (bloqueN < 1 || bloqueN > nroBloques) {
+            std::cout << "> Bloque inválido: " << bloqueN << "\n";
+            return;
+        }
+
+        // 1) Leer la línea correspondiente en dirBloques.txt (para parsear sectores asociados)
+        if (!leerLineaDirBloque(bloqueN)) {
+            std::cout << "> No se pudo leer dirBloques.txt en línea " << bloqueN << "\n";
+            return;
+        }
+
+        // 2) Abrir el archivo de BloqueN.txt en modo binario
+        char rutaBloque[MAX_PATH_LEN];
+        snprintf(rutaBloque, sizeof(rutaBloque),
+            "DISCO\\BLOQUES\\Bloque%d.txt", bloqueN);
+        FILE* fbloc = std::fopen(rutaBloque, "rb");
+        if (!fbloc) {
+            std::perror("Error al abrir BloqueN.txt");
+            return;
+        }
+
+        // 3) Determinar el tamaño total de BloqueN.txt (header + registros)
+        std::fseek(fbloc, 0, SEEK_END);
+        long tamDatos = std::ftell(fbloc);
+        std::fseek(fbloc, 0, SEEK_SET);
+
+        // 4) Calcular cuántos sectores físicos necesitaría como máximo
+        int tamSector = getTamSector();
+        int maxSectores = static_cast<int>((getTamBloque() + tamSector - 1) / tamSector);
+        // reservar array para códigos "plato/pista/…"
+        char (*sectoresFisicos)[MAX_STR_LEN] =
+            (char (*)[MAX_STR_LEN])std::malloc(maxSectores * MAX_STR_LEN);
+        if (!sectoresFisicos) {
+            std::cout << "> Error de memoria al reservar sectoresFisicos\n";
+            std::fclose(fbloc);
+            return;
+        }
+
+        // 5) Parsear la lista de sectores asignados a este bloque (los cargamos en sectoresFisicos[])
+        int totSect = parsearSectoresBloque(sectoresFisicos, maxSectores, bufferLectura);
+        if (totSect <= 0) {
+            std::cout << "> No se encontraron sectores asignados para el Bloque "
+                << bloqueN << ".\n";
+            std::free(sectoresFisicos);
+            std::fclose(fbloc);
+            return;
+        }
+
+        // 6) Iterar, para cada sector físico, leyendo hasta tamSector bytes de fbloc
+        //    y volcándolos al archivo de ese sector. Si fbloc entra en EOF, abrimos
+        //    igualmente el siguiente sector (debug) y cerramos sin escribir nada más.
+
+        // Buffer temporal para leer un bloque de tamaño 'tamSector'
+        char* sectorBuf = (char*)std::malloc(tamSector);
+        if (!sectorBuf) {
+            std::cout << "> Error de memoria al reservar sectorBuf\n";
+            std::free(sectoresFisicos);
+            std::fclose(fbloc);
+            return;
+        }
+
+        for (int idx = 0; idx < totSect; ++idx) {
+            // Preparar ruta del sector físico actual
+            rutaSectorDesdeCodigo(sectoresFisicos[idx]);
+            std::cout << "[DEBUG] Abriendo sector físico para escritura: "
+                << bufferRuta << "\n";
+
+            FILE* fsec = std::fopen(bufferRuta, "wb");
+            if (!fsec) {
+                std::perror("Error abriendo sector para escritura");
+                // aunque haya error, seguimos al siguiente sector
+                continue;
+            }
+
+            // Intentar leer hasta 'tamSector' bytes de fbloc
+            size_t bytesLeidos = std::fread(sectorBuf, 1, tamSector, fbloc);
+            if (bytesLeidos > 0) {
+                // Escribir exactamente los bytesLeidos en el sector
+                size_t escritos = std::fwrite(sectorBuf, 1, bytesLeidos, fsec);
+                if (escritos != bytesLeidos) {
+                    std::perror("Error al escribir en sector físico");
+                }
+            }
+            // Si bytesLeidos < tamSector, entonces fbloc ya estaba en EOF o se agotaron datos.
+            // No escribimos nada más: el resto del sector queda “vacío” (padding implícito).
+
+            std::fclose(fsec);
+            // Pasamos al siguiente sector físico; si fbloc ya está en EOF, 
+            // cada fopen/fclose solo mostrará el DEBUG de apertura sin escribir datos.
+        }
+
+        std::free(sectorBuf);
+        std::free(sectoresFisicos);
+        std::fclose(fbloc);
+
+        std::cout << "> Bloque " << bloqueN
+            << " volcado en " << totSect
+            << " sectores (incluyendo aquellos vacíos por padding).\n";
+    }
+
+
+
     void volcarRelacionASectores(const char* relacion) {
         // buscar todas las lineas cuyo nombre de tabla coincida
         FILE* fcat = fopen(rutaCatalogo, "r");

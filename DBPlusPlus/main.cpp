@@ -800,7 +800,7 @@ int main() {
         else if (opt == "4") {
             cout << "¿Tipo de inserción?\n";
             cout << "1) Longitud variable\n";
-            cout << "2) Longitud fija (bitmap)\n";
+            cout << "2) Longitud fidsaja (bitmap)\n";
             cout << ">> ";
             int opcion;
             cin >> opcion;
