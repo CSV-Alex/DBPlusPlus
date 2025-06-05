@@ -666,9 +666,8 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
             printf("ERROR: No existe Bloque%d.txt; posiciónGlobal fuera de rango.\n", bloqueN);
             return false;
         }
-        // Solo leer cabecera hasta '/' para extraer numMaxAnt
         {
-            char cabTmp[MAX_BUF];
+            // Leer solo la cabecera hasta '/' para extraer numMaxAnt
             size_t headerLen = 0;
             int ch;
             rewind(fblocTest);
@@ -689,11 +688,10 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
         fread(cabBuf, 1, raw_header_len, fblocTest);
         cabBuf[raw_header_len] = '\0';
 
-        // Parsear "<numRegAnt>#<numMaxAnt>#<bitmap>/"
         {
+            // Parsear "<numRegAnt>#<numMaxAnt>#<bitmap>/"
             char* p1 = strchr(cabBuf, '#');
             if (!p1) { fclose(fblocTest); return false; }
-            // p1 apunta a '#'; el siguiente es inicio de numMaxAnt
             char* p2 = p1 + 1;
             char* p3 = strchr(p2, '#');
             if (!p3) { fclose(fblocTest); return false; }
@@ -746,13 +744,9 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
     fread(cabTmp, 1, raw_header_len, fbloc);
     cabTmp[raw_header_len] = '\0';
 
-    // Parsear cabecera sin modificar el número máximo (numMaxAnt)
     {
-        //  "<numRegAnt>#<numMaxAnt>#<bitmap>/"
+        // Parsear "<numRegAnt>#<numMaxAnt>#<bitmap>/"
         char* p1 = strchr(cabTmp, '#');
-        if (!p1) {
-            printf("DEBUG: No se encontró el primer '#' en cabTmp: '%s'\n", cabTmp);
-        }
         *p1 = '\0';
         numRegAnt = atoi(cabTmp);
         *p1 = '#';
@@ -760,30 +754,15 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
 
         char* p2 = p1 + 1;
         char* p3 = strchr(p2, '#');
-        if (!p3) {
-            printf("DEBUG: No se encontró el segundo '#' en p2: '%s'\n", p2);
-        }
         *p3 = '\0';
-        // int numMax = atoi(p2);  // ya lo tenemos en numMaxAnt
+        // numMaxAnt ya lo tenemos de antes
         *p3 = '#';
         printf("DEBUG: numMaxAnt = %d\n", numMaxAnt);
 
         char* p4 = p3 + 1;
         char* slash = strchr(p4, '/');
-        if (!slash) {
-            printf("DEBUG: No se encontró '/' en p4: '%s'\n", p4);
-        }
         size_t bmpLen = (size_t)(slash - p4);
-        printf("DEBUG: Calculado bmpLen = %zu (slash-p4)\n", bmpLen);
-        printf("DEBUG: numMaxAnt = %d, tamaño de bitmap = %zu\n", numMaxAnt, sizeof(bitmap));
-        if ((int)bmpLen > numMaxAnt) {
-            printf("DEBUG: bmpLen (%zu) > numMaxAnt (%d), ajustando bmpLen\n", bmpLen, numMaxAnt);
-            bmpLen = numMaxAnt;
-        }
-        if (bmpLen >= sizeof(bitmap)) {
-            printf("ERROR: bmpLen (%zu) >= tamaño de bitmap (%zu), posible overflow!\n", bmpLen, sizeof(bitmap));
-        }
-        printf("DEBUG: strncpy(bitmap, p4, bmpLen) con p4='%.*s'\n", (int)bmpLen, p4);
+        if ((int)bmpLen > numMaxAnt) bmpLen = numMaxAnt;
         strncpy(bitmap, p4, bmpLen);
         bitmap[bmpLen] = '\0';
         printf("DEBUG: bitmap resultante: '%s'\n", bitmap);
@@ -801,29 +780,31 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
         return false;
     }
 
-    // 2.3) Actualizar bitmap y numRegAnt (numMaxAnt queda intacto)
+    // 2.3) Actualizar bitmap y numRegAnt (numMaxAnt permanece igual)
     bitmap[idxLocal] = '0';
     numRegAnt--;
     printf("DEBUG: bitmap[%d] cambiado a '0', numRegAnt ahora = %d\n", idxLocal, numRegAnt);
 
     // 2.4) Reconstruir la cabecera EXACTA de longitud raw_header_len
-    char newHeader[MAX_BUF];
-    int ofh = 0;
-    ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
-    for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
-        newHeader[ofh++] = bitmap[i];
-    }
-    newHeader[ofh++] = '/';
-    while (ofh < (int)raw_header_len) {
-        newHeader[ofh++] = ' ';
-    }
-    newHeader[ofh] = '\0';
+    {
+        char newHeader[MAX_BUF];
+        int ofh = 0;
+        ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
+        for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
+            newHeader[ofh++] = bitmap[i];
+        }
+        newHeader[ofh++] = '/';
+        while (ofh < (int)raw_header_len) {
+            newHeader[ofh++] = ' ';
+        }
+        newHeader[ofh] = '\0';
 
-    rewind(fbloc);
-    fwrite(newHeader, 1, raw_header_len, fbloc);
-    fflush(fbloc);
-    printf("DEBUG: Cabecera de Bloque%d reescrita: '%.*s'\n",
-        bloqueN, (int)raw_header_len, newHeader);
+        rewind(fbloc);
+        fwrite(newHeader, 1, raw_header_len, fbloc);
+        fflush(fbloc);
+        printf("DEBUG: Cabecera de Bloque%d reescrita: '%.*s'\n",
+            bloqueN, (int)raw_header_len, newHeader);
+    }
 
     // 2.5) Eliminar registro: obtener registroSize
     int registroSize = 0;
@@ -842,14 +823,16 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
         fclose(fbloc);
         return false;
     }
-    char* relleno = (char*)malloc(registroSize);
-    memset(relleno, '@', registroSize);
-    size_t escritos = fwrite(relleno, 1, registroSize, fbloc);
-    free(relleno);
-    if ((int)escritos != registroSize) {
-        fprintf(stderr, "ERROR: Se escribieron %zu bytes, esperados %d\n", escritos, registroSize);
-        fclose(fbloc);
-        return false;
+    {
+        char* relleno = (char*)malloc(registroSize);
+        memset(relleno, '@', registroSize);
+        size_t escritos = fwrite(relleno, 1, registroSize, fbloc);
+        free(relleno);
+        if ((int)escritos != registroSize) {
+            fprintf(stderr, "ERROR: Se escribieron %zu bytes, esperados %d\n", escritos, registroSize);
+            fclose(fbloc);
+            return false;
+        }
     }
     fflush(fbloc);
     printf("DEBUG: Registro de %d bytes en Bloque%d reemplazado por '@'\n", registroSize, bloqueN);
@@ -867,47 +850,53 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
         fclose(fbloc);
         return false;
     }
-    char lineaDB[MAX_BUF];
-    int lineaNum = 0;
     char sectorCodeEncontrado[MAX_STR_LEN] = { 0 };
-    while (fgets(lineaDB, MAX_BUF, fdir)) {
-        lineaNum++;
-        if (lineaNum != bloqueN) continue;
-        // Extraer lista de sectores tras "#_"
-        char tempLine[MAX_BUF];
-        strncpy(tempLine, lineaDB, MAX_BUF - 1);
-        tempLine[MAX_BUF - 1] = '\0';
-        char* pList = strstr(tempLine, "#_");
-        if (!pList) break;
-        pList += 2;
-        int cuenta = 0;
-        while (*pList) {
-            char* inicioEsp = pList;
-            while (*pList && *pList != '#') pList++;
-            if (*pList != '#') break;
-            *pList = '\0';
-            int espSec = atoi(inicioEsp);
-            *pList = '#';
-            pList++;
+    {
+        // Leemos bloque por bloque usando leerBloqueConSeparador
+        int lineaNum = 0;
+        char bufferBlock[MAX_BUF];
+        while (true) {
+            int lenDB = disco.leerBloqueConSeparador(fdir, bufferBlock, MAX_BUF);
+            if (lenDB <= 0) break;
+            lineaNum++;
+            if (lineaNum != bloqueN) continue;
 
-            char* inicioCod = pList;
-            while (*pList && *pList != '#') pList++;
-            if (*pList != '#') break;
-            *pList = '\0';
-            if (cuenta == sectorIndex) {
-                strncpy(sectorCodeEncontrado, inicioCod, MAX_STR_LEN - 1);
-                sectorCodeEncontrado[MAX_STR_LEN - 1] = '\0';
-                *pList = '#';
-                break;
+            // bufferBlock tiene exactamente "|...|" sin '\0'
+            bufferBlock[lenDB] = '\0';
+            // Extraer lista de sectores tras "#_"
+            char* pList = strstr(bufferBlock, "#_");
+            if (!pList) break;
+            pList += 2;
+            int cuenta = 0;
+            const char* p = pList;
+            while (*p && *p != '|') {
+                // extraer espacio
+                int espSec = atoi(p);
+                while (*p && *p != '#') ++p;
+                if (!*p) break;
+                ++p; // inicio de sectorCod
+
+                // extraer sectorCod
+                char sectorCod[MAX_STR_LEN] = { 0 };
+                int j = 0;
+                while (*p && *p != '#') {
+                    if (j < MAX_STR_LEN - 1) sectorCod[j++] = *p;
+                    ++p;
+                }
+                sectorCod[j] = '\0';
+                if (!*p) break;
+                ++p; // p apunta a '_'
+                if (*p == '_') ++p;
+
+                if (cuenta == sectorIndex) {
+                    strncpy(sectorCodeEncontrado, sectorCod, MAX_STR_LEN - 1);
+                    sectorCodeEncontrado[MAX_STR_LEN - 1] = '\0';
+                    break;
+                }
+                cuenta++;
             }
-            *pList = '#';
-            pList++;
-            cuenta++;
-            char* sig = strstr(pList, "#_");
-            if (!sig) break;
-            pList = sig + 2;
+            break;
         }
-        break;
     }
     fclose(fdir);
 
@@ -942,90 +931,123 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
     }
 
     bool actualizado = false;
-    lineaNum = 0;
-    while (true) {
-        long posDB = ftell(fdir);
-        if (!fgets(lineaDB, MAX_BUF, fdir)) break;
-        lineaNum++;
-        if (lineaNum != bloqueN) continue;
+    {
+        int lineaNum = 0;
+        char bufferBlock[MAX_BUF];
+        long posDB;
+        while (true) {
+            posDB = ftell(fdir);
+            int lenDB = disco.leerBloqueConSeparador(fdir, bufferBlock, MAX_BUF);
+            printf("DEBUG: ftell(fdir) = %ld, lenDB = %d\n", posDB, lenDB);
+            if (lenDB <= 0) {
+                printf("DEBUG: leerBloqueConSeparador devolvió %d, saliendo del bucle\n", lenDB);
+                break;
+            }
+            lineaNum++;
+            printf("DEBUG: lineaNum = %d, bloqueN = %d\n", lineaNum, bloqueN);
+            if (lineaNum != bloqueN) continue;
 
-        // Extraer espacioLibreBloqueDir
-        char temp2[MAX_BUF];
-        strncpy(temp2, lineaDB + 1, MAX_BUF - 1); // sin '|'
-        temp2[MAX_BUF - 1] = '\0';
-        char* ph = strchr(temp2, '#');
-        *ph = '\0';
-        int espacioLibreBloqueDir = safe_atoi(temp2);
-        *ph = '#';
-        int nuevoBloqueEsp = espacioLibreBloqueDir + registroSize;
-        int tamBloqueFis = getTamBloqueFromDisco(disco);
+            // bufferBlock es "|...|" de longitud lenDB
+            bufferBlock[lenDB] = '\0';
+            printf("DEBUG: Línea original en dirBloques (bloque %d): '%s'\n", bloqueN, bufferBlock);
 
-        // Extraer lista de sectores completa
-        strncpy(temp2, lineaDB + 1, MAX_BUF - 1);
-        temp2[MAX_BUF - 1] = '\0';
-        char* pSec = strstr(temp2, "#_");
-        if (!pSec) {
-            fprintf(stderr, "ERROR: No se encontró lista de sectores en dirBloques, bloque %d\n", bloqueN);
+            // Extraer espacioLibreBloqueDir (entre '|' y primer '#')
+            char temp[MAX_BUF];
+            strncpy(temp, bufferBlock + 1, lenDB - 2);
+            temp[lenDB - 2] = '\0';
+            char* ph = strchr(temp, '#');
+            *ph = '\0';
+            int espacioLibreBloqueDir = safe_atoi(temp);
+            *ph = '#';
+            int nuevoBloqueEsp = espacioLibreBloqueDir + registroSize;
+            int tamBloqueFis = getTamBloqueFromDisco(disco);
+            printf("DEBUG: espacioLibreBloqueDir = %d, nuevoBloqueEsp = %d, tamBloqueFis = %d\n",
+                espacioLibreBloqueDir, nuevoBloqueEsp, tamBloqueFis);
+
+            // Encontrar inicio de la lista de sectores en bufferBlock
+            char* inicioSectores = strstr(bufferBlock, "#_");
+            if (!inicioSectores) {
+                printf("ERROR: No se encontró '#_' en bufferBlock: '%s'\n", bufferBlock);
+            }
+            inicioSectores += 2;
+            printf("DEBUG: inicioSectores apunta a: '%s'\n", inicioSectores);
+
+            // Construir la nueva línea en un buffer de tamaño fixedLen
+            char nuevoBloqueStr[MAX_BUF] = { 0 };
+            int ofs = 0;
+            // 1) '|' inicial
+            nuevoBloqueStr[ofs++] = '|';
+            // 2) montar el prefijo actualizado
+            int nPref = snprintf(nuevoBloqueStr + ofs, MAX_BUF - ofs,
+                "%d#2#BLOQUE#%d#%d#_", nuevoBloqueEsp, bloqueN, tamBloqueFis);
+            printf("DEBUG: snprintf prefijo devolvió %d\n", nPref);
+            ofs += nPref;
+            printf("DEBUG: Prefijo nuevoBloqueStr: '%.*s'\n", ofs, nuevoBloqueStr);
+
+            // 3) A partir de inicioSectores, iterar cada par "<esp>#<cod>#_"
+            const char* p = inicioSectores;
+            int cuenta = 0;
+            while (*p && *p != '|') {
+                if (!isdigit(*p)) break;
+                int espSec = atoi(p);
+                while (*p && *p != '#') ++p;
+                if (!*p) {
+                    printf("ERROR: Fin de cadena buscando '#' tras espSec\n");
+                    break;
+                }
+                ++p; // p apunta a inicio de sectorCod
+
+                char sectorCod[MAX_STR_LEN] = { 0 };
+                int j = 0;
+                while (*p && *p != '#') {
+                    if (j < MAX_STR_LEN - 1) sectorCod[j++] = *p;
+                    ++p;
+                }
+                sectorCod[j] = '\0';
+                if (!*p) {
+                    printf("ERROR: Fin de cadena buscando '#' tras sectorCod\n");
+                    break;
+                }
+                ++p; // p apunta a '_'
+                if (*p == '_') ++p;
+
+                printf("DEBUG: Par sector #%d: espSec=%d, sectorCod='%s'\n", cuenta, espSec, sectorCod);
+
+                int espSecNuevo = espSec;
+                if (cuenta == sectorIndex) {
+                    espSecNuevo = espSec + registroSize;
+                    printf("DEBUG: SectorIndex coincide (%d); espSecNuevo = %d\n", sectorIndex, espSecNuevo);
+                }
+
+                int n = snprintf(nuevoBloqueStr + ofs, MAX_BUF - ofs,
+                    "%d#%s#_", espSecNuevo, sectorCod);
+                printf("DEBUG: Añadiendo \"%d#%s#_\" => n = %d\n", espSecNuevo, sectorCod, n);
+                ofs += n;
+
+                cuenta++;
+            }
+            printf("DEBUG: Después de procesar sectores, ofs = %d\n", ofs);
+
+            // 4) Cerrar con '|' final y rellenar con '@' hasta fixedLen - 1
+            if (ofs < fixedLen - 1) {
+                memset(nuevoBloqueStr + ofs, '@', fixedLen - 1 - ofs);
+                nuevoBloqueStr[fixedLen - 1] = '|';
+            }
+            else {
+                nuevoBloqueStr[fixedLen - 1] = '|';
+            }
+            printf("DEBUG: nuevoBloqueStr final (fixedLen=%d): '%.*s'\n",
+                fixedLen, fixedLen, nuevoBloqueStr);
+
+            // 5) Sobreescribir exactamente fixedLen bytes en dirBloques.txt
+            fseek(fdir, posDB, SEEK_SET);
+            size_t escritos = fwrite(nuevoBloqueStr, 1, fixedLen, fdir);
+            fflush(fdir);
+            printf("DEBUG: fwrite sobre dirBloques escribió %zu bytes (esperados %d)\n",
+                escritos, fixedLen);
+            actualizado = true;
             break;
         }
-        pSec += 2;
-
-        // Reconstruir la línea con nuevo espacio libre
-        char nuevoBloqueStr[MAX_BUF] = { 0 };
-        int ofs = 0;
-        nuevoBloqueStr[ofs++] = '|';
-        // REUTILIZAR el fragmento hasta "#_" sin modificiaciones:
-        ofs += snprintf(nuevoBloqueStr + ofs, MAX_BUF - ofs,
-            "%d#2#BLOQUE#%d#%d#_", nuevoBloqueEsp, bloqueN, tamBloqueFis);
-
-        int cuenta = 0;
-        while (*pSec) {
-            char* inicioEsp = pSec;
-            while (*pSec && *pSec != '#') pSec++;
-            if (*pSec != '#') break;
-            *pSec = '\0';
-            int espSec = atoi(inicioEsp);
-            *pSec = '#';
-            pSec++;
-
-            char* inicioCod = pSec;
-            while (*pSec && *pSec != '#') pSec++;
-            if (*pSec != '#') break;
-            *pSec = '\0';
-            char sectorCod[MAX_STR_LEN];
-            strncpy(sectorCod, inicioCod, MAX_STR_LEN - 1);
-            sectorCod[MAX_STR_LEN - 1] = '\0';
-            *pSec = '#';
-            pSec++;
-
-            int espSecNuevo = espSec;
-            if (cuenta == sectorIndex) {
-                espSecNuevo = espSec + registroSize;
-            }
-            ofs += snprintf(nuevoBloqueStr + ofs, MAX_BUF - ofs,
-                "%d#%s#_", espSecNuevo, sectorCod);
-
-            cuenta++;
-            char* sig = strstr(pSec, "#_");
-            if (!sig) break;
-            pSec = sig + 2;
-        }
-
-        if (ofs < fixedLen - 1) {
-            for (int i = ofs; i < fixedLen - 1; i++) {
-                nuevoBloqueStr[i] = '@';
-            }
-            nuevoBloqueStr[fixedLen - 1] = '|';
-        }
-        else {
-            nuevoBloqueStr[fixedLen - 1] = '|';
-        }
-
-        fseek(fdir, posDB, SEEK_SET);
-        fwrite(nuevoBloqueStr, 1, fixedLen, fdir);
-        fflush(fdir);
-        actualizado = true;
-        break;
     }
     fclose(fdir);
 
