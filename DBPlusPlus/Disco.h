@@ -421,21 +421,40 @@ public:
 
 
     void mostrarArbolDisco() {
-        std::cout << "\n=== arbol de Creacion del Disco ===\n";
+        std::cout << "\n=== Arbol de Creacion del Disco ===\n";
         for (int i = 0; i < platos; ++i) {
             std::cout << "Plato " << (i + 1) << "\n";
-            for (int s = 0; s < nroSuperficies; ++s) {
 
+            for (int s = 0; s < nroSuperficies; ++s) {
                 bool ultimaSuperficie = (s == nroSuperficies - 1);
+
                 std::cout << (ultimaSuperficie ? "|_ " : "|- ")
                     << "Superficie " << (s + 1) << "\n";
 
-                std::string sangria = ultimaSuperficie ? "   " : "|  ";
+                for (int p = 0; p < pistas; ++p) {
+                    bool ultimaPista = (p == pistas - 1);
 
-                std::cout << sangria << "|_ Pistas: " << pistas << "\n"
-                    << sangria << "|_ Sectores por pista: " << sectores << "\n";
+                    if (ultimaSuperficie) std::cout << "   ";
+                    else std::cout << "|  ";
+
+                    std::cout << (ultimaPista ? "|_ " : "|- ")
+                        << "Pista " << (p + 1) << "\n";
+
+                    for (int sec = 0; sec < sectores; ++sec) {
+                        bool ultimoSector = (sec == sectores - 1);
+
+                        if (ultimaSuperficie) std::cout << "   ";
+                        else std::cout << "|  ";
+
+                        if (ultimaPista) std::cout << "   ";
+                        else std::cout << "|  ";
+
+                        std::cout << (ultimoSector ? "|_ " : "|- ")
+                            << "Sector " << (sec + 1) << "\n";
+                    }
+                }
             }
-            // Separador entre platos
+
             if (i != platos - 1) std::cout << "\n";
         }
         std::cout << "===================================\n\n";

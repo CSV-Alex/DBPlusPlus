@@ -799,7 +799,7 @@ int main() {
         }
 
         else if (opt == "4") {
-            cout << "¿Tipo de inserdasdsción?\n";
+            cout << "¿Tipo de inserción?\n";
             cout << "1) Longitud variable\n";
             cout << "2) Longitud fija (bitmap)\n";
             cout << ">> ";
@@ -826,7 +826,7 @@ int main() {
                 cout << "Entrando a Eliminar Registro \n" << std::endl;
             }
             else {
-                cout << "No se pudo eliminar el adsdasadsregistro \n";
+                cout << "No se pudo eliminar el registro \n";
             }
         }
 
@@ -836,9 +836,9 @@ int main() {
             cout << "2) Longitud fija\n";
             cout << ">> ";
 
-            const char* nuevoReg = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
+            const char* nuevoReg = "1790000#9#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
 
-            if (modificarRegistro("housing", 2, nuevoReg, miDisco)) {
+            if (modificarRegistro("housing", 4, nuevoReg, miDisco)) {
                 cout << "Modificado correctamente\n";
             }
         }
