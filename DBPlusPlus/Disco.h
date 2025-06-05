@@ -58,22 +58,44 @@ private:
     }
 
     bool leerLineaDirBloque(int lineaNum) {
+        if (lineaNum < 1) return false;
+
         FILE* f = fopen(rutaDirBloques, "r");
         if (!f) return false;
-        int contador = 0;
-        while (fgets(bufferLectura, MAX_BUF, f)) {
-            ++contador;
-            if (contador == lineaNum) {
-                // bufferLectura ya tiene la linea
-                size_t L = strlen(bufferLectura);
-                if (L > 0 && (bufferLectura[L - 1] == '\r' || bufferLectura[L - 1] == '\n'))
-                    bufferLectura[L - 1] = '\0';
+
+        char lineaBuf[MAX_BUF];
+        int len = 0, bloqueActual = 0;
+
+        // Recorremos bloques hasta llegar al 'lineaNum'-ésimo
+        while (true) {
+            int c;
+            do {
+                c = fgetc(f);
+                if (c == EOF) {
+                    fclose(f);
+                    return false;   // no llegamos a bloqueNum
+                }
+            } while (c != '|');
+
+            // desde ese '|' hasta el siguiente '|'
+            len = 0;
+            lineaBuf[len++] = (char)c;   // guardamos el '|'
+            while ((c = fgetc(f)) != EOF && len < MAX_BUF - 1) {
+                lineaBuf[len++] = (char)c;
+                if (c == '|') break;    // fin de este bloque
+            }
+            lineaBuf[len] = '\0';
+
+            bloqueActual++;
+            if (bloqueActual == lineaNum) {
+                // Ya tenemos el bloque deseado en lineaBuf[0..len]
+                strncpy(bufferLectura, lineaBuf, MAX_BUF);
+                bufferLectura[MAX_BUF] = '\0';
                 fclose(f);
                 return true;
             }
+            // si no es el bloque deseado, seguimos al siguiente iteración
         }
-        fclose(f);
-        return false;
     }
 
     /// Importante

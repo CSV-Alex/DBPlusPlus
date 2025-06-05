@@ -650,13 +650,13 @@ int main() {
     const string titanicTXT = basePath + "titanic.txt";
     const string housingTXT = basePath + "housing.txt";
 
-    const int def_platos = 5;
+    const int def_platos = 4;
     const int def_pistas = 5;
     const int def_sectores = 10;
     const int def_tamSector = 800;
-    const int def_tamBloque = 22400;
+    const int def_tamBloque = 6400;
 
-    cout << "=== Configurar Disco ===\n";
+    cout << "=== Configuracion del Disco ===\n";
     cout << "1) Usar configuracion por defecto\n";
     cout << "2) Ingresar configuracion personalizada\n";
     cout << "3) Usar disco ya existente\n";
@@ -743,14 +743,12 @@ int main() {
         }
         // Supongamos tabla="titanic"
         else if (opt == "2") {
-            //char reg[512];
+
             cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
             cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
-            //fgets(reg, 512, stdin);
             string input = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
             if (input.back() != '\n')
                 input.push_back('\n');
-            //const char* reg = ;
 
             cout << "¿Tipo de inserción?\n";
             cout << "1) Longitud variable\n";
@@ -762,7 +760,7 @@ int main() {
 
             bool ok = false;
             if (opcion == 1)
-                ok = adicionarRegistroUnicoBitmap("Housing", input.c_str());
+                std::cout << "" << std::endl;
             else if (opcion == 2) {
                 ok = adicionarRegistroUnico(input.c_str(), "housing", miDisco);
             }

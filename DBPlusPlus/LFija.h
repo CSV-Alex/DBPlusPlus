@@ -468,108 +468,6 @@ static void mostrarSectoresDeBloque(int bloqueN, int opcion, Disco disco) {
     std::cout << "Total de sectores mostrados: " << sectorCount << "\n";
 }
 
-static bool ajustarDirBloques(int bloqueN,
-    const char* codSector,
-    int  deltaBloque,
-    int  deltaSector)
-{
-    // 1) Abrir dirBloques.txt en "r+"
-    FILE* fdir = fopen(rutaDirBloques, "r+");
-    if (!fdir) return false;
-
-    // 2) Buscar línea bloqueN
-    char linea[MAX_BUF];
-    int  numLinea = 0;
-    long posLinea = 0;
-    while (fgets(linea, MAX_BUF, fdir)) {
-        numLinea++;
-        if (numLinea == bloqueN) break;
-        posLinea = ftell(fdir);
-    }
-    if (numLinea != bloqueN) {
-        fclose(fdir);
-        return false;
-    }
-
-    // 3) Determinar raw_len_total: longitud en disco de esa línea
-    size_t lenNoCrLf = strlen(linea);
-    // Ajuste Windows vs Unix:
-    size_t raw_len_total = lenNoCrLf + 1;
-    if (lenNoCrLf > 0 && linea[lenNoCrLf - 1] == '\r') raw_len_total++;
-
-    // 4) Limpiar el '\r\n'
-    while (lenNoCrLf > 0 && (linea[lenNoCrLf - 1] == '\n' || linea[lenNoCrLf - 1] == '\r')) {
-        linea[--lenNoCrLf] = '\0';
-    }
-
-    // 5) Tokenizar con strtok(linea, "#")
-    char copia[MAX_BUF];
-    strncpy(copia, linea, MAX_BUF - 1);
-    copia[MAX_BUF - 1] = '\0';
-    char* tokens[MAX_TOKENS];
-    int   ntok = 0;
-    char* tk = strtok(copia, "#");
-    while (tk && ntok < MAX_TOKENS) {
-        tokens[ntok++] = tk;
-        tk = strtok(nullptr, "#");
-    }
-
-    if (ntok < 5) { fclose(fdir); return false; }
-    // tokens[0]=espLibreBloque, tokens[1]="2", tokens[2]="BLOQUE",
-    // tokens[3]=nroBloque, tokens[4]=tamBloque,
-    // tokens[5]=_<espLibreSector1>, tokens[6]=<codSector1>, tokens[7]=_<espLibreSector2>, ...
-
-    // 6) Calcular nuevo espacio libre del bloque:
-    int espacioLibreBloqueAntes = atoi(tokens[0]);
-    int espacioLibreBloqueNuevo = espacioLibreBloqueAntes + deltaBloque;
-
-    // 7) Volver a armar la línea completa:
-    //    a) Primer bloque: "<espLibreBloqueNuevo>#2#BLOQUE#<bloqueN>#<tamBloque>#_"
-    char bufferNueva[MAX_BUF];
-    int  ofs = 0;
-    int  tamBloqueTotal = atoi(tokens[4]);
-    ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-        "%d#2#BLOQUE#%d#%d#_",
-        espacioLibreBloqueNuevo,
-        bloqueN,
-        tamBloqueTotal);
-
-    //    b) Para cada par i=5,7,9,... (tokens[i] empieza con '_' = "_<espLibreSector>"):
-    for (int i = 5; i + 1 < ntok; i += 2) {
-        if (tokens[i][0] != '_') continue;
-        int espLibreSectorAntes = atoi(tokens[i] + 1);
-        const char* codSectorX = tokens[i + 1];
-        int nuevoEsp = espLibreSectorAntes;
-        if (strcmp(codSectorX, codSector) == 0) {
-            nuevoEsp = espLibreSectorAntes + deltaSector;
-        }
-        ofs += snprintf(bufferNueva + ofs, MAX_BUF - ofs,
-            "%d#%s#_",
-            nuevoEsp,
-            codSectorX);
-    }
-
-    // 8) Rellenar con espacios hasta raw_len_total-1, luego "\n"
-    if (ofs > (int)raw_len_total - 1) {
-        // Si se pasó, truncamos justo antes de '\n'
-        if (raw_len_total >= 1) bufferNueva[raw_len_total - 1] = '\n';
-    }
-    else {
-        for (int i = ofs; i < (int)raw_len_total - 1; i++) {
-            bufferNueva[i] = ' ';
-        }
-        bufferNueva[raw_len_total - 1] = '\n';
-    }
-    // (no agregamos '\0' final porque usaremos fwrite)
-
-    // 9) Sobreescribir esa línea en el archivo
-    fseek(fdir, posLinea, SEEK_SET);
-    fwrite(bufferNueva, 1, raw_len_total, fdir);
-    fflush(fdir);
-    fclose(fdir);
-    return true;
-}
-
 static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
     int numFields = 0;
     int maxLen[MAX_FIELDS] = { 0 };
@@ -585,7 +483,6 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
     }
     printf("\n");
 
-    // Hacemos una copia local para usar strtok sin modificar el original
     char copy[MAX_BUF];
     strncpy(copy, registroTxt, MAX_BUF - 1);
     copy[MAX_BUF - 1] = '\0';
