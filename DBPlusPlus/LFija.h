@@ -1057,17 +1057,16 @@ static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* regi
 
 /// #P1#Works#BeforeTheCorruption
 static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion, Disco& disco) {
-    // --- 0) Antes de abrir dirBloques, obtenemos el tamaño fijo del registro ---
+    // --- 0) Preparar datos y calcular longitud fija de bloque ---
     int registroSize;
-    // Add declarations for regBuf and regLen at the top of the file or in the appropriate scope.  
-    static char regBuf[MAX_BUF]; // Buffer to store the fixed-length record.  
-    static int regLen;           // Variable to store the length of the fixed-length record.
+    static char regBuf[MAX_BUF]; // Buffer para el RLF
+    static int regLen;           // Longitud de regBuf
 
-    std::cout << "DEBUG: Entrando a adicionarRegistroUnico para '%s' con registroTxt: '%s'\n", relacion, registroTxt;
+    // 0.1) Debug entrada
+    printf("DEBUG: Entrando a adicionarRegistroUnico para relacion='%s', registroTxt='%s'\n",
+        relacion, registroTxt);
 
-    std::cout << "Mensaje para asegurar que se actualiza la funcion correctamente " << std::endl;
-
-    // Copia segura del registroTxt sin salto de línea final
+    // 0.2) Copia segura de registroTxt sin CR/LF
     char registroSinLF[MAX_BUF];
     strncpy(registroSinLF, registroTxt, MAX_BUF - 1);
     registroSinLF[MAX_BUF - 1] = '\0';
@@ -1076,24 +1075,22 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         registroSinLF[--l] = '\0';
     }
 
+    // 0.3) Generar RLF (registro de longitud fija)
     if (!crearRLF(registroSinLF, relacion, regBuf, &regLen)) {
-        printf("DEBUG: crearRLF falló en adicionarRegistroUnico\n");
+        printf("DEBUG: Error en crearRLF. Saliendo.\n");
         return false;
     }
-
-    printf("DEBUG: crearRLF terminó correctamente. regLen=%d\n", regLen);
-
-    // DEBUG: Verificar que no hay '\n' en regBuf[0..regLen-1]
+    printf("DEBUG: crearRLF terminó correctamente. regLen = %d\n", regLen);
+    // Verificar que no haya saltos de línea en regBuf[0..regLen-1]
     for (int i = 0; i < regLen; ++i) {
         if (regBuf[i] == '\n' || regBuf[i] == '\r') {
             printf("ERROR: detectado salto de línea en regBuf en posición %d\n", i);
         }
     }
 
-    // Antes de llamar a obtenerRegistroSize:
-    printf(">>> Leyendo %s para ver su contenido:\n", rutaLongitudFija);
+    // 0.4) Mostrar contenido de longitudFija.txt (solo debug)
+    printf(">>> Debug: Leyendo %s para ver su contenido:\n", rutaLongitudFija);
     FILE* ftmp = fopen(rutaLongitudFija, "r");
-
     if (ftmp) {
         char buf[MAX_BUF];
         while (fgets(buf, MAX_BUF, ftmp)) {
@@ -1102,75 +1099,101 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         fclose(ftmp);
     }
     else {
-        printf("   ¡NO se pudo abrir %s!\n", rutaLongitudFija);
+        printf("   ¡ERROR: no se pudo abrir %s!\n", rutaLongitudFija);
     }
 
+    // 0.5) Obtener registroSize
     obtenerRegistroSize(relacion, &registroSize);
-    std::cout << "DEBUG" << registroSize << std::endl;
+    printf("DEBUG: registroSize calculado = %d\n", registroSize);
     if (registroSize <= 0) {
-        // No hay definición de longitud para esta relación
-        fprintf(stderr, "No se encontró longitud fija para %s\n", relacion);
+        fprintf(stderr, "ERROR: No se encontró longitud fija para %s\n", relacion);
         return false;
     }
 
-    // 1) Abrir dirBloques.txt para buscar bloque+sector libres.
+    // 0.6) Calcular longitud fija máxima de "bloque" en dirBloques.txt
+    int fixedLen = disco.obtenerLongitudMaximaBloque1();
+    if (fixedLen <= 0) {
+        printf("ERROR: No se pudo obtener longitud fija máxima de bloque.\n");
+        return false;
+    }
+    printf("DEBUG: fixedLen (longitud de cada bloque) = %d bytes\n", fixedLen);
+
+    // 1) Abrir dirBloques.txt en modo lectura y escritura
+    printf("DEBUG: intentando abrir dirBloques en '%s'\n", rutaDirBloques);
     FILE* fdir = fopen(rutaDirBloques, "r+");
     if (!fdir) {
-        perror("No se puede abrir dirBloques.txt");
+        perror("ERROR: No se puede abrir dirBloques.txt");
         return false;
     }
+    printf("DEBUG: dirBloques.txt abierto con éxito.\n");
 
-    char linea[MAX_BUF];
-    int  nroBloque = 0;
+    char lineaBloque[MAX_BUF];
+    int nroBloque = 0;
     bool foundBlock = false;
     char codSectorLibre[MAX_STR_LEN] = { 0 };
     long posLineaBloque = 0;
 
-    //// Ajuste del tamaño del registro (incluimos un '|' final)  
-    //int tamRegistro = (int)strlen(registroTxt) + 1;
-    //// (sumamos +1 para el separador '|')
-
-        // --- 2) En vez de usar strlen(registroTxt)+1, usamos registroSize: ---
     int tamRegistro = registroSize;
-
-    // 2) Recorrer dirBloques.txt en busca de un bloque y sector con espacio
     int espacioLibreBloque = 0;
     int tamUtilAntes = 0;
     int espacioLibreSectorAntes = 0;
 
-    while (1) {
+    char savedSectores[MAX_BUF] = { 0 }; // Para guardar sectores del bloque elegido
+
+    // 2) Buscar bloque y sector libres (cada bloque ocupa fixedLen bytes total)
+    printf("DEBUG: Buscando bloque libre para tamaño de registro = %d\n", tamRegistro);
+    while (true) {
         posLineaBloque = ftell(fdir);
-        if (!fgets(linea, MAX_BUF, fdir)) break;
-        nroBloque++;
 
-        // Quitar CRLF si existe
-        size_t len_linea = strlen(linea);
-        if (len_linea > 0 && linea[len_linea - 1] == '\n')  linea[--len_linea] = '\0';
-        if (len_linea > 0 && linea[len_linea - 1] == '\r')  linea[--len_linea] = '\0';
+        int lenBloque = disco.leerBloqueConSeparador(fdir, lineaBloque, MAX_BUF);
+        if (lenBloque <= 0) {
+            printf("DEBUG: leerBloqueConSeparador devolvió %d (fin de bloques)\n", lenBloque);
+            break;
+        }
 
-        // 2.1) Extraer espacioLibreBloque (primer token antes de '#')
-        char copiaBloc[MAX_BUF];
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        char* tokBloc = strtok(copiaBloc, "#");
-        if (!tokBloc) continue;
-        espacioLibreBloque = safe_atoi(tokBloc);
-        tamUtilAntes = getTamBloqueFromDisco(disco) - espacioLibreBloque;
-        if (espacioLibreBloque < tamRegistro) {
+        // Saltar bloques vacíos generados por "||"
+        if (lenBloque == 2 && lineaBloque[0] == '|' && lineaBloque[1] == '|') {
             continue;
         }
 
-        // 2.2) Leer la lista de sectores: buscar primer "#_"
-        char* p = strstr(linea, "#_");
-        if (!p) continue;
-        // Para no modificar la original, trabajamos sobre copiaBloc
-        strncpy(copiaBloc, linea, MAX_BUF);
-        copiaBloc[MAX_BUF - 1] = '\0';
-        p = strstr(copiaBloc, "#_");
-        if (!p) continue;
+        nroBloque++;
+        printf("DEBUG: Leyendo Bloque #%d (lenBloque = %d bytes)\n", nroBloque, lenBloque);
+
+        // 2.1) Extraer espacioLibreBloque sin strtok:
+        char tempEspacio[MAX_BUF];
+        strncpy(tempEspacio, lineaBloque + 1, MAX_BUF - 1);
+        tempEspacio[MAX_BUF - 1] = '\0';
+
+        char* posHash = strchr(tempEspacio, '#');
+        if (!posHash) {
+            printf("DEBUG: Bloque #%d sin token inicial. Continúa.\n", nroBloque);
+            continue;
+        }
+        *posHash = '\0';
+        espacioLibreBloque = safe_atoi(tempEspacio);
+        *posHash = '#';
+        printf("DEBUG: Bloque #%d espacioLibreBloque = %d\n", nroBloque, espacioLibreBloque);
+
+        tamUtilAntes = getTamBloqueFromDisco(disco) - espacioLibreBloque;
+        if (espacioLibreBloque < tamRegistro) {
+            printf("DEBUG: Bloque #%d NO cabe (espacio %d < %d). Pasa al siguiente.\n",
+                nroBloque, espacioLibreBloque, tamRegistro);
+            continue;
+        }
+
+        // 2.2) Extraer la lista de sectores en copiaSectores
+        char copiaSectores[MAX_BUF];
+        strncpy(copiaSectores, lineaBloque + 1, MAX_BUF - 1);
+        copiaSectores[MAX_BUF - 1] = '\0';
+
+        char* p = strstr(copiaSectores, "#_");
+        if (!p) {
+            printf("DEBUG: Bloque #%d no tiene '#_' (no hay lista de sectores). Continúa.\n", nroBloque);
+            continue;
+        }
         p += 2;
 
-        // 2.3) Cada par "<espLibreSector>#<codSector>#_"
+        // 2.3) Iterar cada par "<espLibreSector>#<codSector>#_"
         while (*p) {
             char* inicioEspacioSector = p;
             while (*p && *p != '#') p++;
@@ -1189,93 +1212,74 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             sectorCode[MAX_STR_LEN - 1] = '\0';
             *p = '#';
 
+            printf("DEBUG: Bloque #%d chequeando sector '%s' con espacio %d\n",
+                nroBloque, sectorCode, espacioLibreSector);
+
             char* nextPair = strstr(p, "#_");
             if (espacioLibreSector < tamRegistro) {
+                printf("DEBUG: Sector '%s' no cabe (espacio %d < %d). Siguiente.\n",
+                    sectorCode, espacioLibreSector, tamRegistro);
                 if (!nextPair) break;
                 p = nextPair + 2;
                 continue;
             }
 
-            // Encontré sector válido
+            // Sector válido encontrado
             strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
             espacioLibreSectorAntes = espacioLibreSector;
+            // Guardar la lista completa de "sectores" para usarla después
+            strncpy(savedSectores, copiaSectores, MAX_BUF - 1);
+            savedSectores[MAX_BUF - 1] = '\0';
             foundBlock = true;
+            printf("DEBUG: Seleccionado Bloque #%d, Sector '%s'. espacioLibreSectorAntes = %d\n",
+                nroBloque, codSectorLibre, espacioLibreSectorAntes);
             break;
         }
         if (foundBlock) break;
     }
 
     if (!foundBlock) {
+        printf("DEBUG: No se encontró ningún bloque con espacio suficiente.\n");
         fclose(fdir);
         return false;
     }
 
+    // 2.4) Calcular nuevo espacio de bloque
     int espacioLibreBloqueAntes = espacioLibreBloque;
     int tamUtilNuevo = tamUtilAntes + tamRegistro;
     int espacioBloqueNuevo = getTamBloqueFromDisco(disco) - tamUtilNuevo;
+    printf("DEBUG: Bloque #%d espacioLibreBloqueAntes = %d  => espacioBloqueNuevo = %d\n",
+        nroBloque, espacioLibreBloqueAntes, espacioBloqueNuevo);
     if (espacioBloqueNuevo < 0 || espacioBloqueNuevo > getTamBloqueFromDisco(disco)) {
-        // Debugging: valores fuera de rango
+        printf("ERROR: valores fuera de rango en Bloque #%d: espacioBloqueNuevo = %d\n",
+            nroBloque, espacioBloqueNuevo);
     }
 
-    // 3) Volver a la posición de la línea en dirBloques.txt y releerla para calcular raw_len
+    // 3) Volver al inicio exacto del bloque en dirBloques.txt (posición en bytes)
+    printf("DEBUG: Volviendo a byte offset %ld para sobreescribir bloque #%d\n",
+        posLineaBloque, nroBloque);
     fseek(fdir, posLineaBloque, SEEK_SET);
-    if (!fgets(linea, MAX_BUF, fdir)) {
-        fclose(fdir);
-        return false;
-    }
 
-    // Quitar '\n' para medir longitud real
-    size_t len_linea = strlen(linea);
-    if (len_linea > 0 && linea[len_linea - 1] == '\n') {
-        len_linea--;
-    }
-    // raw_len_total = strlen(linea) en disco (incluye "\r\n" si existe)
-    size_t raw_len_total = len_linea + 1;
-    {
-        // En Windows, fgets lee "\r\n". raw_len_total incluye CR y LF.
-        // Para asegurarnos, si hay CR justo antes del '\n', contamos +2; si solo LF, +1.
-        size_t lenNoCrLf = raw_len_total;
-        if (lenNoCrLf > 0 && linea[lenNoCrLf - 1] == '\n') {
-            lenNoCrLf--;
-        }
-        if (lenNoCrLf > 0 && linea[lenNoCrLf - 1] == '\r') {
-            // Había CRLF
-            raw_len_total = lenNoCrLf + 2;
-        }
-        else {
-            // Solo LF (Unix)
-            raw_len_total = lenNoCrLf + 1;
-        }
-    }
-
-    // 4) Reconstruir la nueva línea de dirBloques.txt (espacio del bloque y lista de sectores):
-    //     solo se modifica el "espacioLibreBloque" al inicio, restando tamRegistro
-    fseek(fdir, posLineaBloque, SEEK_SET);
-    // Leer de nuevo la línea completa, sin CRLF
-    fgets(linea, MAX_BUF, fdir);
-    linea[strcspn(linea, "\r\n")] = '\0';
-    // Reconstrucción de la parte “<espBloqueNuevo>#2#BLOQUE#<nroBloque>#<tamBloque>#_…”
-    char* inicioSect = strstr(linea, "#_");
-    if (!inicioSect) {
-        fclose(fdir);
-        return false;
-    }
-    // Construyo temporalmente (sin finalizar CRLF)
+    // 4) Reconstruir el bloque completo de exactly fixedLen bytes
     char bufferNueva[MAX_BUF] = { 0 };
     int ofsN = 0;
+
+    // 4.1) Escribir el '|' inicial
+    bufferNueva[ofsN++] = '|';
+
+    // 4.2) Prefijo actualizado "<espBloqueNuevo>#2#BLOQUE#<nroBloque>#<tamBloque>#_"
     ofsN += snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
         "%d#2#BLOQUE#%d#%d#_",
         espacioBloqueNuevo,
         nroBloque,
         getTamBloqueFromDisco(disco));
-    // Copiar la lista de sectores (igual que antes), restando tamRegistro al sector usado:
+    printf("DEBUG: bufferNueva hasta prefijo = '%.*s'\n", ofsN, bufferNueva);
+
+    // 4.3) Copiar cada par "<esp>#<cod>#_", ajustando el sector elegido
     {
-        char copia2[MAX_BUF];
-        strncpy(copia2, linea, MAX_BUF - 1);
-        copia2[MAX_BUF - 1] = '\0';
-        char* p2 = strstr(copia2, "#_");
+        char* p2 = strstr(savedSectores, "#_");
         if (p2) {
-            p2 += 2;
+            p2 += 2; // al inicio del primer "<espLibreSector>"
             while (*p2) {
                 int espSec = atoi(p2);
                 while (*p2 && *p2 != '#') ++p2;
@@ -1287,14 +1291,16 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
                     sectorCode2[pos2++] = *p2++;
                 }
                 sectorCode2[pos2] = '\0';
+
                 int nuevoEsp = espSec;
                 if (strcmp(sectorCode2, codSectorLibre) == 0) {
                     nuevoEsp = espSec - tamRegistro;
                 }
-                ofsN += snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
-                    "%d#%s#_",
-                    nuevoEsp,
-                    sectorCode2);
+                int n = snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
+                    "%d#%s#_", nuevoEsp, sectorCode2);
+                printf("DEBUG: Añadiendo \"%d#%s#_\" => n = %d\n", nuevoEsp, sectorCode2, n);
+                ofsN += n;
+
                 char* next2 = strstr(p2, "#_");
                 if (!next2) break;
                 p2 = next2 + 2;
@@ -1302,218 +1308,219 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         }
     }
 
-    // 5) Ajustar bufferNueva para que ocupe EXACTAMENTE raw_len_total bytes (con CRLF)
-    //    Rellenar con espacios hasta raw_len_total-2, luego poner "\r\n".
-    if (ofsN > (int)raw_len_total - 1) {
-        // Truncar si excede longitud útil
-        if (raw_len_total >= 1) {
-            bufferNueva[raw_len_total - 1] = '\n';
+    // 4.4) Poner padding '@' hasta fixedLen-1, y cerrar con '|'
+    if (ofsN < fixedLen - 1) {
+        for (int i = ofsN; i < fixedLen - 1; i++) {
+            bufferNueva[i] = '@';
         }
+        bufferNueva[fixedLen - 1] = '|';
     }
     else {
-        // Rellenar con espacios hasta raw_len_total - 1, luego '\n'
-        for (int i = ofsN; i < (int)raw_len_total - 1; i++) {
-            bufferNueva[i] = ' ';
-        }
-        bufferNueva[raw_len_total - 1] = '\n';
+        // Si por alguna razón se pasó, truncar y forzar '|' al final
+        bufferNueva[fixedLen - 1] = '|';
     }
 
-    size_t len_original = strlen(linea);
-    // 6) Sobreescribir EXACTAMENTE raw_len_total bytes
+    printf("DEBUG: Bloque reconstruido (fixedLen %d bytes):\n", fixedLen);
+    printf("       %.*s\n", fixedLen, bufferNueva);
+
+    // 4.5) Sobreescribir exactamente fixedLen bytes en dirBloques.txt
     fseek(fdir, posLineaBloque, SEEK_SET);
-    fwrite(bufferNueva, 1, raw_len_total, fdir);
+    size_t escritosDir = fwrite(bufferNueva, 1, fixedLen, fdir);
     fflush(fdir);
     fclose(fdir);
+    printf("DEBUG: Reescritura de bloque #%d en dirBloques.txt: %zu bytes escritos (esperados %d)\n",
+        nroBloque, escritosDir, fixedLen);
 
     // -------------------------------------------------------------
-    // 7) Ahora actualizamos la cabecera de BloqueN.txt con el formato
-    //    "<numRegistros>#<numMaxRegistros>#<bitmap>/"
-    //    y luego escribimos el registro en contiguo usando '|'.
+    // 5) Ahora crear/abrir BloqueN.txt, actualizar su cabecera y escribir el registro
     // -------------------------------------------------------------
-    {
-        // 7.1) Ruta completa de BloqueN.txt
-        char rutaBloque[MAX_PATH_LEN];
-        snprintf(rutaBloque, sizeof(rutaBloque),
-            "%sBLOQUES\\Bloque%d.txt",
-            discoNuevoPath, nroBloque);
+    char rutaBloque[MAX_PATH_LEN];
+    snprintf(rutaBloque, sizeof(rutaBloque),
+        "%sBLOQUES\\Bloque%d.txt",
+        discoNuevoPath, nroBloque);
+    printf("DEBUG: Ruta BloqueN.txt = '%s'\n", rutaBloque);
 
-        // 7.2) Comprobar si BloqueN.txt existe y obtener su raw_header_len:
-        FILE* fbloc = fopen(rutaBloque, "r+");
-        size_t raw_header_len = 0;
-        int    numRegAnt = 0;
-        int    numMaxAnt = 0;
-        char   bitmapAnt[MAX_BUF] = { 0 };
+    FILE* fbloc = fopen(rutaBloque, "r+");
+    size_t raw_header_len = 0;
+    int numRegAnt = 0;
+    int numMaxAnt = 0;
+    char bitmapAnt[MAX_BUF] = { 0 };
 
+    if (!fbloc) {
+        // Bloque no existe: crearlo con calcularCabeceraBloque(...)
+        printf("DEBUG: BloqueN.txt NO existe. Se intentará crearlo.\n");
+        char headerBuf[MAX_BUF];
+        size_t headerLen;
+        int numMax;
+        calcularCabeceraBloque(getTamBloqueFromDisco(disco), registroSize,
+            headerBuf, &headerLen, &numMax);
+        printf("DEBUG: calcularCabeceraBloque devolvió: headerLen=%zu, numMax=%d\n", headerLen, numMax);
+        printf("DEBUG: Contenido headerBuf: '%.*s'\n", (int)headerLen, headerBuf);
+
+        fbloc = fopen(rutaBloque, "wb");
         if (!fbloc) {
-            // El bloque no existe: lo creamos y calculamos la cabecera inicial.
-            // >>> a) llamar a calcularCabeceraBloque
-            char headerBuf[MAX_BUF];
-            size_t headerLen;
-            int numMax;
-            calcularCabeceraBloque(getTamBloqueFromDisco(disco), registroSize,
-                headerBuf, &headerLen, &numMax);
-            // headerBuf = "0#numMax#000...0/"   headerLen = longitud de esa cadena
-
-            // >>> b) Abrir en "wb" para crear/truncar
-            fbloc = fopen(rutaBloque, "wb");
-            if (fbloc) {
-                fwrite(headerBuf, 1, headerLen, fbloc);
-                fflush(fbloc);
-                fseek(fbloc, -1, SEEK_END); // Move back one byte to overwrite the newline
-                raw_header_len = headerLen;
-            }
-            numRegAnt = 0;
-            numMaxAnt = numMax;
-            // bitmapAnt[] = todos '0' (ya viene en headerBuf pero lo guardamos aparte)
-            for (int i = 0; i < numMax; i++) {
-                bitmapAnt[i] = '0';
-            }
-            bitmapAnt[numMax] = '\0';
+            perror("ERROR: No se pudo crear BloqueN.txt");
+            return false;
+        }
+        size_t escritosHeader = fwrite(headerBuf, 1, headerLen, fbloc);
+        fflush(fbloc);
+        if (escritosHeader != headerLen) {
+            printf("ERROR: se escribieron %zu bytes de header, esperados %zu\n", escritosHeader, headerLen);
         }
         else {
-            // El bloque ya existe: leer la cabecera hasta el '/' para obtener raw_header_len,
-            // numRegAnt, numMaxAnt y bitmapAnt[].
-            size_t pos = 0;
-            int    c;
-            rewind(fbloc);
-            // 7.2.1) Leer hasta topar con '/' (incluido) para medir raw_header_len
-            while ((c = fgetc(fbloc)) != EOF) {
-                pos++;
-                if (c == '/') break;
-                if (pos >= MAX_BUF - 1) break;
-            }
-            raw_header_len = pos;  // bytes desde byte[0] hasta '/' incluido
-
-            // 7.2.2) Ahora rebobinamos y leemos esa parte en un buffer temporal
-            rewind(fbloc);
-            char cabTmp[MAX_BUF];
-            if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
-            fread(cabTmp, 1, raw_header_len, fbloc);
-            cabTmp[raw_header_len] = '\0';
-
-            // 7.2.3) Parsear "numRegAnt#numMaxAnt#bitmapAnt/"
-            //        -> basta con strtok sobre '#' y luego extraer bitmap
-            //        El '/' indica el fin del bitmap.
-            char* p1 = strchr(cabTmp, '#');
-            if (!p1) { fclose(fbloc); return false; }
-            *p1 = '\0';
-            numRegAnt = safe_atoi(cabTmp);
-            char* p2 = p1 + 1;
-            char* p3 = strchr(p2, '#');
-            if (!p3) { fclose(fbloc); return false; }
-            *p3 = '\0';
-            numMaxAnt = safe_atoi(p2);
-            char* p4 = p3 + 1;
-            // p4 apunta al primer carácter del bitmap; hasta llegar a '/'
-            char* slash = strchr(p4, '/');
-            if (!slash) { fclose(fbloc); return false; }
-            size_t bmpLen = (size_t)(slash - p4);
-            if (bmpLen >= MAX_BUF) bmpLen = MAX_BUF - 1;
-            strncpy(bitmapAnt, p4, bmpLen);
-            bitmapAnt[bmpLen] = '\0';
-
-            // Dejamos fbloc abierto para reescribir la cabecera más abajo
+            printf("DEBUG: Cabecera escrita correctamente en BloqueN.txt (%zu bytes)\n", escritosHeader);
         }
-
-        // 7.3) Ahora tenemos:
-        //     raw_header_len = nº bytes fijos de la cabecera
-        //     numRegAnt      = cont actual de registros (0..numMaxAnt)
-        //     numMaxAnt      = capacidad (bitmapAnt tiene length = numMaxAnt)
-        //     bitmapAnt[]    = secuencia de '0'/'1' de longitud numMaxAnt
-
-        // 7.4) Computar la posición donde colocaremos el nuevo registro en el bitmap:
-        int idxLibre = -1;
-        for (int i = 0; i < numMaxAnt; i++) {
-            if (bitmapAnt[i] == '0') {
-                idxLibre = i;
-                break;
-            }
+        // Mover cursor justo antes del '|'
+        fseek(fbloc, -1, SEEK_END);
+        raw_header_len = headerLen;
+        numRegAnt = 0;
+        numMaxAnt = numMax;
+        for (int i = 0; i < numMax; i++) bitmapAnt[i] = '0';
+        bitmapAnt[numMax] = '\0';
+        printf("DEBUG: numRegAnt=0, numMaxAnt=%d, bitmapAnt='%s'\n", numMaxAnt, bitmapAnt);
+    }
+    else {
+        // Bloque existe: leer cabecera hasta '/'
+        printf("DEBUG: BloqueN.txt ya existe. Releyendo cabecera...\n");
+        size_t pos = 0;
+        int c;
+        rewind(fbloc);
+        while ((c = fgetc(fbloc)) != EOF) {
+            pos++;
+            if (c == '/') break;
+            if (pos >= MAX_BUF - 1) break;
         }
-        if (idxLibre < 0) {
-            // No hay espacio en el bloque (bitmap lleno)
+        raw_header_len = pos;
+        printf("DEBUG: raw_header_len detectado = %zu\n", raw_header_len);
+
+        rewind(fbloc);
+        char cabTmp[MAX_BUF];
+        if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
+        size_t leidosCab = fread(cabTmp, 1, raw_header_len, fbloc);
+        cabTmp[leidosCab] = '\0';
+        printf("DEBUG: Contenido leído de cabecera (%zu bytes): '%.*s'\n",
+            leidosCab, (int)leidosCab, cabTmp);
+
+        // Parsear numRegAnt#numMaxAnt#bitmapAnt/
+        char* p1 = strchr(cabTmp, '#');
+        if (!p1) {
+            printf("ERROR: No se encontró '#' en cabTmp. Cabecera corrupta.\n");
             fclose(fbloc);
             return false;
         }
-
-        // 7.5) Actualizar numReg y bitmapAnt
-        numRegAnt++;
-        bitmapAnt[idxLibre] = '1';
-
-        // 7.6) Reconstruir la cabecera NUEVA de EXACTAMENTE raw_header_len bytes:
-        //      Formato: "<numRegAnt>#<numMaxAnt>#<bitmapAnt>/"
-        //      Rellenar con espacios si hiciera falta, para completar raw_header_len.
-        char newHeader[MAX_BUF];
-        int  ofh = 0;
-        ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
-        for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
-            newHeader[ofh++] = bitmapAnt[i];
+        *p1 = '\0';
+        numRegAnt = safe_atoi(cabTmp);
+        char* p2 = p1 + 1;
+        char* p3 = strchr(p2, '#');
+        if (!p3) {
+            printf("ERROR: No se encontró segundo '#' en cabTmp. Cabecera corrupta.\n");
+            fclose(fbloc);
+            return false;
         }
-        newHeader[ofh++] = '/';
-        // Si por alguna razón ofh < raw_header_len, rellenamos con espacios hasta raw_header_len:
-        while (ofh < (int)raw_header_len) {
-            newHeader[ofh++] = ' ';
+        *p3 = '\0';
+        numMaxAnt = safe_atoi(p2);
+        char* p4 = p3 + 1;
+        char* slashPtr = strchr(p4, '/');
+        if (!slashPtr) {
+            printf("ERROR: No se encontró '/' en cabTmp. Cabecera corrupta.\n");
+            fclose(fbloc);
+            return false;
         }
-        // Convertimos a C-string (no nos interesa el '\0' para el bloque, 
-        // pues por fwrite solo escribiremos raw_header_len bytes):
-        newHeader[ofh] = '\0';
+        size_t bmpLen2 = (size_t)(slashPtr - p4);
+        if (bmpLen2 >= MAX_BUF) bmpLen2 = MAX_BUF - 1;
+        strncpy(bitmapAnt, p4, bmpLen2);
+        bitmapAnt[bmpLen2] = '\0';
+        printf("DEBUG: Lectura cabecera exitosa: numRegAnt=%d, numMaxAnt=%d, bitmapAnt='%s'\n",
+            numRegAnt, numMaxAnt, bitmapAnt);
+    }
 
-        // 7.7) Sobreescribir cabecera en fbloc
-        rewind(fbloc);
-        fwrite(newHeader, 1, raw_header_len, fbloc);
-        fflush(fbloc);
-
-        // 7.8) Ir al final del archivo y **hacer append del registro** + '|'
-        fseek(fbloc, 0, SEEK_END);
-
-        // DEBUG: Mostrar el registro fijo que se va a insertar
-        printf("DEBUG: Insertando registro fijo en bloque: [");
-        for (int i = 0; i < regLen; ++i) {
-            if (regBuf[i] == '@')
-                putchar('@');
-            else if (regBuf[i] == '\0')
-                putchar('_');
-            else
-                putchar(regBuf[i]);
+    // 6) Buscar slot libre en bitmapAnt[]
+    int idxLibre = -1;
+    for (int i = 0; i < numMaxAnt; i++) {
+        if (bitmapAnt[i] == '0') {
+            idxLibre = i;
+            break;
         }
-        printf("]\n");
-
-        //// Si registroTxt NO incluye un '|' al final, nosotros añadimos el '|':
-        //fwrite(registroTxt, 1, len, fbloc);
-        fwrite(regBuf, 1, regLen, fbloc);
-        fputc('|', fbloc);
-        fflush(fbloc);
-
+    }
+    if (idxLibre < 0) {
+        printf("DEBUG: El bloque #%d está lleno (bitmap completo)\n", nroBloque);
         fclose(fbloc);
+        return false;
+    }
+    printf("DEBUG: idxLibre en bitmap = %d (bit pasa de '0' a '1')\n", idxLibre);
 
-        std::cout << "DEBUG: Antes de entrar a los volcar a los Sectores " << std::endl;
-        // --- NUEVO: Volcar el bloque a sectores ---
-        disco.volcarBloqueASectores(nroBloque);
+    // 7) Actualizar numRegAnt y bitmapAnt[idxLibre]
+    numRegAnt++;
+    bitmapAnt[idxLibre] = '1';
+    printf("DEBUG: Nuevo numRegAnt = %d, bitmapAnt = '%s'\n", numRegAnt, bitmapAnt);
+
+    // 8) Reconstruir cabecera EXACTAMENTE raw_header_len bytes
+    char newHeader[MAX_BUF];
+    int ofh = 0;
+    ofh += snprintf(newHeader + ofh, MAX_BUF - ofh, "%d#%d#", numRegAnt, numMaxAnt);
+    for (int i = 0; i < numMaxAnt && ofh < (int)(raw_header_len - 1); i++) {
+        newHeader[ofh++] = bitmapAnt[i];
+    }
+    newHeader[ofh++] = '/';
+    while (ofh < (int)raw_header_len) {
+        newHeader[ofh++] = ' ';
+    }
+    newHeader[ofh] = '\0';
+    printf("DEBUG: Contenido de newHeader (long %zu): '%.*s'\n",
+        raw_header_len, (int)raw_header_len, newHeader);
+
+    // Sobreescribir cabecera en BloqueN.txt
+    rewind(fbloc);
+    size_t escritosCabecera = fwrite(newHeader, 1, raw_header_len, fbloc);
+    fflush(fbloc);
+    if (escritosCabecera != raw_header_len) {
+        printf("ERROR: Se escribieron %zu bytes de cabecera, esperados %zu\n",
+            escritosCabecera, raw_header_len);
+    }
+    else {
+        printf("DEBUG: Cabecera reescrita exitosamente (%zu bytes)\n", escritosCabecera);
     }
 
-    // -------------------------------------------------
-    // 8) POR ÚLTIMO, actualizar catalogo.txt (igual que antes):
-    //    agregamos “relacion|rutaBloque\n”
-    // -------------------------------------------------
-    {
-        char rutaCatalogo[MAX_PATH_LEN];
-        snprintf(rutaCatalogo, sizeof(rutaCatalogo),
-            "%s%s", discoNuevoPath, "catalogo.txt");
-        FILE* fcat = fopen(rutaCatalogo, "a");
-        if (fcat) {
-            // La rutaBloque es “...\\BLOQUES\\Bloque<numero>.txt”
-            char rutaBloque[MAX_PATH_LEN];
-            snprintf(rutaBloque, sizeof(rutaBloque),
-                "%sBLOQUES\\Bloque%d.txt",
-                discoNuevoPath, nroBloque);
-            fprintf(fcat, "%s|%s\n", relacion, rutaBloque);
-            fclose(fcat);
-        }
+    // 9) Agregar el RLF (regBuf) + '|' al final
+    fseek(fbloc, 0, SEEK_END);
+    printf("DEBUG: Escribiendo registro en BloqueN.txt al final...\n");
+    size_t escritosReg = fwrite(regBuf, 1, regLen, fbloc);
+    fputc('|', fbloc);
+    fflush(fbloc);
+    if (escritosReg != (size_t)regLen) {
+        printf("ERROR: Se escribieron %zu bytes de registro, esperados %d\n", escritosReg, regLen);
+    }
+    else {
+        printf("DEBUG: Registro de %d bytes escrito correctamente (+ '|').\n", regLen);
+    }
+    fclose(fbloc);
+    printf("DEBUG: BloqueN.txt cerrado.\n");
+
+    // 10) Volcar a sectores
+    printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d\n", nroBloque);
+    disco.volcarBloqueASectores(nroBloque);
+
+    // 11) Actualizar catalogo.txt
+    char rutaCatalogo[MAX_PATH_LEN];
+    snprintf(rutaCatalogo, sizeof(rutaCatalogo),
+        "%s%s", discoNuevoPath, "catalogo.txt");
+    printf("DEBUG: Abriendo catalogo.txt en modo 'a' para agregar %s|Bloque%d.txt\n", relacion, nroBloque);
+    FILE* fcat = fopen(rutaCatalogo, "a");
+    if (fcat) {
+        char rutaBloqueCat[MAX_PATH_LEN];
+        snprintf(rutaBloqueCat, sizeof(rutaBloqueCat),
+            "%sBLOQUES\\Bloque%d.txt", discoNuevoPath, nroBloque);
+        fprintf(fcat, "%s|%s\n", relacion, rutaBloqueCat);
+        fclose(fcat);
+        printf("DEBUG: Entrada agregada a catalogo.txt: '%s|%s'\n", relacion, rutaBloqueCat);
+    }
+    else {
+        perror("ERROR: No se pudo abrir catalogo.txt para escritura");
     }
 
+    printf("DEBUG: adicionarRegistroUnico finalizado con éxito para Bloque #%d\n", nroBloque);
     return true;
 }
-
-
 
 static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, int opcion, Disco& disco) {
     FILE* fcsv = fopen(csvPath, "r");
