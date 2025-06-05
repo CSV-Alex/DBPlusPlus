@@ -11,7 +11,7 @@
 #include "LVariable.h"
 #include "LFija.h"
 
-#define MAX_BUF      512
+#define MAX_BUF      1024
 #define MAX_STR_LEN 32
 #define MAX_FIELDS 32
 #define MAX_PATH_LEN 256
@@ -850,41 +850,52 @@ int main() {
         }
 
         else if (opt == "7") { //demo
-            // --- Inserción de longitud variable ---
-            cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
+            //// --- Inserción de longitud variable ---
+            //cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
 
-            cout << "Ingrese registro (campos separados por '#', terminado en '\\n'):\n";
+            //cout << "Ingrese registro (campos separados por '#', terminado en '\\n'):\n";
 
-            char relacion[] = "titanic";
-            char input[] = "1#0#3#Braund# Mr. Owen Harris#male#22#1#0#A/5 21171#7.25##S";
-            char input2[] = "2#1#1#Cumings# Mrs. John Bradley (Florence Briggs Thayer)#female#38#1#0#PC 17599#71.2833#C85#C";
-            char input3[] = "7#0#1#McCarthy# Mr. Timothy J#male#54#0#0#17463#51.8625#E46#S";
+            //char relacion[] = "titanic";
+            //char input[] = "1#0#3#Braund# Mr. Owen Harris#male#22#1#0#A/5 21171#7.25##S";
+            //char input2[] = "2#1#1#Cumings# Mrs. John Bradley (Florence Briggs Thayer)#female#38#1#0#PC 17599#71.2833#C85#C";
+            //char input3[] = "7#0#1#McCarthy# Mr. Timothy J#male#54#0#0#17463#51.8625#E46#S";
 
 
-            char* reg_var = format_registro_variable(input, relacion);
-            char* reg_var2 = format_registro_variable(input2, relacion);
-            char* reg_var3 = format_registro_variable(input3, relacion);
-                
-            char bloque[miDisco.getTamBloque()] = "";
-            int espacio=miDisco.getTamBloque();
-                // Formatear el registro variable
-            bool ok =insert_registro_variable(reg_var, espacio, bloque, miDisco);
-            assert(ok);
-            std::cout << "format_bloque_variable paso la prueba." << std::endl;
-            ok = insert_registro_variable(reg_var2, espacio, bloque, miDisco);
-            assert(ok);
-            std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
+            //char* reg_var = format_registro_variable(input, relacion);
+            //char* reg_var2 = format_registro_variable(input2, relacion);
+            //char* reg_var3 = format_registro_variable(input3, relacion);
+            //    
+            //int tam = miDisco.getTamBloque();
+            //char* bloque = new char[tam]; // Dynamically allocate memory for the array
+            //memset(bloque, 0, tam);       // Initialize the array to zero
 
-            ok = insert_registro_variable(reg_var3, espacio, bloque, miDisco);
-            assert(ok);
-            std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
+            //int espacio=miDisco.getTamBloque();
+            //    // Formatear el registro variable
+            //bool ok =insert_registro_variable(reg_var, espacio, bloque, miDisco);
+            //assert(ok);
+            //std::cout << "format_bloque_variable paso la prueba." << std::endl;
+            //ok = insert_registro_variable(reg_var2, espacio, bloque, miDisco);
+            //assert(ok);
+            //std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
 
-            if (volcar_bloque_a_archivo(bloque, tamBloque)) {
+            //ok = insert_registro_variable(reg_var3, espacio, bloque, miDisco);
+            //assert(ok);
+            //std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
+
+            if (!adicionarNRegistrosVariable(5, "data\\usr\\db\\housing.txt", "housing", miDisco)) {
+                std::cout << "Al menos un registro no se pudo insedsrtar en modo variable.\n";
+            }
+            else {
+                std::cout << "Los 5 registros se insertaron exitosamente en Bloque1.\n";
+            }
+
+            /*if (volcar_bloque_a_archivo(bloque, tamBloque)) {
             std::cout << "Se volcó el bloque con éxito en bloque.txt\n";
             } else {
             std::cout << "No se pudo volcar el bloque a bloque.txt\n";
             }
-            
+            */
+
             //ok=eliminar_registro_variable(1,2, miDisco.getTamBloque());
             //assert(ok);
             //std::cout << "Eliminación completa" << std::endl;

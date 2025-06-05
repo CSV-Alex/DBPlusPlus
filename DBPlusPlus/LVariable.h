@@ -287,6 +287,8 @@ char* format_registro_variable(const char registro[], const char relacion[]) {
 }
 
 
+
+
 int insert_registro_variable(const char registro_variable[], int& espacio_libre_bloque, char* bloque_variable, Disco& disco) {
     int bloqueSize = disco.getTamBloque();
 
@@ -718,7 +720,7 @@ bool modify_registro_variable(int NBloque, int r_index, const char relacion[], c
     // 10) Construir buffer de tamaño tamBloque con ceros y copiar fileData2
     char* bloque_buffer = new char[tamBloque];
     std::memset(bloque_buffer, 0, tamBloque);
-    int copy_len = (int)std::min((size_t)tamBloque, fileData2.size());
+    int copy_len = (int)min((size_t)tamBloque, fileData2.size());
     std::memcpy(bloque_buffer, fileData2.data(), copy_len);
 
     // 11) Calcular espacio libre actual
@@ -754,6 +756,79 @@ bool modify_registro_variable(int NBloque, int r_index, const char relacion[], c
 }
 //AUXILIARES
 
+static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* relacion, Disco& disco) {
+    // 1) Formatear el registro de texto “campo1#campo2#…\n” a RLV binario
+    char* regVar = format_registro_variable(registroTxt, relacion);
+    if (!regVar) {
+        std::cerr << "ERROR: format_registro_variable falló para '" << relacion << "'.\n";
+        return false;
+    }
+    int regLen = static_cast<int>(std::strlen(regVar));
+
+    // 2) Preparar nombre de archivo y tamaño de bloque
+    const int nroBloque = 1;
+    const std::string filename = "DISCO\\BLOQUES\\Bloque1.txt";
+    int tamBloque = disco.getTamBloque();
+
+    // 3) Cargar (o inicializar) el contenido actual de Bloque1.txt en memoria
+    char* bloque_buffer = new char[tamBloque];
+    std::memset(bloque_buffer, 0, tamBloque);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    int bytesExistentes = 0;
+    if (ifs.is_open()) {
+        std::ostringstream oss;
+        oss << ifs.rdbuf();
+        std::string contenido = oss.str();
+        ifs.close();
+        bytesExistentes = static_cast<int>(min((size_t)tamBloque, contenido.size()));
+        std::memcpy(bloque_buffer, contenido.data(), bytesExistentes);
+    }
+
+    // 4) Calcular espacio libre actual (entre la última posición escrita y fin de bloque)
+    int espacio_libre_bloque = tamBloque - bytesExistentes;
+
+    // 5) Intentar insertar el RLV en memoria
+    //    insert_registro_variable regresa:
+    //      1 = éxito,  0 = no cabe (write_pos < 0),  2 = espacio interno insuficiente
+    int resultado = insert_registro_variable(regVar, espacio_libre_bloque, bloque_buffer, disco);
+    delete[] regVar;
+
+    if (resultado != 1) {
+        if (resultado == 0) {
+            std::cerr << "WARN: ¡No cabe el registro variable en Bloque1 (write_pos < 0)!\n";
+        }
+        else {
+            std::cerr << "WARN: Bloque1 lleno (espacio interno insuficiente para el RLV).\n";
+        }
+        delete[] bloque_buffer;
+        return false;
+    }
+
+    // 6) Escribir de vuelta “Bloque1.txt” hasta el último byte no nulo
+    int endPos = tamBloque - 1;
+    while (endPos >= 0 && bloque_buffer[endPos] == '\0') {
+        --endPos;
+    }
+    int totalAEscribir = endPos + 1;
+
+    std::ofstream ofs(filename, std::ios::binary | std::ios::trunc);
+    if (!ofs.is_open()) {
+        std::cerr << "ERROR: No se pudo abrir '" << filename << "' para escritura.\n";
+        delete[] bloque_buffer;
+        return false;
+    }
+    ofs.write(bloque_buffer, totalAEscribir);
+    ofs.close();
+
+    // 7) Volcar bloque 1 a los sectores físicos
+    disco.volcarBloqueASectores(nroBloque);
+
+    delete[] bloque_buffer;
+    return true;
+}
+
+
 bool volcar_bloque_a_archivo(const char* bloque_variable, int tamBloque) {
     // 1) Encontrar el índice del último byte no nulo ('\0')
     int endPos = tamBloque - 1;
@@ -772,7 +847,7 @@ bool volcar_bloque_a_archivo(const char* bloque_variable, int tamBloque) {
     }
 
     // 2) Abrir bloque.txt en modo texto (por defecto) y escribir desde 0 hasta endPos
-    std::ofstream ofs("Bloque1.txt");
+    std::ofstream ofs("DISCO\\BLOQUES\\Bloque1.txt");
     if (!ofs.is_open()) {
         std::cerr << "Error: no se pudo abrir bloque.txt para escritura.\n";
         return false;
@@ -791,6 +866,61 @@ bool volcar_bloque_a_archivo(const char* bloque_variable, int tamBloque) {
     return true;
 }
 
+
+static bool adicionarNRegistrosVariable(int n, const char* txtPath, const char* relacion, Disco& disco) {
+    FILE* ftxt = std::fopen(txtPath, "r");
+    if (!ftxt) {
+        perror("ERROR: no se pudo abrir el archivo de registros para lectura");
+        return false;
+    }
+
+    char linea[MAX_BUF];
+
+    // 1) Saltar la primera línea (cabecera)
+    if (!std::fgets(linea, MAX_BUF, ftxt)) {
+        std::fclose(ftxt);
+        return false;
+    }
+
+    // 2) Leer las siguientes n líneas y llamar a adicionarRegistroUnicoVariable
+    char registroTxt[MAX_BUF];
+    for (int i = 0; i < n; ++i) {
+        if (!std::fgets(linea, MAX_BUF, ftxt)) {
+            // No quedan más líneas
+            break;
+        }
+
+        // Asegurarse de que termine en '\n'
+        int len = static_cast<int>(std::strlen(linea));
+        if (len == 0) {
+            // línea vacía: la ignoramos
+            continue;
+        }
+        if (linea[len - 1] != '\n') {
+            // si no tiene salto, lo agrego (pero normalmente fgets ya lo trae)
+            if (len + 1 < MAX_BUF) {
+                linea[len] = '\n';
+                linea[len + 1] = '\0';
+            }
+        }
+
+        // 3) Insertar este único registro en modo Variable
+        bool ok = adicionarRegistroUnicoVariable(linea, relacion, disco);
+        if (!ok) {
+            std::fclose(ftxt);
+            return false;
+        }
+        // (Cada llamada a adicionarRegistroUnicoVariable ya imprime mensajes DEBUG y volcado.)
+    }
+
+    std::fclose(ftxt);
+    return true;
+}
+
+
+
+
+/*
 static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion, Disco& disco) {
     // --- 0) Preparar datos y calcular longitud variable del registro ---
     static char regBuf[MAX_BUF];   // Aquí almacenaremos el registro ya “formateado” (variable)
@@ -1323,6 +1453,9 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         return true;
     }
 }
+*/
+
+
 //AUXILIARES, UNUSED
 /*
 char* read_registro_variable(const char registro_variable[], int field_num, char*& output) {
