@@ -934,20 +934,29 @@ bool modify_registro_variable(int NBloque, int r_index, const char relacion[], c
 //AUXILIARES
 
 static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* relacion, Disco& disco) {
-    // 1) Formatear el registro de texto “campo1#campo2#…\n” a RLV binario
-    char* regVar = format_registro_variable(registroTxt, relacion);
+    // 1) Copiar registroTxt a un buffer local y eliminar (\r, \n) finales
+    char cleanRegistro[MAX_BUF];
+    std::strncpy(cleanRegistro, registroTxt, MAX_BUF - 1);
+    cleanRegistro[MAX_BUF - 1] = '\0';
+    int l = static_cast<int>(std::strlen(cleanRegistro));
+    while (l > 0 && (cleanRegistro[l - 1] == '\n' || cleanRegistro[l - 1] == '\r')) {
+        cleanRegistro[--l] = '\0';
+    }
+
+    // 2) Formatear el registro limpio “campo1#campo2#...” a RLV binario
+    char* regVar = format_registro_variable(cleanRegistro, relacion);
     if (!regVar) {
         std::cerr << "ERROR: format_registro_variable falló para '" << relacion << "'.\n";
         return false;
     }
     int regLen = static_cast<int>(std::strlen(regVar));
 
-    // 2) Preparar nombre de archivo y tamaño de bloque
+    // 3) Preparar nombre de archivo y tamaño de bloque
     const int nroBloque = 1;
     const std::string filename = "DISCO\\BLOQUES\\Bloque1.txt";
     int tamBloque = disco.getTamBloque();
 
-    // 3) Cargar (o inicializar) el contenido actual de Bloque1.txt en memoria
+    // 4) Cargar (o inicializar) el contenido actual de Bloque1.txt en memoria
     char* bloque_buffer = new char[tamBloque];
     std::memset(bloque_buffer, 0, tamBloque);
 
@@ -962,10 +971,10 @@ static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* 
         std::memcpy(bloque_buffer, contenido.data(), bytesExistentes);
     }
 
-    // 4) Calcular espacio libre actual (entre la última posición escrita y fin de bloque)
+    // 5) Calcular espacio libre actual (entre la última posición escrita y fin de bloque)
     int espacio_libre_bloque = tamBloque - bytesExistentes;
 
-    // 5) Intentar insertar el RLV en memoria
+    // 6) Intentar insertar el RLV en memoria
     //    insert_registro_variable regresa:
     //      1 = éxito,  0 = no cabe (write_pos < 0),  2 = espacio interno insuficiente
     int resultado = insert_registro_variable(regVar, espacio_libre_bloque, bloque_buffer, disco);
@@ -973,7 +982,7 @@ static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* 
 
     if (resultado != 1) {
         if (resultado == 0) {
-            std::cerr << "WARN: ¡No cabe el registro variable en Bloque1 (write_pos < 0)!\n";
+            std::cerr << "WARN: ¡No cabe el RLV en Bloque1 (write_pos < 0)!\n";
         }
         else {
             std::cerr << "WARN: Bloque1 lleno (espacio interno insuficiente para el RLV).\n";
@@ -982,7 +991,7 @@ static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* 
         return false;
     }
 
-    // 6) Escribir de vuelta “Bloque1.txt” hasta el último byte no nulo
+    // 7) Escribir de vuelta “Bloque1.txt” hasta el último byte no nulo (sin saltos de línea)
     int endPos = tamBloque - 1;
     while (endPos >= 0 && bloque_buffer[endPos] == '\0') {
         --endPos;
@@ -998,14 +1007,14 @@ static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* 
     ofs.write(bloque_buffer, totalAEscribir);
     ofs.close();
 
-    // 7) Volcar bloque 1 a los sectores físicos
+    // 8) Volcar Bloque1 a los sectores físicos usando la versión variable
     disco.volcarBloqueASectoresVariable(nroBloque);
 
-    // 8) ACTUALIZAR dirBloques.txt RESTANDO regLen al bloque y al primer sector disponible
+    // 9) ACTUALIZAR dirBloques.txt RESTANDO regLen al bloque y a sus sectores (último→primero)
     if (!actualizarDirBloquesVariable(nroBloque, regLen, disco)) {
         std::cerr << "ERROR: no se pudo actualizar dirBloques.txt para Bloque " << nroBloque << "\n";
-        // A pesar del error en dirBloques, el RLV ya quedó insertado en el bloque físico
-        // Tú decides si quieres considerar esto como fallo total o no.
+        // El RLV ya quedó insertado físicamente, así que puedes decidir si quieres
+        // tratarlo como fallo completo o continuar.
     }
 
     delete[] bloque_buffer;

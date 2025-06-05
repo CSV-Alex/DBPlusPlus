@@ -882,7 +882,7 @@ int main() {
             //assert(ok);
             //std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
 
-            if (!adicionarNRegistrosVariable(5, "data\\usr\\db\\housing.txt", "housing", miDisco)) {
+            if (!adicionarNRegistrosVariable(10, "data\\usr\\db\\housing.txt", "housing", miDisco)) {
                 std::cout << "Al menos un registro no se pudo insedsrtar en modo variable.\n";
             }
             else {
