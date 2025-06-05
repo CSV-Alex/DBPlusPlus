@@ -840,15 +840,19 @@ int main() {
             cout << "1) Longitud variable\n";
             cout << "2) Longitud fija\n";
             cout << ">> ";
+            int n;cin>>n;
 
             const char* nuevoReg = "1790000#9#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
-
+            if(n==2){
             if (modificarRegistro("housing", 4, nuevoReg, miDisco)) {
                 cout << "Modificado correctamente\n";
             }
-            if(modify_registro_variable(125, 2, "titanic", "Sex", "Male",miDisco)){
-
             }
+            else if(n==1){
+            if(modify_registro_variable(1, 1, "housing", "furnishingstatus", "semi-furnished",miDisco)){
+                cout << "Modificado correctamente_var\n";
+            }
+        }
         }
 
         else if (opt == "7") { //demo
@@ -883,8 +887,10 @@ int main() {
             //ok = insert_registro_variable(reg_var3, espacio, bloque, miDisco);
             //assert(ok);
             //std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
+            int n;
+            cin>>n;
 
-            if (!adicionarNRegistrosVariable(10, "data\\usr\\db\\housing.txt", "housing", miDisco)) {
+            if (!adicionarNRegistrosVariable(n, "data\\usr\\db\\housing.txt", "housing", miDisco)) {
                 std::cout << "Al menos un registro no se pudo insedsrtar en modo variable.\n";
             }
             else {

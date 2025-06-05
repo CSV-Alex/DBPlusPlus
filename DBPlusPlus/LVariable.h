@@ -876,23 +876,21 @@ bool eliminar_registro_variable(int bloqueN, int r_index, int tamBloque, Disco& 
     return true;
 }
 
-bool modify_registro_variable(int NBloque, int r_index, const char relacion[], const char atributo[], const char new_value[],Disco&disco) {
-    int tamBloque = disco.getTamBloque();
-    std::string filename = "Bloque" + std::to_string(NBloque) + ".txt";
 
-    // 1) Leer todo el bloque en fileData
-    std::ifstream ifs(filename);
+bool modify_registro_variable(int NBloque,int r_index, const char relacion[], const char atributo[], const char new_value[],Disco& disco)
+{
+    int tamBloque = disco.getTamBloque();
+    std::string filename = "DISCO\\BLOQUES\\Bloque" + std::to_string(NBloque) + ".txt";
+
+    // 1) Leer TODO el bloque en modo BINARIO
+    std::ifstream ifs(filename, std::ios::binary);
     if (!ifs.is_open()) {
         std::cerr << "Error: no se pudo abrir " << filename << "\n";
         return false;
     }
-    std::string fileData;
-    {
-        std::string line;
-        while (std::getline(ifs, line)) {
-            fileData += line;
-        }
-    }
+    std::ostringstream oss;
+    oss << ifs.rdbuf();  // copia todos los bytes (incluidos '\0')
+    std::string fileData = oss.str();
     ifs.close();
 
     if (fileData.empty()) {
@@ -901,6 +899,7 @@ bool modify_registro_variable(int NBloque, int r_index, const char relacion[], c
     }
 
     // 2) Parsear la cabecera para extraer registro_n y los pares (offset, size)
+    //    Formato: "<registro_n>|<last_pos>|<off1>|<sz1>|<off2>|<sz2>|...|"
     size_t p1 = fileData.find('|');
     if (p1 == std::string::npos) return false;
     int registro_n = std::stoi(fileData.substr(0, p1));
@@ -911,144 +910,132 @@ bool modify_registro_variable(int NBloque, int r_index, const char relacion[], c
 
     size_t p2 = fileData.find('|', p1 + 1);
     if (p2 == std::string::npos) return false;
-    // cursor para leer pares
-    size_t cursor = p2 + 1;
-    std::vector<int> offsets, sizes;
-    offsets.reserve(registro_n);
-    sizes.reserve(registro_n);
 
+    // Cursor justo después de "<last_pos>|"
+    size_t cursor = p2 + 1;
+    std::vector<int> offsets(registro_n);
+    std::vector<int> sizes(registro_n);
     for (int i = 0; i < registro_n; ++i) {
-        // offset i
-        size_t poff_end = fileData.find('|', cursor);
-        if (poff_end == std::string::npos) return false;
-        int off_i = std::stoi(fileData.substr(cursor, poff_end - cursor));
-        cursor = poff_end + 1;
-        // size i
-        size_t psize_end = fileData.find('|', cursor);
-        if (psize_end == std::string::npos) return false;
-        int sz_i = std::stoi(fileData.substr(cursor, psize_end - cursor));
-        cursor = psize_end + 1;
-        offsets.push_back(off_i);
-        sizes.push_back(sz_i);
+        // offset_i
+        size_t off_end = fileData.find('|', cursor);
+        if (off_end == std::string::npos) return false;
+        offsets[i] = std::stoi(fileData.substr(cursor, off_end - cursor));
+        cursor = off_end + 1;
+
+        // size_i
+        size_t sz_end = fileData.find('|', cursor);
+        if (sz_end == std::string::npos) return false;
+        sizes[i] = std::stoi(fileData.substr(cursor, sz_end - cursor));
+        cursor = sz_end + 1;
     }
     size_t header_len = cursor;
 
-    // 3) Obtener offset y size del registro a modificar (0-based)
-    int idx0 = r_index - 1;
+    // 3) Obtener offset y size del registro a modificar (índice 0-based)
+    int idx0    = r_index - 1;
     int off_old = offsets[idx0];
     int size_old = sizes[idx0];
-    if (off_old + size_old > (int)fileData.size()) return false;
+    if (off_old + size_old > static_cast<int>(fileData.size())) return false;
 
-    // 4) Extraer registro crudo y pasar a contenido “campo1#...”
+    // 4) Extraer registro binario “crudo” y desempaquetar a "campo1#campo2#..."
     std::string registro_raw = fileData.substr(off_old, size_old);
-    std::cout<<registro_raw<<std::endl;
-    std::string contenido = read_variable_register(registro_raw.c_str(),relacion);
-
+    std::string contenido = read_variable_register(registro_raw.c_str(), relacion);
     if (contenido.empty() && size_old > 0) {
         std::cerr << "Error: no se pudo leer el registro viejo\n";
         return false;
     }
 
-    // 5) Calcular n_atributo
+    // 5) Calcular n_atributo para `atributo[]`
     int n_atributo = get_nth_attribute(relacion, atributo);
     if (n_atributo < 1) {
         std::cerr << "Error: atributo no encontrado en esquema\n";
         return false;
     }
 
-    // 6) Reconstruir temp: sustituir solo el campo n_atributo por new_value,
-    //    sin usar split en vectores, sino contando ‘#’.
+    // 6) Reconstruir `temp` reemplazando solo el campo n_atributo por new_value
     std::string temp;
     temp.reserve(contenido.size() + std::strlen(new_value));
-    int current_field = 1;
-    size_t read_pos = 0;
     size_t len = contenido.size();
 
-    // 6.a) Si es el primer campo
     if (n_atributo == 1) {
-        // Encontrar primer ‘#’ (si existe) para copiar el sufijo
         size_t first_hash = contenido.find('#');
         temp += new_value;
         if (first_hash != std::string::npos) {
-            temp += contenido.substr(first_hash); 
+            temp += contenido.substr(first_hash);
         }
     } else {
-        // 6.b) Copiar campos 1..(n_atributo-1)
-        // Encuentro la posición inmediata después del (n_atributo-1)-ésimo ‘#’
         size_t pos = 0;
         int hashes_seen = 0;
         while (pos < len && hashes_seen < (n_atributo - 1)) {
-            if (contenido[pos] == '#') {
-                ++hashes_seen;
-            }
+            if (contenido[pos] == '#') ++hashes_seen;
             ++pos;
         }
-        // pos es el índice justo después del (n_atributo-1)-ésimo ‘#’
-        // Copiamos hasta pos (excluyendo) para mantener los ‘#’ previos
         temp += contenido.substr(0, pos);
-
-        // 6.c) Insertar new_value
         temp += new_value;
-
-        // 6.d) Hallar siguiente ‘#’ a partir de pos (fin del campo reemplazado)
         size_t next_hash = contenido.find('#', pos);
         if (next_hash != std::string::npos) {
-            // Copiar todo desde ese ‘#’ hasta el final
             temp += contenido.substr(next_hash);
         }
-        // Si next_hash == npos, nada más que copiar (eliminamos el antiguo campo al final)
     }
 
-    // 7) Formatear el nuevo registro con format_registro_variable
+    // 7) Formatear el nuevo registro binario con format_registro_variable
     char* nuevo_registro = format_registro_variable(temp.c_str(), relacion);
     if (!nuevo_registro) {
         std::cerr << "Error: format_registro_variable falló\n";
         return false;
     }
+    int size_new = static_cast<int>(std::strlen(nuevo_registro));
 
-    // 8) Eliminar el registro viejo
-    if (!eliminar_registro_variable(NBloque, r_index, disco.getTamBloque(),disco)) {
+    // 8) Eliminar el registro viejo del bloque físico
+    if (!eliminar_registro_variable(NBloque, r_index, tamBloque, disco)) {
         std::cerr << "Error: no se pudo eliminar registro viejo\n";
         delete[] nuevo_registro;
         return false;
     }
+    // 8.a) Actualizar dirBloques.txt para “liberar” size_old bytes
+    if (!actualizarDirBloquesVariable(NBloque, disco)) {
+        std::cerr << "WARN: no se pudo actualizar dirBloques.txt tras eliminar registro en bloque "
+                  << NBloque << "\n";
+    }
 
-    // 9) Leer el bloque actualizado de nuevo
-    std::ifstream ifs2(filename);
+    // 9) Releer el bloque actualizado (BINARIO íntegro)
+    std::ifstream ifs2(filename, std::ios::binary);
     if (!ifs2.is_open()) {
         std::cerr << "Error: no se pudo reabrir " << filename << "\n";
         delete[] nuevo_registro;
         return false;
     }
-    std::string fileData2;
-    {
-        std::string line;
-        while (std::getline(ifs2, line)) {
-            fileData2 += line;
-        }
-    }
+    std::ostringstream oss2;
+    oss2 << ifs2.rdbuf();
+    std::string fileData2 = oss2.str();
     ifs2.close();
 
     // 10) Construir buffer de tamaño tamBloque con ceros y copiar fileData2
     char* bloque_buffer = new char[tamBloque];
     std::memset(bloque_buffer, 0, tamBloque);
-    int copy_len = (int)min((size_t)tamBloque, fileData2.size());
+    int copy_len = static_cast<int>(std::min((size_t)tamBloque, fileData2.size()));
     std::memcpy(bloque_buffer, fileData2.data(), copy_len);
 
     // 11) Calcular espacio libre actual
-    int espacio_libre_bloque = tamBloque - (int)fileData2.size();
+    int espacio_libre_bloque = tamBloque - copy_len;
 
-    // 12) Insertar el nuevo registro en el bloque en memoria
-    if (!insert_registro_variable(nuevo_registro,espacio_libre_bloque,bloque_buffer, disco)) {
+    // 12) Insertar el nuevo registro binario dentro de `bloque_buffer`
+    int resultado = insert_registro_variable(nuevo_registro,
+                                             espacio_libre_bloque,
+                                             bloque_buffer,
+                                             disco);
+    delete[] nuevo_registro;
+    if (resultado != 1) {
         std::cerr << "Error: no se pudo insertar el registro modificado\n";
-        delete[] nuevo_registro;
         delete[] bloque_buffer;
         return false;
     }
-    delete[] nuevo_registro;
+    // 12.a) Actualizar dirBloques.txt para “consumir” size_new bytes
+    if (!actualizarDirBloquesVariable(NBloque, disco)) {
+        std::cerr << "WARN: no se pudo actualizar dirBloques.txt tras insertar registro modificado en bloque "
+                  << NBloque << "\n";
+    }
 
-    // 13) Volcar bloque_buffer de regreso a “BloqueN.txt” (modo texto),
-    //      escribiendo solo hasta el último byte no nulo.
+    // 13) Volcar `bloque_buffer` de regreso a “BloqueN.txt” (modo BINARIO/truncado)
     int endPos = tamBloque - 1;
     while (endPos >= 0 && bloque_buffer[endPos] == '\0') {
         --endPos;
@@ -1056,12 +1043,12 @@ bool modify_registro_variable(int NBloque, int r_index, const char relacion[], c
     std::string newFileData(bloque_buffer, endPos + 1);
     delete[] bloque_buffer;
 
-    std::ofstream ofs3(filename, std::ios::trunc);
+    std::ofstream ofs3(filename, std::ios::binary | std::ios::trunc);
     if (!ofs3.is_open()) {
         std::cerr << "Error: no se pudo abrir " << filename << " para reescribir\n";
         return false;
     }
-    ofs3 << newFileData;
+    ofs3.write(newFileData.data(), newFileData.size());
     ofs3.close();
 
     return true;
@@ -1080,6 +1067,7 @@ static bool adicionarRegistroUnicoVariable(const char* registroTxt, const char* 
 
     // 2) Formatear el registro limpio “campo1#campo2#...” a RLV binario
     char* regVar = format_registro_variable(cleanRegistro, relacion);
+    cout<<"Registro formateado: "<<regVar<<endl;
     if (!regVar) {
         std::cerr << "ERROR: format_registro_variable falló para '" << relacion << "'.\n";
         return false;

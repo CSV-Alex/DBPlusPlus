@@ -819,64 +819,11 @@ public:
     }
 
 
-    void printCapacidadesDetalle() {
-        printf("=== Resumen de capacidades ===\n");
-        printf("Capacidad total del disco: %lld bytes\n", capacidadTotal);
-        printf("Capacidad libre del disco: %lld bytes\n", capacidadLibre);
-        printf("Capacidad ocupada del disco: %lld bytes\n\n", capacidadTotal - capacidadLibre);
-
-        FILE* fdir = fopen(rutaDirBloques, "r");
-        if (!fdir) { perror("abrir dirBloques.txt"); return; }
-
-        char linea[MAX_BUF];
-        int bloqueN = 0;
-        int bloquesConDatos = 0;
-        long long ocupacionBloques = 0;
-        long long ocupacionSectores = 0;
-
-        while (fgets(linea, MAX_BUF, fdir)) {
-            ++bloqueN;
-            // 1) Extraer espacioLibreBloque y tamUtil
-            char copia[MAX_BUF];
-            strncpy(copia, linea, MAX_BUF);
-            copia[MAX_BUF - 1] = '\0';
-            char* tk = strtok(copia, "#"); // espacioLibreBloque
-            int espacioLibreBloque = atoi(tk);
-            int tamUtil = (int)(tamBloque - espacioLibreBloque);
-            if (tamUtil > 0) {
-                ++bloquesConDatos;
-                ocupacionBloques += tamUtil;
-            }
-
-            // 2) Recorrer pares "<espacioLibreSector>#<p>/<s>/<pi>/<se>#_" para cada sector
-            char* resto = strstr(linea, "#_");
-            if (!resto) continue;
-            char* ptr = resto + 2; // saltar "#_"
-            while (*ptr) {
-                int espacioLibreSector = atoi(ptr);
-                while (*ptr && *ptr != '#') ++ptr;
-                if (!*ptr) break;
-                ++ptr;
-                // Leer el codigo de sector
-                int p, s, pi, se;
-                if (sscanf(ptr, "%d/%d/%d/%d", &p, &s, &pi, &se) == 4) {
-                    long long usadoSector = (long long)tamSector - espacioLibreSector;
-                    if (usadoSector > 0) ocupacionSectores += usadoSector;
-                }
-                // Avanzar hasta siguiente "_"
-                while (*ptr && *ptr != '_') ++ptr;
-                if (*ptr == '_') ++ptr;
-            }
-        }
-        fclose(fdir);
-
-        printf("Numero de bloques con datos: %d\n", bloquesConDatos);
-        printf("Capacidad usada total en bloques (suma tamUtil): %lld bytes\n", ocupacionBloques);
-        printf("Capacidad usada total en sectores (suma de ocupacion sectores): %lld bytes\n", ocupacionSectores);
-        printf("==============================\n\n");
+void printCapacidadesDetalle() {
+        printf("=== ------------------- ===\n");
     }
 
-    void printDisco() {
+    void printDiscoAnterior() {
         std::cout << "\n=== Caracteristicas del Disco ===\n";
         std::cout << "  Platos: " << platos << "\n";
         std::cout << "  Superficies x plato: " << nroSuperficies << "\n";
@@ -897,5 +844,67 @@ public:
         std::cout << "=================================\n\n";
     }
 
-};
 
+    void printDisco() {
+        std::cout << "\n=== Caracteristicas del Disco (dinámico desde dirBloques.txt) ===\n";
+        std::cout << "  Platos: " << platos << "\n";
+        std::cout << "  Superficies x plato: " << nroSuperficies << "\n";
+        std::cout << "  Pistas por superficie: " << pistas << "\n";
+        std::cout << "  Sectores por pista: " << sectores << "\n";
+        std::cout << "  Tamaño de sector: " << tamSector << " bytes\n";
+        std::cout << "  Tamaño de bloque: " << tamBloque << " bytes\n";
+
+        // --- Leer dirBloques.txt para calcular dinámicamente nroBloques y espacio libre ---
+        FILE* fdir = std::fopen(rutaDirBloques, "r");
+        if (!fdir) {
+            std::perror("ERROR: no se pudo abrir dirBloques.txt");
+            std::cout << "=================================\n\n";
+            return;
+        }
+
+        int fixedLen = obtenerLongitudMaximaBloque1();
+        if (fixedLen <= 0) {
+            std::cerr << "ERROR: fixedLen inválido para dirBloques\n";
+            std::fclose(fdir);
+            std::cout << "=================================\n\n";
+            return;
+        }
+
+        int bloquesContados = 0;
+        long totalLibre = 0;
+        char buffer[MAX_BUF + 1];
+        while (true) {
+            int len = leerBloqueConSeparador(fdir, buffer, MAX_BUF);
+            if (len <= 0) break;
+            bloquesContados++;
+
+            // Terminar en '\0' para parsear
+            if (len < MAX_BUF) buffer[len] = '\0';
+            else               buffer[MAX_BUF] = '\0';
+
+            // buffer ≈ "|<espLibreBloque>#2#BLOQUE#...#_...|"
+            // Extraer <espLibreBloque> (entre '|' y primer '#')
+            char temp[MAX_BUF];
+            std::memcpy(temp, buffer + 1, len - 2);
+            temp[len - 2] = '\0';
+            char* pHash = std::strchr(temp, '#');
+            if (!pHash) continue;
+            *pHash = '\0';
+            int espBloque = std::atoi(temp);
+            totalLibre += espBloque;
+        }
+        std::fclose(fdir);
+
+        int bloquesPorPista = (sectores * tamSector) / tamBloque;
+        int bloquesPorPlato = nroSuperficies * pistas * bloquesPorPista;
+        long capacidadTotal = static_cast<long>(platos) *
+            nroSuperficies * pistas *
+            sectores * tamSector;
+        std::cout << "  Bloques totales (en dirBloques.txt): " << bloquesContados << "\n";
+        std::cout << "  Bloques por pista: " << bloquesPorPista << "\n";
+        std::cout << "  Bloques por plato: " << bloquesPorPlato << "\n";
+        std::cout << "  Capacidad total: " << capacidadTotal << " bytes\n";
+            std::cout << "  Espacio libre (sumado en todos los bloques): " << totalLibre << " bytes\n";
+            std::cout << "=================================\n\n";
+        }
+    };
