@@ -96,5 +96,8 @@
     <ClInclude Include="LVariable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="BufferPool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

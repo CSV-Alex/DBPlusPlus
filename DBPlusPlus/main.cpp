@@ -10,9 +10,10 @@
 #include <cassert>
 #include "LVariable.h"
 #include "LFija.h"
+#include "BufferPool.h"
 
 #define MAX_BUF      1024
-#define MAX_STR_LEN 32
+#define MAX_STR_LEN 64
 #define MAX_FIELDS 32
 #define MAX_PATH_LEN 256
 #define MAX_SCHEMA  4096
@@ -746,8 +747,8 @@ int main() {
         else if (opt == "2") {
 
             cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
-            cout << "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n" << endl;
-            string input = "1790000#4000#3#1#2#yes#no#no#no#no#0#no#unfurnished\n";
+            cout << "1790000#4000#3#1#2#yes#no#no#nohfdhjf#no#0#no#unfurnished\n" << endl;
+            string input = "1790000#4000#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
             if (input.back() != '\n')
                 input.push_back('\n');
 
@@ -806,7 +807,7 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-            if (adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco))
+            if (adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\titanicG.csv", "titanic", opcion, miDisco))
                 cout << "Todos los registros del CSV agregados correctamente.\n";
             else
                 cout << "No se pudieron agregar todos los registros.\n";
@@ -820,8 +821,8 @@ int main() {
             cin >> opcion;
             cin.ignore(1, '\n');
 
-             if(opcion ==2){
-                if (eliminarRegistro("housing", 2, miDisco)) {
+            if(opcion ==2){
+                if (eliminarRegistro("housing", 193, miDisco)) {
                     cout << "Eliminado correctamente\n";
                     cout << "Entrando a Eliminar Registro \n" << std::endl;
                 }
@@ -890,7 +891,7 @@ int main() {
             int n;
             cin>>n;
 
-            if (!adicionarNRegistrosVariable(n, "data\\usr\\db\\housing.txt", "housing", miDisco)) {
+            if (!adicionarNRegistrosVariable(n, "data\\usr\\db\\titanic.txt", "titanic", miDisco)) {
                 std::cout << "Al menos un registro no se pudo insedsrtar en modo variable.\n";
             }
             else {

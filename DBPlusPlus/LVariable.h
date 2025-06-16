@@ -867,6 +867,8 @@ bool eliminar_registro_variable(int bloqueN, int r_index, int tamBloque, Disco& 
     ofs << nuevoFileData;
     ofs.close();
 
+    disco.volcarBloqueASectoresVariable(bloqueN);
+
     if (!actualizarDirBloquesVariable(bloqueN, disco)) {
         std::cerr << "WARN: No se pudo actualizar dirBloques.txt al eliminar el registro en bloque "
                   << bloqueN << "\n";
@@ -1012,7 +1014,7 @@ bool modify_registro_variable(int NBloque,int r_index, const char relacion[], co
     // 10) Construir buffer de tamaño tamBloque con ceros y copiar fileData2
     char* bloque_buffer = new char[tamBloque];
     std::memset(bloque_buffer, 0, tamBloque);
-    int copy_len = static_cast<int>(std::min((size_t)tamBloque, fileData2.size()));
+    int copy_len = static_cast<int>(min((size_t)tamBloque, fileData2.size()));
     std::memcpy(bloque_buffer, fileData2.data(), copy_len);
 
     // 11) Calcular espacio libre actual

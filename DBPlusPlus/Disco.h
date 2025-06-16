@@ -39,6 +39,7 @@ private:
     char bufferLectura[MAX_BUF];
     char rutaLongitudFija[MAX_PATH_LEN];
     char discoNuevoPath[MAX_PATH_LEN];
+    char bloquePath[MAX_PATH_LEN];
 
     static bool str_eq(const char* a, const char* b) {
         while (*a && *b) {
@@ -146,6 +147,7 @@ public:
         strcpy(rutaDirBloques, "DISCO\\dirBloques.txt");
         strcpy(rutaLongitudFija, "DISCO\\longitudFija.txt");
         strcpy(discoNuevoPath, "DISCO\\");
+        strcpy(bloquePath, "DISCO\\BLOQUES\\");
 
         make_dir("DISCO");
         make_dir("DISCO\\BLOQUES");
@@ -182,6 +184,18 @@ public:
     const char* getBufferRuta() const { return bufferRuta; }
     const char* getBufferLectura() const { return bufferLectura; }
 
+    void createBufferDir() {
+        const std::string bufferDir = "BUFFERPOOL";
+        if (bufferDir.empty()) {
+            make_dir(bufferDir.c_str());
+        }
+    }
+
+    const char* getBloquePath(int bloqueId) const { 
+        char path[MAX_PATH_LEN];
+        snprintf(path, sizeof(path), "%sBloque%d.txt", bloquePath, bloqueId);
+        return path;
+    }
 
     void crearEstructuraDisco() {
         char rutaTemp[MAX_PATH_LEN];

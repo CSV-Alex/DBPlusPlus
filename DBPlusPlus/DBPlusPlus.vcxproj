@@ -148,6 +148,7 @@
     <Text Include="IdHighFemale.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BufferPool.h" />
     <ClInclude Include="Disco.h" />
     <ClInclude Include="DiscoPaths.h" />
     <ClInclude Include="LVariable.h" />
