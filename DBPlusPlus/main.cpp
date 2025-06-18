@@ -12,7 +12,7 @@
 #include <cassert>
 #include "LVariable.h"
 #include "LFija.h"
-#include "BufferPool.h"
+#include "Buffer/BufferPool.h"
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64

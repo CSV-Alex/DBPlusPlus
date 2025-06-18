@@ -9,8 +9,8 @@
 #include <iostream>
 #include <list>
 
-#include "Disco.h"
-#include "DiscoPaths.h"
+#include "../Disco.h"
+#include "../DiscoPaths.h"
 
 class PageWithRecords;
 
