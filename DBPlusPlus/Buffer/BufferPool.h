@@ -11,6 +11,7 @@
 
 #include "../Disco.h"
 #include "../DiscoPaths.h"
+#include "LRU.h"
 
 class PageWithRecords;
 
@@ -23,37 +24,6 @@ struct Cambios {
         : tipo(t), registroId(reg), paginaId(pag) {
     }
 };
-
-class LRUReplacer {
-public:
-    void newPage(int pageId) { touch(pageId); }
-    void pin(int pageId) { touch(pageId); }
-    void unpin(int pageId) { touch(pageId); }
-    void deletePage(int pageId) {
-        auto it = pos.find(pageId);
-        if (it != pos.end()) {
-            lru.erase(it->second);
-            pos.erase(it);
-        }
-    }
-    int victim() {
-        if (lru.empty()) return -1;
-        return lru.front();
-    }
-private:
-    std::list<int> lru;
-    std::unordered_map<int, std::list<int>::iterator> pos;
-    void touch(int pageId) {
-        auto it = pos.find(pageId);
-        if (it != pos.end()) {
-            lru.erase(it->second);
-            pos.erase(it);
-        }
-        lru.push_back(pageId);
-        pos[pageId] = std::prev(lru.end());
-    }
-};
-
 
 class Page {
 public:
@@ -232,119 +202,22 @@ public:
 
 class BufferPool {
 public:
-    BufferPool(size_t bufBytes, size_t pageBytes, Disco& disk)
-        : _disk(disk), _bufBytes(bufBytes), _pageBytes(pageBytes)
-    {
-        size_t nFrames = bufBytes / pageBytes;
-        _frames.reserve(nFrames);
-        for (size_t i = 0; i < nFrames; ++i) _frames.emplace_back((int)i);
-        _disk.createBufferDir(); // crea carpeta BUFFERPOOL
-    }
-    ~BufferPool() {
-        flushAll();
-    }
+    BufferPool(size_t bufBytes, size_t pageBytes, Disco& disk);
+    ~BufferPool();
 
-    Page* pinPage(int pageId, char op, bool pinned = false) {
-        cout << "[DEBUG] Mensaje antes del bucle infinito" << endl;
-        _reqCount++;
-        auto it = _pageTable.find(pageId);
-        if (it != _pageTable.end()) {
-            int fidx = it->second;
-            _hitCount++;
-            _frames[fidx].page->pin(op, pinned);
-            _lru.pin(pageId);
-            return _frames[fidx].page.get();
-        }
-        return loadNewPage(pageId, op, pinned);
-    }
-    void unpinPage(int pageId) {
-        auto it = _pageTable.find(pageId);
-        if (it == _pageTable.end()) return;
-        int fidx = it->second;
-        _frames[fidx].page->unpin();
-        _lru.unpin(pageId);
-    }
-    Page* getPage(int pageId, char op, bool pinned = false) {
-        return pinPage(pageId, op, pinned);
-    }
+    Page* pinPage(int pageId, char op, bool pinned = false);
+    void unpinPage(int pageId);
+    Page* getPage(int pageId, char op, bool pinned = false);
 
-    void flushPage(int pageId) {
-        auto it = _pageTable.find(pageId);
-        if (it == _pageTable.end()) return;
-        _frames[it->second].page->flush(_disk);
-    }
-    void flushAll() {
-        for (auto& f : _frames)
-            if (f.page && f.page->isDirty())
-                f.page->flush(_disk);
-    }
+    void flushPage(int pageId);
+    void flushAll();
 
-    void printStats() const {
-        std::cout << "Requests: " << _reqCount
-            << "  Hits: " << _hitCount
-            << "  Misses: " << _missCount << "\n";
-    }
-    void printBuffer() const {
-        std::cout << "---- BufferPool State ----\n";
-        for (auto& f : _frames) {
-            if (f.page) {
-                std::cout << "Frame " << f.id
-                    << " => Page " << f.page->getId()
-                    << " | dirty=" << f.page->isDirty()
-                    << " | pins=" << f.page->getPinCount()
-                    << "\n";
-            }
-            else {
-                std::cout << "Frame " << f.id << " [vacio]\n";
-            }
-        }
-    }
+    void printStats() const ;
+    void printBuffer() const ;
 
 private:
-    bool evictOne() {
-        int victim = _lru.victim();
-        if (victim < 0) return false;
-        int fidx = _pageTable[victim];
-        auto* P = _frames[fidx].page.get();
-
-        if (P->getPinCount() > 0) return false;
-
-        // *** NUEVO: preguntar al usuario antes de flush ***
-        if (P->isDirty()) {
-            cout << "La página " << victim
-                << " está dirty. ¿Guardar cambios antes de desalojar? (s/n): ";
-            char resp; cin >> resp;
-            if (resp == 's' || resp == 'S') {
-                P->flush(_disk);
-                cout << "Cambios guardados.\n";
-            }
-            else {
-                cout << "Descartando cambios de página " << victim << ".\n";
-            }
-        }
-
-        // Borramos la página del buffer
-        _pageTable.erase(victim);
-        P = nullptr;               // libera el frame
-        _lru.deletePage(victim);
-        return true;
-    }
-
-    Page* loadNewPage(int pageId, char op, bool pinned) {
-        _missCount++;
-        for (auto& f : _frames) {
-            if (!f.page) {
-                std::cout << "[DEBUG] creando PageWithRecords para id=" << pageId << "\n";
-                f.page.reset(new PageWithRecords(pageId, _disk, pinned));
-                f.page->pin(op, pinned);
-                _pageTable[pageId] = f.id;
-                _lru.newPage(pageId);
-                return f.page.get();
-            }
-        }
-        if (evictOne()) return loadNewPage(pageId, op, pinned);
-        return nullptr;
-    }
+    bool evictOne();
+    Page* loadNewPage(int pageId, char op, bool pinned);
 
     Disco& _disk;
     size_t                          _bufBytes;
@@ -352,7 +225,120 @@ private:
     std::vector<Frame>              _frames;
     std::unordered_map<int, int>     _pageTable;  // pageId → frameIdx
 
-    LRUReplacer                     _lru;        // unico reemplazador
+    LRUReplacer                     _lru;        // la lista LRU de páginas
 
-    size_t                          _hitCount{ 0 }, _missCount{ 0 }, _reqCount{ 0 };
+    size_t                          _hitCount{ 0 }, _totalCount{ 0 };
 };
+
+bool BufferPool::evictOne() {
+    int victim = _lru.victim();
+    if (victim < 0) return false;
+    int fidx = _pageTable[victim];
+    auto* P = _frames[fidx].page.get();
+
+    if (P->getPinCount() > 0) return false;
+
+    // *** NUEVO: preguntar al usuario antes de flush ***
+    if (P->isDirty()) {
+        cout << "La página " << victim
+            << " está dirty. ¿Guardar cambios antes de desalojar? (s/n): ";
+        char resp; cin >> resp;
+        if (resp == 's' || resp == 'S') {
+            P->flush(_disk);
+            cout << "Cambios guardados.\n";
+        }
+        else {
+            cout << "Descartando cambios de página " << victim << ".\n";
+        }
+    }
+
+    // Borramos la página del buffer
+    _pageTable.erase(victim);
+    P = nullptr;               // libera el frame
+    _lru.deletePage(victim);
+    return true;
+}
+
+Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
+    _totalCount++;
+    for (auto& f : _frames) {
+        if (!f.page) {
+            std::cout << "[DEBUG] creando PageWithRecords para id=" << pageId << "\n";
+            f.page.reset(new PageWithRecords(pageId, _disk, pinned));
+            f.page->pin(op, pinned);
+            _pageTable[pageId] = f.id;
+            _lru.newPage(pageId);
+            return f.page.get();
+        }
+    }
+    if (evictOne()) return loadNewPage(pageId, op, pinned);
+    return nullptr;
+}
+
+
+BufferPool::BufferPool(size_t bufBytes, size_t pageBytes, Disco& disk)
+        : _disk(disk), _bufBytes(bufBytes), _pageBytes(pageBytes)
+    {
+        size_t nFrames = bufBytes / pageBytes;
+        _frames.reserve(nFrames);
+        for (size_t i = 0; i < nFrames; ++i) _frames.emplace_back((int)i);
+        _disk.createBufferDir(); // crea carpeta BUFFERPOOL
+    }
+BufferPool::~BufferPool() {
+        flushAll();
+    }
+Page* BufferPool::pinPage(int pageId, char op, bool pinned = false) {
+    cout << "[DEBUG] Mensaje antes del bucle infinito" << endl;
+    _totalCount++;
+    auto it = _pageTable.find(pageId);
+    if (it != _pageTable.end()) {
+        int fidx = it->second;
+        _hitCount++;
+        _frames[fidx].page->pin(op, pinned);
+        _lru.pin(pageId);
+        return _frames[fidx].page.get();
+    }
+    return loadNewPage(pageId, op, pinned);
+}
+void BufferPool::unpinPage(int pageId) {
+    auto it = _pageTable.find(pageId);
+    if (it == _pageTable.end()) return;
+    int fidx = it->second;
+    _frames[fidx].page->unpin();
+    _lru.unpin(pageId);
+}
+Page* BufferPool::getPage(int pageId, char op, bool pinned = false) {
+    return pinPage(pageId, op, pinned);
+}
+
+void BufferPool::flushPage(int pageId) {
+    auto it = _pageTable.find(pageId);
+    if (it == _pageTable.end()) return;
+    _frames[it->second].page->flush(_disk);
+}
+void BufferPool::flushAll() { //indiscriminate
+    for (auto& f : _frames)
+        if (f.page && f.page->isDirty())
+            f.page->flush(_disk);
+}
+
+void BufferPool::printStats() const {
+    std::cout << "Requests: " << _totalCount
+        << "  Hits: " << _hitCount
+        << "  Misses: " << _totalCount-_hitCount << "\n";
+}
+void BufferPool::printBuffer() const {
+    std::cout << "---- BufferPool State ----\n";
+    for (auto& f : _frames) {
+        if (f.page) {
+            std::cout << "Frame " << f.id
+                << " => Page " << f.page->getId()
+                << " | dirty=" << f.page->isDirty()
+                << " | pins=" << f.page->getPinCount()
+                << "\n";
+        }
+        else {
+            std::cout << "Frame " << f.id << " [vacio]\n";
+        }
+    }
+}

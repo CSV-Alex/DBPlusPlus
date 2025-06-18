@@ -5,7 +5,7 @@
 
 class LRUReplacer {
 public:
-    void newPage(int pageId) { touch(pageId); }
+    void newPage(int pageId) { touch(pageId); } //no es exactamente una nueva pagina, solo la toca
     void pin(int pageId) { touch(pageId); }
     void unpin(int pageId) { touch(pageId); }
     void deletePage(int pageId);
@@ -23,12 +23,12 @@ void LRUReplacer::deletePage(int pageId) {
         pos.erase(it);
     }
 }
-int LRUReplacer::victim() {
+int LRUReplacer::victim() { //first element from LRU list.
     if (lru.empty()) return -1;
     return lru.front();
 }
 
-void LRUReplacer::touch(int pageId) {
+void LRUReplacer::touch(int pageId) { //reposiciona la pagina al final de la lista
     auto it = pos.find(pageId);
     if (it != pos.end()) {
         lru.erase(it->second);
