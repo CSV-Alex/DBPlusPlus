@@ -781,7 +781,7 @@ int main() {
 
                         cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
                         cout << "1790000#4000#3#1#2#yes#no#no#nohfdhjf#no#0#no#unfurnished\n" << endl;
-                        string input = "1790000#4000#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
+                        string input = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
                         if (input.back() != '\n')
                             input.push_back('\n');
 
@@ -939,10 +939,12 @@ int main() {
                     cout << "3) Mostrar estado\n";
                     cout << "4) Flush all\n";
                     cout << "5) Mostrar stats\n";
-                    cout << "6) Volver al menu principal\n";
+                    cout << "6) Cambios en pagina\n";
+                    cout << "7) Ver contenido pagina\n";
+                    cout << "8) Volver al menu principal\n";
                     cout << ">> ";
                     int opc; cin >> opc; cin.ignore();
-                    if (opc == 6) break;
+                    if (opc == 8) break;
                     switch (opc) {
                     case 1: {
                         int pid; char op; bool pin;
@@ -963,6 +965,82 @@ int main() {
                     case 3: pBufPool->printBuffer(); break;
                     case 4: pBufPool->flushAll(); break;
                     case 5: pBufPool->printStats(); break;
+                    case 6: {
+                        int pid;
+                        cout << "ID de página para cambios: ";
+                        cin >> pid;
+                        // Cargamos en modo escritura (¿dirty?) y la mantenemos pineada
+                        Page* base = pBufPool->pinPage(pid, 'W', true);
+                        if (!base) {
+                            cout << "Página " << pid << " no está en buffer.\n";
+                            break;
+                        }
+
+                        std::cout << "[DEBUG] base apunta a un objeto de tipo "
+                            << typeid(*base).name() << "\n";
+                        auto page = dynamic_cast<PageWithRecords*>(base);
+                        if (!page) {
+                            cout << "ERRDOR: Esta página no soporta ops de registro.\n";
+                            pBufPool->unpinPage(pid);
+                            break;
+                        }
+
+                        // Mini-menú de operaciones
+                        cout << "\n--- OPERACIONES EN PÁGINA " << pid << " ---\n";
+                        cout << "1) Insertar\n";
+                        cout << "2) Eliminar\n";
+                        cout << "3) Modificar\n";
+                        cout << ">> ";
+                        int op; cin >> op; cin.ignore();
+
+                        if (op == 1) {
+                            cout << "Registro (# separados, termina '\\n'): ";
+                            string reg = "1790000#4123#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
+                            if (page->insertFixed("housing", reg))
+                                cout << "Insertado OK en memoria.\n";
+                            else
+                                cout << "Fallo al insertar.\n";
+                        }
+                        else if (op == 2) {
+                            cout << "Posición global a eliminar: ";
+                            int pos; cin >> pos;
+                            if (page->deleteFixed("housing", pos))
+                                cout << "Eliminado OK en memoria.\n";
+                            else
+                                cout << "Fallo al eliminar.\n";
+                        }
+                        else if (op == 3) {
+                            cout << "Posición global a modificar: ";
+                            int pos; cin >> pos; cin.ignore();
+                            cout << "Nuevo registro (# separados, termina '\\n'): ";
+                            string reg = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished";
+                            if (page->modifyFixed("housing", pos, reg))
+                                cout << "Modificado OK en memoria.\n";
+                            else
+                                cout << "Fallo al modificar.\n";
+                        }
+                        else {
+                            cout << "Opción inválida\n";
+                        }
+
+                        // Despineamos; si quieres flush inmediato, úsalo tú mismo:
+                        pBufPool->unpinPage(pid);
+                        break;
+                    }
+
+                    case 7: {
+                        int pid; std::cout << "ID de la pagina: "; std::cin >> pid;
+                        Page* p = pBufPool->pinPage(pid, 'L', false);
+                        if (p) {
+                            auto pr = static_cast<PageWithRecords*>(p);
+                            pr->viewContent();
+                            pBufPool->unpinPage(pid);
+                        }
+                        else {
+                            std::cout << "ERROR: falla al cargar pagina " << pid << std::endl;
+                        }
+                        break;
+                    }
                     default: cout << "Inválida\n";
                     }
                 }

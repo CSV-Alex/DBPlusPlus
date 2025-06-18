@@ -186,9 +186,10 @@ public:
 
     void createBufferDir() {
         const std::string bufferDir = "BUFFERPOOL";
-        if (bufferDir.empty()) {
-            make_dir(bufferDir.c_str());
-        }
+        make_dir(bufferDir.c_str());
+
+        const std::string bloqueDir = "BUFFERPOOL\\BLOQUES";
+        make_dir(bloqueDir.c_str());
     }
 
     const char* getBloquePath(int bloqueId) const { 

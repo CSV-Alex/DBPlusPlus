@@ -477,11 +477,11 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
         printf("DEBUG: obtenerLongitudesPorCampo falló para '%s'\n", relacion);
         return false;
     }
-    printf("DEBUG: Longitudes por campo para '%s': ", relacion);
+    //printf("DEBUG: Longitudes por campo para '%s': ", relacion);
     for (int i = 0; i < numFields; ++i) {
-        printf("%d ", maxLen[i]);
+        //printf("%d ", maxLen[i]);
     }
-    printf("\n");
+    //printf("\n");
 
     char copy[MAX_BUF];
     strncpy(copy, registroTxt, MAX_BUF - 1);
@@ -511,12 +511,12 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
         }
 
         // Debug: mostramos cómo queda el campo antes del '#'
-        printf("DEBUG: Campo %d (fijo): '", i);
+        //printf("DEBUG: Campo %d (fijo): '", i);
         for (int k = 0; k < fieldLen; ++k) {
             if (k < toCopy) putchar(tok[k]);
             else putchar('@');
         }
-        printf("'\n");
+        //printf("'\n");
 
         ofs += fieldLen;
 
@@ -525,7 +525,7 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
         ofs += 1;
 
         // Debug: mostramos el '#' insertado
-        printf("DEBUG: Añadido separador '#'\n");
+        //printf("DEBUG: Añadido separador '#'\n");
 
         // Continuamos al siguiente token
         tok = strtok(NULL, "#");
@@ -534,7 +534,7 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
     *outLen = ofs;
 
     // Mostrar el registro fijo completo (con '#' tras cada campo)
-    printf("DEBUG: Registro fijo generado (longitud %d): [", *outLen);
+    //printf("DEBUG: Registro fijo generado (longitud %d): [", *outLen);
     for (int i = 0; i < *outLen; ++i) {
         putchar(outBuffer[i]);
     }
@@ -543,9 +543,13 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
     return true;
 }
 
-static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco disco) {
+static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco disco, bool esPagina = false) {
     printf("DEBUG: Entrando a eliminarRegistro para relación='%s', posiciónGlobal=%d\n",
         relacion, posicionGlobal);
+
+    const char* rutaBase = esPagina
+        ? "BUFFERPOOL\\BLOQUES"
+        : discoNuevoPath;
 
     // 1) Determinar en qué bloque está la posiciónGlobal.
     int bloqueN = 0;
@@ -553,6 +557,10 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
     int numMaxAnt = 0;
     size_t raw_header_len = 0;
     char rutaBloque[MAX_PATH_LEN];
+
+    const char* rutaBaseBloque = esPagina
+        ? "BUFFERPOOL\\BLOQUES\\"
+        : rutaBloque;
 
     while (true) {
         bloqueN++;
@@ -776,10 +784,12 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
                 // extraer sectorCod
                 char sectorCod[MAX_STR_LEN] = { 0 };
                 int j = 0;
+
                 while (*p && *p != '#') {
                     if (j < MAX_STR_LEN - 1) sectorCod[j++] = *p;
                     ++p;
                 }
+
                 sectorCod[j] = '\0';
                 if (!*p) break;
                 ++p; // p apunta a '_'
@@ -813,7 +823,10 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
 
     // 2.9) Después de eliminar, volcar BloqueN a sectores para que el cambio se refleje
     printf("DEBUG: Llamando a volcarBloqueASectores tras eliminación en Bloque %d\n", bloqueN);
-    disco.volcarBloqueASectores(bloqueN);
+    
+    if (!esPagina) {
+        disco.volcarBloqueASectores(bloqueN);
+    }
 
     fclose(fbloc);
 
@@ -962,7 +975,7 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
     return true;
 }
 
-static bool modificarRegistro(const char* relacion, int posicion, const char* nuevoRegistroTxt, Disco disco) {
+static bool modificarRegistro(const char* relacion, int posicion, const char* nuevoRegistroTxt, Disco disco, bool esPagina = false) {
     printf("DEBUG: Entrando a modificarRegistro para relación='%s', posición=%d\n", relacion, posicion);
 
     // 1) Determinar en qué bloque y qué índice local corresponde a la posición global.
@@ -1020,7 +1033,7 @@ static bool modificarRegistro(const char* relacion, int posicion, const char* nu
     printf("DEBUG: La posición %d cae en Bloque%d, idxLocal=%d\n", posicion, bloqueN, idxLocal);
 
     // 2) Eliminar el registro antiguo en esa posición global
-    if (!eliminarRegistro(relacion, posicion, disco)) {
+    if (!eliminarRegistro(relacion, posicion, disco, false)) {
         printf("ERROR: eliminarRegistro falló para posición %d\n", posicion);
         return false;
     }
@@ -1124,7 +1137,9 @@ static bool modificarRegistro(const char* relacion, int posicion, const char* nu
 
     // 5) Volcar BloqueN a sectores para que el cambio se refleje en disco físico
     printf("DEBUG: Llamando a volcarBloqueASectores (modificar) para Bloque%d\n", bloqueN);
-    disco.volcarBloqueASectores(bloqueN);
+    if (!esPagina) {
+        disco.volcarBloqueASectores(bloqueN);
+    }
 
     // 6) No es necesario ajustar dirBloques.txt de nuevo, porque eliminarRegistro ya sumó al espacio libre
     //    y aquí volvimos a ocupar exactamente ese hueco, de modo que el espacio libre total queda igual.
@@ -1139,7 +1154,13 @@ static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* regi
 //////////////////// insertar de forma fija
 
 /// #P1#Works#BeforeTheCorruption
-static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion, Disco& disco) {
+static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion, Disco& disco, bool esPagina = false) {
+    
+    const char* root = esPagina
+        ? "BUFFERPOOL\\"
+        : discoNuevoPath;
+
+    
     // --- 0) Preparar datos y calcular longitud fija de bloque ---
     int registroSize;
     static char regBuf[MAX_BUF]; // Buffer para el RLF
@@ -1477,7 +1498,9 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
         // 11) Volcar a sectores
         //printf("DEBUG: Llamando a volcarBloqueASectores para nuevo bloque #%d\n", nroBloque);
-        disco.volcarBloqueASectores(nroBloque);
+        if (!esPagina) {
+            disco.volcarBloqueASectores(nroBloque);
+        }
 
         // 12) Actualizar catalogo.txt
         char rutaCatalogo2[MAX_PATH_LEN];
@@ -1604,7 +1627,10 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             fclose(fbloc);
             // 12) Volcar bloque reasignado a sectores
             printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (reuso)\n", nroBloque);
-            disco.volcarBloqueASectores(nroBloque);
+
+            if (!esPagina) {
+                disco.volcarBloqueASectores(nroBloque);
+            }
 
             printf("DEBUG: adicionarRegistroUnico (reuso) finalizado para Bloque #%d\n", nroBloque);
             return true;
@@ -1661,7 +1687,9 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         fclose(fbloc);
         // 14) Volcar bloque anexado a sectores
         printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (anexar)\n", nroBloque);
-        disco.volcarBloqueASectores(nroBloque);
+        if (!esPagina) {
+            disco.volcarBloqueASectores(nroBloque);
+        }
 
         printf("DEBUG: adicionarRegistroUnico (anexar) finalizado para Bloque #%d\n", nroBloque);
         return true;

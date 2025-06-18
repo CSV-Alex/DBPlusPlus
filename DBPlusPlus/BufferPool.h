@@ -12,6 +12,8 @@
 #include "Disco.h"
 #include "DiscoPaths.h"
 
+class PageWithRecords;
+
 struct Cambios {
     enum class Tipo { Insertar, Eliminar } tipo;  // que operacion
     int registroId;                                // clave del registro
@@ -58,13 +60,13 @@ public:
     Page(int id, Disco& disk, bool pinned = false)
         : _id(id),
         _disk(disk),
-        _path("BUFFERPOOL/Page" + std::to_string(id) + ".txt"),
+        _path("BUFFERPOOL\\BLOQUES\\Page" + std::to_string(id) + ".txt"),
         _pinned(pinned)
     {
         loadFromDisk(disk);
         _pinCount = 1;
     }
-    ~Page() = default;
+    virtual ~Page() = default;
 
     int   getId() const { return _id; }
     bool  isDirty() const { return _dirty; }
@@ -84,21 +86,16 @@ public:
             updateDirty();
         }
     }
-    void addChanges(int pageId, std::string bufferPoolPath, Disco disk) {
-        std::ifstream in(bufferPoolPath, std::ios::binary);
-        std::ofstream out(disk.getBloquePath(pageId), std::ios::binary);
-        out << in.rdbuf();
-        disk.volcarBloqueASectores(pageId);
-    }
 
     void forceUnpin(bool saveChanges = true) {
         _pinCount = 0;
         if (saveChanges && _dirty) {
-            addChanges(_id, bufferPoolPath, _disk);
+            flush(_disk);
         }
         _ops.clear();
         _dirty = false;
     }
+
     void flush(Disco& disk) {
         std::ifstream in(_path, std::ios::binary);
         std::ofstream out(disk.getBloquePath(_id), std::ios::binary);
@@ -119,10 +116,19 @@ protected:
     std::string _relation;
 
     void loadFromDisk(Disco& disk) {
-        std::ifstream in(disk.getBloquePath(_id), std::ios::binary);
+        // Construyo la ruta absoluta al bloque en DISCO\BLOQUES
+        char src[MAX_PATH_LEN];
+        snprintf(src, sizeof(src), "DISCO\\BLOQUES\\Bloque%d.txt", _id);
+
+        std::ifstream in(src, std::ios::binary);
+        if (!in) {
+            std::cerr << "ERROR: No se pudo abrir " << src << std::endl;
+            return;
+        }
         std::ofstream out(_path, std::ios::binary);
         out << in.rdbuf();
     }
+
     void updateDirty() {
         _dirty = false;
         for (auto& op : _ops) if (op.second) { _dirty = true; break; }
@@ -133,6 +139,95 @@ struct Frame {
     std::unique_ptr<Page> page;
     int                    id;
     Frame(int id_) : id(id_) {}
+};
+
+
+/**
+ * Clase Page extendida para soportar operaciones de registro fijo:
+ * Objetivo: representar una página en memoria con capacidad de insertar,
+ *           eliminar y modificar registros de longitud fija.
+ * Input: identificador de página y referencia al disco.
+ * Output: ninguna, modifica el contenido en memoria y marca la página dirty.
+ * Autor: Nombre del alumno
+ */
+class PageWithRecords : public Page {
+public:
+    using Page::Page;
+
+
+    bool esPagina = true;
+    /**
+     * Inserta un registro de longitud fija en la página.
+     * @param relacion Nombre de la relación (e.g., "housing").
+     * @param registroTxt Cadena con los campos separados por '#', termina con '\n'.
+     * @return true si tuvo éxito, false en caso contrario.
+     */
+    bool insertFixed(const std::string& relacion, const std::string& registroTxt) {
+        // Operamos sobre el archivo temporal BUFFERPOOL/Page{id}.txt
+        // Llamamos a la función global adicionarRegistroUnico, pero redirigimos el file
+        bool ok = adicionarRegistroUnico(
+            registroTxt.c_str(),
+            relacion.c_str(),
+            _disk, // Se copia NEW bloque físico luego de flush
+            true
+        );
+        if (ok) {
+            _dirty = true;
+        }
+        return ok;
+    }
+
+    /**
+     * Elimina un registro de longitud fija en la posición global dada.
+     * @param relacion Nombre de la relación.
+     * @param posicion Posición global del registro a eliminar.
+     * @return true si se eliminó, false si no.
+     */
+    bool deleteFixed(const std::string& relacion, int posicion) {
+        bool ok = eliminarRegistro(
+            relacion.c_str(),
+            posicion,
+            _disk,
+            true
+        );
+        if (ok) {
+            _dirty = true;
+        }
+        return ok;
+    }
+
+    /**
+     * Modifica un registro de longitud fija en la posición dada.
+     * @param relacion Nombre de la relación.
+     * @param posicion Posición global.
+     * @param nuevoRegistroTxt Cadena de nuevos campos separados por '#'.
+     * @return true si se modificó correctamente.
+     */
+    bool modifyFixed(const std::string& relacion, int posicion, const std::string& nuevoRegistroTxt) {
+        bool ok = modificarRegistro(
+            relacion.c_str(),
+            posicion,
+            nuevoRegistroTxt.c_str(),
+            _disk,
+            true
+        );
+        if (ok) {
+            _dirty = true;
+        }
+        return ok;
+    }
+
+    void viewContent() const {
+        std::ifstream in(_path, std::ios::binary);
+        if (!in.is_open()) {
+            std::cout << "ERRdsadasOR: No se puede abrir " << _path << std::endl;
+            return;
+        }
+        std::cout << "--- Contenido de Page" << _id << " ---" << std::endl;
+        char c;
+        while (in.get(c)) std::cout << c;
+        std::cout << std::endl;
+    }
 };
 
 class BufferPool {
@@ -210,19 +305,37 @@ private:
         int victim = _lru.victim();
         if (victim < 0) return false;
         int fidx = _pageTable[victim];
-        auto& P = _frames[fidx].page;
+        auto* P = _frames[fidx].page.get();
+
         if (P->getPinCount() > 0) return false;
-        if (P->isDirty()) P->flush(_disk);
+
+        // *** NUEVO: preguntar al usuario antes de flush ***
+        if (P->isDirty()) {
+            cout << "La página " << victim
+                << " está dirty. ¿Guardar cambios antes de desalojar? (s/n): ";
+            char resp; cin >> resp;
+            if (resp == 's' || resp == 'S') {
+                P->flush(_disk);
+                cout << "Cambios guardados.\n";
+            }
+            else {
+                cout << "Descartando cambios de página " << victim << ".\n";
+            }
+        }
+
+        // Borramos la página del buffer
         _pageTable.erase(victim);
-        P.reset();
+        P = nullptr;               // libera el frame
         _lru.deletePage(victim);
         return true;
     }
+
     Page* loadNewPage(int pageId, char op, bool pinned) {
         _missCount++;
         for (auto& f : _frames) {
             if (!f.page) {
-                f.page.reset(new Page(pageId, _disk, pinned));
+                std::cout << "[DEBUG] creando PageWithRecords para id=" << pageId << "\n";
+                f.page.reset(new PageWithRecords(pageId, _disk, pinned));
                 f.page->pin(op, pinned);
                 _pageTable[pageId] = f.id;
                 _lru.newPage(pageId);
@@ -243,75 +356,3 @@ private:
 
     size_t                          _hitCount{ 0 }, _missCount{ 0 }, _reqCount{ 0 };
 };
-
-/**
- * Clase Page extendida para soportar operaciones de registro fijo:
- * Objetivo: representar una página en memoria con capacidad de insertar,
- *           eliminar y modificar registros de longitud fija.
- * Input: identificador de página y referencia al disco.
- * Output: ninguna, modifica el contenido en memoria y marca la página dirty.
- * Autor: Nombre del alumno
- */
-class PageWithRecords : public Page {
-public:
-    using Page::Page;
-
-    /**
-     * Inserta un registro de longitud fija en la página.
-     * @param relacion Nombre de la relación (e.g., "housing").
-     * @param registroTxt Cadena con los campos separados por '#', termina con '\n'.
-     * @return true si tuvo éxito, false en caso contrario.
-     */
-    bool insertFixed(const std::string& relacion, const std::string& registroTxt) {
-        // Operamos sobre el archivo temporal BUFFERPOOL/Page{id}.txt
-        // Llamamos a la función global adicionarRegistroUnico, pero redirigimos el file
-        bool ok = adicionarRegistroUnico(
-            registroTxt.c_str(),
-            relacion.c_str(),
-            _disk // Se copia NEW bloque físico luego de flush
-        );
-        if (ok) {
-            _dirty = true;
-        }
-        return ok;
-    }
-
-    /**
-     * Elimina un registro de longitud fija en la posición global dada.
-     * @param relacion Nombre de la relación.
-     * @param posicion Posición global del registro a eliminar.
-     * @return true si se eliminó, false si no.
-     */
-    bool deleteFixed(const std::string& relacion, int posicion) {
-        bool ok = eliminarRegistro(
-            relacion.c_str(),
-            posicion,
-            _disk
-        );
-        if (ok) {
-            _dirty = true;
-        }
-        return ok;
-    }
-
-    /**
-     * Modifica un registro de longitud fija en la posición dada.
-     * @param relacion Nombre de la relación.
-     * @param posicion Posición global.
-     * @param nuevoRegistroTxt Cadena de nuevos campos separados por '#'.
-     * @return true si se modificó correctamente.
-     */
-    bool modifyFixed(const std::string& relacion, int posicion, const std::string& nuevoRegistroTxt) {
-        bool ok = modificarRegistro(
-            relacion.c_str(),
-            posicion,
-            nuevoRegistroTxt.c_str(),
-            _disk
-        );
-        if (ok) {
-            _dirty = true;
-        }
-        return ok;
-    }
-};
-
