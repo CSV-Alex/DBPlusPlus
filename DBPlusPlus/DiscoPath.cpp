@@ -7,3 +7,4 @@ const char* rutaDirBloques = "DISCO/dirBloques.txt";
 const char* discoNuevoPath = "DISCO/";
 const char* rutaBloques = "DISCO\\BLOQUES\\";
 const char* rutaBloque = "DISCO\\BLOQUES\\";
+const char* bufferPoolPath = "BUFFERPOOL\\";

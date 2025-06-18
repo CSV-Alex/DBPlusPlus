@@ -12,7 +12,15 @@
 #include "Disco.h"
 #include "DiscoPaths.h"
 
-struct Cambios;
+struct Cambios {
+    enum class Tipo { Insertar, Eliminar } tipo;  // que operacion
+    int registroId;                                // clave del registro
+    int paginaId;                                  // id de la pagina afectada
+
+    Cambios(Tipo t, int reg, int pag)
+        : tipo(t), registroId(reg), paginaId(pag) {
+    }
+};
 
 class LRUReplacer {
 public:
@@ -49,6 +57,7 @@ class Page {
 public:
     Page(int id, Disco& disk, bool pinned = false)
         : _id(id),
+        _disk(disk),
         _path("BUFFERPOOL/Page" + std::to_string(id) + ".txt"),
         _pinned(pinned)
     {
@@ -75,10 +84,17 @@ public:
             updateDirty();
         }
     }
+    void addChanges(int pageId, std::string bufferPoolPath, Disco disk) {
+        std::ifstream in(bufferPoolPath, std::ios::binary);
+        std::ofstream out(disk.getBloquePath(pageId), std::ios::binary);
+        out << in.rdbuf();
+        disk.volcarBloqueASectores(pageId);
+    }
+
     void forceUnpin(bool saveChanges = true) {
         _pinCount = 0;
         if (saveChanges && _dirty) {
-            // disk.addChanges
+            addChanges(_id, bufferPoolPath, _disk);
         }
         _ops.clear();
         _dirty = false;
@@ -91,8 +107,9 @@ public:
         _dirty = false;
     }
 
-private:
+protected:
     int    _id;
+    Disco& _disk;
     std::string _path;
     bool   _dirty{ false };
     int    _pinCount{ 0 };
@@ -133,6 +150,7 @@ public:
     }
 
     Page* pinPage(int pageId, char op, bool pinned = false) {
+        cout << "[DEBUG] Mensaje antes del bucle infinito" << endl;
         _reqCount++;
         auto it = _pageTable.find(pageId);
         if (it != _pageTable.end()) {
@@ -182,7 +200,7 @@ public:
                     << "\n";
             }
             else {
-                std::cout << "Frame " << f.id << " [vacío]\n";
+                std::cout << "Frame " << f.id << " [vacio]\n";
             }
         }
     }
@@ -221,7 +239,79 @@ private:
     std::vector<Frame>              _frames;
     std::unordered_map<int, int>     _pageTable;  // pageId → frameIdx
 
-    LRUReplacer                     _lru;        // único reemplazador
+    LRUReplacer                     _lru;        // unico reemplazador
 
     size_t                          _hitCount{ 0 }, _missCount{ 0 }, _reqCount{ 0 };
 };
+
+/**
+ * Clase Page extendida para soportar operaciones de registro fijo:
+ * Objetivo: representar una página en memoria con capacidad de insertar,
+ *           eliminar y modificar registros de longitud fija.
+ * Input: identificador de página y referencia al disco.
+ * Output: ninguna, modifica el contenido en memoria y marca la página dirty.
+ * Autor: Nombre del alumno
+ */
+class PageWithRecords : public Page {
+public:
+    using Page::Page;
+
+    /**
+     * Inserta un registro de longitud fija en la página.
+     * @param relacion Nombre de la relación (e.g., "housing").
+     * @param registroTxt Cadena con los campos separados por '#', termina con '\n'.
+     * @return true si tuvo éxito, false en caso contrario.
+     */
+    bool insertFixed(const std::string& relacion, const std::string& registroTxt) {
+        // Operamos sobre el archivo temporal BUFFERPOOL/Page{id}.txt
+        // Llamamos a la función global adicionarRegistroUnico, pero redirigimos el file
+        bool ok = adicionarRegistroUnico(
+            registroTxt.c_str(),
+            relacion.c_str(),
+            _disk // Se copia NEW bloque físico luego de flush
+        );
+        if (ok) {
+            _dirty = true;
+        }
+        return ok;
+    }
+
+    /**
+     * Elimina un registro de longitud fija en la posición global dada.
+     * @param relacion Nombre de la relación.
+     * @param posicion Posición global del registro a eliminar.
+     * @return true si se eliminó, false si no.
+     */
+    bool deleteFixed(const std::string& relacion, int posicion) {
+        bool ok = eliminarRegistro(
+            relacion.c_str(),
+            posicion,
+            _disk
+        );
+        if (ok) {
+            _dirty = true;
+        }
+        return ok;
+    }
+
+    /**
+     * Modifica un registro de longitud fija en la posición dada.
+     * @param relacion Nombre de la relación.
+     * @param posicion Posición global.
+     * @param nuevoRegistroTxt Cadena de nuevos campos separados por '#'.
+     * @return true si se modificó correctamente.
+     */
+    bool modifyFixed(const std::string& relacion, int posicion, const std::string& nuevoRegistroTxt) {
+        bool ok = modificarRegistro(
+            relacion.c_str(),
+            posicion,
+            nuevoRegistroTxt.c_str(),
+            _disk
+        );
+        if (ok) {
+            _dirty = true;
+        }
+        return ok;
+    }
+};
+

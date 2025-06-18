@@ -1146,8 +1146,8 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     static int regLen;           // Longitud de regBuf
 
     // 0.1) Debug entrada
-    printf("DEBUG: Entrando a adicionarRegistroUnico para relacion='%s', registroTxt='%s'\n",
-        relacion, registroTxt);
+    //printf("DEBUG: Entrando a adicionarRegistroUnico para relacion='%s', registroTxt='%s'\n",
+    //    relacion, registroTxt);
 
     // 0.2) Copia segura de registroTxt sin CR/LF
     char registroSinLF[MAX_BUF];
@@ -1160,10 +1160,10 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     // 0.3) Generar RLF (registro de longitud fija)
     if (!crearRLF(registroSinLF, relacion, regBuf, &regLen)) {
-        printf("DEBUG: Error en crearRLF. Saliendo.\n");
+        //printf("DEBUG: Error en crearRLF. Saliendo.\n");
         return false;
     }
-    printf("DEBUG: crearRLF terminó correctamente. regLen = %d\n", regLen);
+    //printf("DEBUG: crearRLF terminó correctamente. regLen = %d\n", regLen);
     // Verificar que no haya saltos de línea en regBuf[0..regLen-1]
     for (int i = 0; i < regLen; ++i) {
         if (regBuf[i] == '\n' || regBuf[i] == '\r') {
@@ -1172,7 +1172,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     }
 
     // 0.4) Mostrar contenido de longitudFija.txt (solo debug)
-    printf(">>> Debug: Leyendo %s para ver su contenido:\n", rutaLongitudFija);
+    //printf(">>> Debug: Leyendo %s para ver su contenido:\n", rutaLongitudFija);
     FILE* ftmp = fopen(rutaLongitudFija, "r");
     if (ftmp) {
         char buf[MAX_BUF];
@@ -1187,7 +1187,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     // 0.5) Obtener registroSize
     obtenerRegistroSize(relacion, &registroSize);
-    printf("DEBUG: registroSize calculado = %d\n", registroSize);
+    //printf("DEBUG: registroSize calculado = %d\n", registroSize);
     if (registroSize <= 0) {
         fprintf(stderr, "ERROR: No se encontró longitud fija para %s\n", relacion);
         return false;
@@ -1199,16 +1199,16 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         printf("ERROR: No se pudo obtener longitud fija máxima de bloque.\n");
         return false;
     }
-    printf("DEBUG: fixedLen (longitud de cada bloque) = %d bytes\n", fixedLen);
+    //printf("DEBUG: fixedLen (longitud de cada bloque) = %d bytes\n", fixedLen);
 
     // 1) Abrir dirBloques.txt en modo lectura y escritura
-    printf("DEBUG: intentando abrir dirBloques en '%s'\n", rutaDirBloques);
+    //printf("DEBUG: intentando abrir dirBloques en '%s'\n", rutaDirBloques);
     FILE* fdir = fopen(rutaDirBloques, "r+");
     if (!fdir) {
         perror("ERROR: No se puede abrir dirBloques.txt");
         return false;
     }
-    printf("DEBUG: dirBloques.txt abierto con éxito.\n");
+    //printf("DEBUG: dirBloques.txt abierto con éxito.\n");
 
     char lineaBloque[MAX_BUF];
     int nroBloque = 0;
@@ -1224,13 +1224,13 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     char savedSectores[MAX_BUF] = { 0 }; // Para guardar sectores del bloque elegido
 
     // 2) Buscar bloque y sector libres (cada bloque ocupa fixedLen bytes total)
-    printf("DEBUG: Buscando bloque libre para tamaño de registro = %d\n", tamRegistro);
+    //printf("DEBUG: Buscando bloque libre para tamaño de registro = %d\n", tamRegistro);
     while (true) {
         posLineaBloque = ftell(fdir);
 
         int lenBloque = disco.leerBloqueConSeparador(fdir, lineaBloque, MAX_BUF);
         if (lenBloque <= 0) {
-            printf("DEBUG: leerBloqueConSeparador devolvió %d (fin de bloques)\n", lenBloque);
+            //printf("DEBUG: leerBloqueConSeparador devolvió %d (fin de bloques)\n", lenBloque);
             break;
         }
 
@@ -1240,7 +1240,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         }
 
         nroBloque++;
-        printf("DEBUG: Leyendo Bloque #%d (lenBloque = %d bytes)\n", nroBloque, lenBloque);
+        //printf("DEBUG: Leyendo Bloque #%d (lenBloque = %d bytes)\n", nroBloque, lenBloque);
 
         // 2.1) Extraer espacioLibreBloque sin strtok:
         char tempEspacio[MAX_BUF];
@@ -1249,18 +1249,18 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
         char* posHash = strchr(tempEspacio, '#');
         if (!posHash) {
-            printf("DEBUG: Bloque #%d sin token inicial. Continúa.\n", nroBloque);
+            //printf("DEBUG: Bloque #%d sin token inicial. Continúa.\n", nroBloque);
             continue;
         }
         *posHash = '\0';
         espacioLibreBloque = safe_atoi(tempEspacio);
         *posHash = '#';
-        printf("DEBUG: Bloque #%d espacioLibreBloque = %d\n", nroBloque, espacioLibreBloque);
+        //printf("DEBUG: Bloque #%d espacioLibreBloque = %d\n", nroBloque, espacioLibreBloque);
 
         tamUtilAntes = getTamBloqueFromDisco(disco) - espacioLibreBloque;
         if (espacioLibreBloque < tamRegistro) {
-            printf("DEBUG: Bloque #%d NO cabe (espacio %d < %d). Pasa al siguiente.\n",
-                nroBloque, espacioLibreBloque, tamRegistro);
+            //printf("DEBUG: Bloque #%d NO cabe (espacio %d < %d). Pasa al siguiente.\n",
+            //    nroBloque, espacioLibreBloque, tamRegistro);
             continue;
         }
 
@@ -1271,7 +1271,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
         char* p = strstr(copiaSectores, "#_");
         if (!p) {
-            printf("DEBUG: Bloque #%d no tiene '#_' (no hay lista de sectores). Continúa.\n", nroBloque);
+            //printf("DEBUG: Bloque #%d no tiene '#_' (no hay lista de sectores). Continúa.\n", nroBloque);
             continue;
         }
         p += 2;
@@ -1295,13 +1295,13 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             sectorCode[MAX_STR_LEN - 1] = '\0';
             *p = '#';
 
-            printf("DEBUG: Bloque #%d chequeando sector '%s' con espacio %d\n",
-                nroBloque, sectorCode, espacioLibreSector);
+            //printf("DEBUG: Bloque #%d chequeando sector '%s' con espacio %d\n",
+            //    nroBloque, sectorCode, espacioLibreSector);
 
             char* nextPair = strstr(p, "#_");
             if (espacioLibreSector < tamRegistro) {
-                printf("DEBUG: Sector '%s' no cabe (espacio %d < %d). Siguiente.\n",
-                    sectorCode, espacioLibreSector, tamRegistro);
+                //printf("DEBUG: Sector '%s' no cabe (espacio %d < %d). Siguiente.\n",
+                //    sectorCode, espacioLibreSector, tamRegistro);
                 if (!nextPair) break;
                 p = nextPair + 2;
                 continue;
@@ -1314,15 +1314,15 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             strncpy(savedSectores, copiaSectores, MAX_BUF - 1);
             savedSectores[MAX_BUF - 1] = '\0';
             foundBlock = true;
-            printf("DEBUG: Seleccionado Bloque #%d, Sector '%s'. espacioLibreSectorAntes = %d\n",
-                nroBloque, codSectorLibre, espacioLibreSectorAntes);
+            //printf("DEBUG: Seleccionado Bloque #%d, Sector '%s'. espacioLibreSectorAntes = %d\n",
+            //    nroBloque, codSectorLibre, espacioLibreSectorAntes);
             break;
         }
         if (foundBlock) break;
     }
 
     if (!foundBlock) {
-        printf("DEBUG: No se encontró ningún bloque con espacio suficiente.\n");
+        //printf("DEBUG: No se encontró ningún bloque con espacio suficiente.\n");
         fclose(fdir);
         return false;
     }
@@ -1331,16 +1331,16 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     int espacioLibreBloqueAntes = espacioLibreBloque;
     int tamUtilNuevo = tamUtilAntes + tamRegistro;
     int espacioBloqueNuevo = getTamBloqueFromDisco(disco) - tamUtilNuevo;
-    printf("DEBUG: Bloque #%d espacioLibreBloqueAntes = %d  => espacioBloqueNuevo = %d\n",
-        nroBloque, espacioLibreBloqueAntes, espacioBloqueNuevo);
+    //printf("DEBUG: Bloque #%d espacioLibreBloqueAntes = %d  => espacioBloqueNuevo = %d\n",
+    //    nroBloque, espacioLibreBloqueAntes, espacioBloqueNuevo);
     if (espacioBloqueNuevo < 0 || espacioBloqueNuevo > getTamBloqueFromDisco(disco)) {
         printf("ERROR: valores fuera de rango en Bloque #%d: espacioBloqueNuevo = %d\n",
             nroBloque, espacioBloqueNuevo);
     }
 
     // 3) Volver al inicio exacto del bloque en dirBloques.txt (posición en bytes)
-    printf("DEBUG: Volviendo a byte offset %ld para sobreescribir bloque #%d\n",
-        posLineaBloque, nroBloque);
+    //printf("DEBUG: Volviendo a byte offset %ld para sobreescribir bloque #%d\n",
+    //    posLineaBloque, nroBloque);
     fseek(fdir, posLineaBloque, SEEK_SET);
 
     // 4) Reconstruir el bloque completo de exactly fixedLen bytes
@@ -1356,7 +1356,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         espacioBloqueNuevo,
         nroBloque,
         getTamBloqueFromDisco(disco));
-    printf("DEBUG: bufferNueva hasta prefijo = '%.*s'\n", ofsN, bufferNueva);
+    //printf("DEBUG: bufferNueva hasta prefijo = '%.*s'\n", ofsN, bufferNueva);
 
     // 4.3) Copiar cada par "<esp>#<cod>#_", ajustando el sector elegido
     {
@@ -1381,7 +1381,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
                 }
                 int n = snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
                     "%d#%s#_", nuevoEsp, sectorCode2);
-                printf("DEBUG: Añadiendo \"%d#%s#_\" => n = %d\n", nuevoEsp, sectorCode2, n);
+                //printf("DEBUG: Añadiendo \"%d#%s#_\" => n = %d\n", nuevoEsp, sectorCode2, n);
                 ofsN += n;
 
                 char* next2 = strstr(p2, "#_");
@@ -1403,16 +1403,16 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         bufferNueva[fixedLen - 1] = '|';
     }
 
-    printf("DEBUG: Bloque reconstruido (fixedLen %d bytes):\n", fixedLen);
-    printf("       %.*s\n", fixedLen, bufferNueva);
+    //printf("DEBUG: Bloque reconstruido (fixedLen %d bytes):\n", fixedLen);
+    //printf("       %.*s\n", fixedLen, bufferNueva);
 
     // 4.5) Sobreescribir exactamente fixedLen bytes en dirBloques.txt
     fseek(fdir, posLineaBloque, SEEK_SET);
     size_t escritosDir = fwrite(bufferNueva, 1, fixedLen, fdir);
     fflush(fdir);
     fclose(fdir);
-    printf("DEBUG: Reescritura de bloque #%d en dirBloques.txt: %zu bytes escritos (esperados %d)\n",
-        nroBloque, escritosDir, fixedLen);
+    //printf("DEBUG: Reescritura de bloque #%d en dirBloques.txt: %zu bytes escritos (esperados %d)\n",
+    //    nroBloque, escritosDir, fixedLen);
 
     // -------------------------------------------------------------
     // 5) Ahora crear/abrir BloqueN.txt y aprovechar espacio libre (bitmap)
@@ -1437,8 +1437,8 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         int numMax;
         calcularCabeceraBloque(getTamBloqueFromDisco(disco), registroSize,
             headerBuf, &headerLen, &numMax);
-        printf("DEBUG: calcularCabeceraBloque devolvió: headerLen=%zu, numMax=%d\n", headerLen, numMax);
-        printf("DEBUG: Contenido headerBuf: '%.*s'\n", (int)headerLen, headerBuf);
+        //printf("DEBUG: calcularCabeceraBloque devolvió: headerLen=%zu, numMax=%d\n", headerLen, numMax);
+        //printf("DEBUG: Contenido headerBuf: '%.*s'\n", (int)headerLen, headerBuf);
 
         fbloc = fopen(rutaBloque, "wb");
         if (!fbloc) {
@@ -1451,7 +1451,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             printf("ERROR: se escribieron %zu bytes de header, esperados %zu\n", escritosHeader, headerLen);
         }
         else {
-            printf("DEBUG: Cabecera escrita correctamente en BloqueN.txt (%zu bytes)\n", escritosHeader);
+            //printf("DEBUG: Cabecera escrita correctamente en BloqueN.txt (%zu bytes)\n", escritosHeader);
         }
         // Mover cursor justo antes del '|'
         fseek(fbloc, -1, SEEK_END);
@@ -1471,20 +1471,20 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             printf("ERROR: Se escribieron %zu bytes de registro, esperados %d\n", escritosReg2, regLen);
         }
         else {
-            printf("DEBUG: Registro de %d bytes escrito correctamente (+ '|').\n", regLen);
+            //printf("DEBUG: Registro de %d bytes escrito correctamente (+ '|').\n", regLen);
         }
         fclose(fbloc);
 
         // 11) Volcar a sectores
-        printf("DEBUG: Llamando a volcarBloqueASectores para nuevo bloque #%d\n", nroBloque);
+        //printf("DEBUG: Llamando a volcarBloqueASectores para nuevo bloque #%d\n", nroBloque);
         disco.volcarBloqueASectores(nroBloque);
 
         // 12) Actualizar catalogo.txt
         char rutaCatalogo2[MAX_PATH_LEN];
         snprintf(rutaCatalogo2, sizeof(rutaCatalogo2),
             "%s%s", discoNuevoPath, "catalogo.txt");
-        printf("DEBUG: Abriendo catalogo.txt en modo 'a' para agregar %s|Bloque%d.txt\n",
-            relacion, nroBloque);
+        //printf("DEBUG: Abriendo catalogo.txt en modo 'a' para agregar %s|Bloque%d.txt\n",
+        //    relacion, nroBloque);
         FILE* fcat2 = fopen(rutaCatalogo2, "a");
         if (fcat2) {
             char rutaBloqueCat[MAX_PATH_LEN];
@@ -1492,7 +1492,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
                 "%sBLOQUES\\Bloque%d.txt", discoNuevoPath, nroBloque);
             fprintf(fcat2, "%s|%s\n", relacion, rutaBloqueCat);
             fclose(fcat2);
-            printf("DEBUG: Entrada agregada a catalogo.txt: '%s|%s'\n", relacion, rutaBloqueCat);
+            //printf("DEBUG: Entrada agregada a catalogo.txt: '%s|%s'\n", relacion, rutaBloqueCat);
         }
         else {
             perror("ERROR: No se pudo abrir catalogo.txt para escritura");
@@ -1520,8 +1520,8 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
         size_t leidosCab3 = fread(cabTmp3, 1, raw_header_len, fbloc);
         cabTmp3[leidosCab3] = '\0';
-        printf("DEBUG: Contenido leído de cabecera (%zu bytes): '%.*s'\n",
-            leidosCab3, (int)leidosCab3, cabTmp3);
+        //printf("DEBUG: Contenido leído de cabecera (%zu bytes): '%.*s'\n",
+        //    leidosCab3, (int)leidosCab3, cabTmp3);
 
         // Parsear numRegAnt#numMaxAnt#bitmapAnt/
         char* q1 = strchr(cabTmp3, '#');
@@ -1539,8 +1539,8 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         if (bmpLen3 >= MAX_BUF) bmpLen3 = MAX_BUF - 1;
         strncpy(bitmapAnt, q4, bmpLen3);
         bitmapAnt[bmpLen3] = '\0';
-        printf("DEBUG: (Anexar/Reuso) Lectura cabecera existente: numRegAnt=%d, numMaxAnt=%d, bitmapAnt='%s'\n",
-            numRegAnt, numMaxAnt, bitmapAnt);
+        //printf("DEBUG: (Anexar/Reuso) Lectura cabecera existente: numRegAnt=%d, numMaxAnt=%d, bitmapAnt='%s'\n",
+        //    numRegAnt, numMaxAnt, bitmapAnt);
 
         // 6) Buscar slot libre en bitmapAnt[] para reuso
         int idxLibre = -1;
@@ -1553,11 +1553,11 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
         if (idxLibre >= 0) {
             // Reutilizar hueco: idxLibre
-            printf("DEBUG: Se encontró espacio libre en Bloque%d en índice %d\n", nroBloque, idxLibre);
+            //printf("DEBUG: Se encontró espacio libre en Bloque%d en índice %d\n", nroBloque, idxLibre);
             // 7) Actualizar numRegAnt y bitmapAnt[idxLibre]
             numRegAnt++;
             bitmapAnt[idxLibre] = '1';
-            printf("DEBUG: (Reuso) Nuevo numRegAnt = %d, bitmapAnt = '%s'\n", numRegAnt, bitmapAnt);
+            //printf("DEBUG: (Reuso) Nuevo numRegAnt = %d, bitmapAnt = '%s'\n", numRegAnt, bitmapAnt);
 
             // 8) Reconstruir cabecera EXACTA: poner espacios hasta raw_header_len-1, luego '/'
             rewind(fbloc);
@@ -1575,7 +1575,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             newHeader2[raw_header_len - 1] = '/';
             // No más caracteres
             newHeader2[raw_header_len] = '\0';
-            printf("DEBUG: (Reuso) Reconstruyendo cabecera: '%.*s'\n", (int)raw_header_len, newHeader2);
+            //printf("DEBUG: (Reuso) Reconstruyendo cabecera: '%.*s'\n", (int)raw_header_len, newHeader2);
 
             // 9) Sobrescribir cabecera en BloqueN.txt
             fwrite(newHeader2, 1, raw_header_len, fbloc);
@@ -1583,7 +1583,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
             // 10) Calcular offset para insertar el registro reusado
             long offsetRegistroReuse = (long)raw_header_len + (long)idxLibre * (registroSize + 1);
-            printf("DEBUG: offsetRegistroReuse en Bloque%d = %ld\n", nroBloque, offsetRegistroReuse);
+            //printf("DEBUG: offsetRegistroReuse en Bloque%d = %ld\n", nroBloque, offsetRegistroReuse);
 
             // 11) Reemplazar '@' con regBuf en esa posición
             if (fseek(fbloc, offsetRegistroReuse, SEEK_SET) != 0) {
@@ -1621,8 +1621,8 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         if (numRegAnt <= numMaxAnt) {
             bitmapAnt[numRegAnt - 1] = '1';
         }
-        printf("DEBUG: (Anexar) Nuevo numRegAnt = %d, bitmapAnt = '%s'\n",
-            numRegAnt, bitmapAnt);
+        //printf("DEBUG: (Anexar) Nuevo numRegAnt = %d, bitmapAnt = '%s'\n",
+        //    numRegAnt, bitmapAnt);
 
         // Reconstruir cabecera EXACTA: espacios hasta raw_header_len-1, luego '/'
         rewind(fbloc);
@@ -1637,7 +1637,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         }
         newHeader3[raw_header_len - 1] = '/';
         newHeader3[raw_header_len] = '\0';
-        printf("DEBUG: (Anexar) Reconstruyendo cabecera: '%.*s'\n", (int)raw_header_len, newHeader3);
+        //printf("DEBUG: (Anexar) Reconstruyendo cabecera: '%.*s'\n", (int)raw_header_len, newHeader3);
 
         fwrite(newHeader3, 1, raw_header_len, fbloc);
         fflush(fbloc);

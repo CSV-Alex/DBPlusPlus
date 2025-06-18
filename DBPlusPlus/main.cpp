@@ -1,4 +1,5 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
+#define NOMINMAX
 
 #include "Disco.h"
 #include <windows.h>
@@ -7,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <limits>
 #include <cassert>
 #include "LVariable.h"
 #include "LFija.h"
@@ -642,7 +644,9 @@ void ejecutar_query(const char* selectField,
 
 
 int main() {
-    int platos, pistas, sectores, tamSector, sectoresPorBloque, tamBloque;
+    // Variables para configuración de disco
+    bool discoConfigDone = false;
+    BufferPool* pBufPool = nullptr;
 
     const string basePath = "data\\usr\\db\\";
     const string discoPath = "DISCO\\";
@@ -652,285 +656,328 @@ int main() {
     const string titanicTXT = basePath + "titanic.txt";
     const string housingTXT = basePath + "housing.txt";
 
+    // Valores por defecto
     const int def_platos = 4;
     const int def_pistas = 5;
     const int def_sectores = 10;
     const int def_tamSector = 800;
     const int def_tamBloque = 6400;
+    Disco miDisco(def_platos, def_pistas, def_sectores, def_tamSector, def_tamBloque);
 
-    cout << "=== Configuracion del Disco ===\n";
-    cout << "1) Usar configuracion por defecto\n";
-    cout << "2) Ingresar configuracion personalizada\n";
-    cout << "3) Usar disco ya existente\n";
-    cout << ">> ";
-    string tipo;
-    getline(cin, tipo);
-
-    if (tipo == "2") {
-        cout << "Numero de platos: ";        cin >> platos;
-        cout << "Numero de pistas: ";        cin >> pistas;
-        cout << "Numero de sectores: ";      cin >> sectores;
-        cout << "Tamaño del sector (bytes): "; cin >> tamSector;
-        cout << "Sectores por bloque: ";     cin >> sectoresPorBloque;
-        tamBloque = tamSector * sectoresPorBloque;
-        cin.ignore();
-    }
-    else if (tipo == "1") {
-        platos = def_platos;
-        pistas = def_pistas;
-        sectores = def_sectores;
-        tamSector = def_tamSector;
-        tamBloque = def_tamBloque;
-    }
-    else {
-        // Opcion 3 u otra cualquiera: no reinicia nada
-        platos = def_platos;
-        pistas = def_pistas;
-        sectores = def_sectores;
-        tamSector = def_tamSector;
-        tamBloque = def_tamBloque;
-        cout << "> Continuando con el disco existente...\n\n";
-    }
-
-    Disco miDisco(platos, pistas, sectores, tamSector, tamBloque);
-    miDisco.printDisco();
-    convertCsvToTxt(titanicCSV, titanicTXT);
-    convertCsvToTxt(housingCSV, housingTXT);
-    relationFormatMin(titanicTXT.c_str(), schemaPath.c_str());
-    relationFormatMin(housingTXT.c_str(), schemaPath.c_str());
-    calcularLongitudFija(titanicTXT.c_str());
-    calcularLongitudFija(housingTXT.c_str());
-
-    cout << "\n***** Bienvenido a MEGATRON 3000 *****\n\n";
 
     while (true) {
-        cout << "0) Mostrar Ruta Bloque (Dinamico)\n"; ///
-        cout << "1) Mostrar caracteristicas del disco\n"; ///
-        cout << "2) Adicionar registro\n"; ///
-        cout << "3) Adicionar N registros desde CSV\n"; ///
-        cout << "4) Adicionar todo CSV\n"; ///
-        cout << "5) Eliminar registro\n"; ///
-        cout << "6) Modificar registro\n"; ///
-        cout << "7) Inserción de longitud variabl (Demo)\n"; ///
-        cout << "8) Ejecutar consulta SQL\n"; ///
-        cout << "9) Adicionar/Volcar relacion a Sectores\n"; ///
-        cout << "10) Salir\n"; ///
+        // Menú principal
+        cout << "\n=== MEGATRON 3000 - MENU PRINCIPAL ===\n";
+        cout << "1) Menu Disco" << (discoConfigDone ? " (ya configurado)" : "") << "\n";
+        cout << "2) Menu Buffer" << (discoConfigDone ? "" : " (requiere config de disco)") << "\n";
+        cout << "3) Salir\n";
         cout << ">> ";
+        int choice;
+        if (!(cin >> choice)) break;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
-        string opt;
-        getline(cin, opt);
-        if (opt == "10") break;
+        if (choice == 1) {
+            // Menú Disco
+            if (!discoConfigDone) {
+                cout << "\n--- Configuración del Disco ---\n";
+                cout << "1) Usar configuración por defecto\n";
+                cout << "2) Ingresar configuración personalizada\n";
+                cout << "3) Usar disco ya existente\n";
+                cout << ">> ";
+                int modo;
+                cin >> modo;
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
-        if (opt == "0") {
-            int numeroBloque;
-            int opcion;
-            cout << "Numero de Bloque que desea consultar: ";
-            cin >> numeroBloque;
-            cin.ignore(1, '\n');
+                int platos, pistas, sectores, tamSector, tamBloque;
+                if (modo == 2) {
+                    cout << "Numero de platos: "; cin >> platos;
+                    cout << "Numero de pistas: "; cin >> pistas;
+                    cout << "Numero de sectores: "; cin >> sectores;
+                    cout << "Tamaño del sector (bytes): "; cin >> tamSector;
+                    cout << "Sectores por bloque: "; cin >> tamBloque;
+                    tamBloque = tamSector * tamBloque;
+                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                }
+                else if (modo == 1) {
+                    platos = def_platos;
+                    pistas = def_pistas;
+                    sectores = def_sectores;
+                    tamSector = def_tamSector;
+                    tamBloque = def_tamBloque;
+                }
+                else {
+                    platos = def_platos;
+                    pistas = def_pistas;
+                    sectores = def_sectores;
+                    tamSector = def_tamSector;
+                    tamBloque = def_tamBloque;
+                    cout << "> Continuando con disco existente...\n";
+                }
 
-            // Mostrar PATHs
-            cout << "Ingrese opcion\n";
-            cout << "1) Con Espacios Libres\n";
-            cout << "2) Rutas Solamente\n";
-            cout << ">> ";
-            cin >> opcion;
-            mostrarSectoresDeBloque(numeroBloque, opcion, miDisco);
-            cout << "Mostrado Correctamente\n";
-            cout << "Mensaje Probar Final\n";
-        }
-        else if (opt == "1") {
-            miDisco.printDisco();
-            miDisco.printCapacidadesDetalle();
-            miDisco.mostrarArbolDisco();
-        }
-        // Supongamos tabla="titanic"
-        else if (opt == "2") {
+                miDisco = Disco(platos, pistas, sectores, tamSector, tamBloque);
 
-            cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
-            cout << "1790000#4000#3#1#2#yes#no#no#nohfdhjf#no#0#no#unfurnished\n" << endl;
-            string input = "1790000#4000#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
-            if (input.back() != '\n')
-                input.push_back('\n');
+                miDisco.printDisco();
+                miDisco.mostrarArbolDisco();
+                convertCsvToTxt(titanicCSV, titanicTXT);
+                convertCsvToTxt(housingCSV, housingTXT);
+                relationFormatMin(titanicTXT.c_str(), schemaPath.c_str());
+                relationFormatMin(housingTXT.c_str(), schemaPath.c_str());
+                calcularLongitudFija(titanicTXT.c_str());
+                calcularLongitudFija(housingTXT.c_str());
 
-            cout << "¿Tipo de inserción?\n";
-            cout << "1) Longitud variable\n";
-            cout << "2) Longitud fija (bitmap)\n";
-            cout << ">> ";
-            int opcion;
-            cin >> opcion;
-            cin.ignore(1, '\n');
-
-            bool ok = false;
-            if (opcion == 1)
-                std::cout << "" << std::endl;
-            else if (opcion == 2) {
-                ok = adicionarRegistroUnico(input.c_str(), "housing", miDisco);
+                // Inicializar BufferPool
+                if (pBufPool) delete pBufPool;
+                size_t pageBytes = miDisco.getTamBloque();
+                size_t bufferBytes = 3 * pageBytes;
+                pBufPool = new BufferPool(bufferBytes, pageBytes, miDisco);
+                discoConfigDone = true;
             }
             else {
-                std::cout << "Opcion Invalida " << std::endl; break;
-            }
 
-            if (ok)
-                cout << "Registro agregado correctamente\n";
-            else
-                cout << "No se pudo agregar el registro\n";
-        }
+                cout << "\n***** Bienvenido a MEGATRON 3000 *****\n\n";
 
-        else if (opt == "3") {
-            int n;
-            cout << "¿Cuantos registros desea agregar? ";
-            cin >> n;
-            cin.ignore(1, '\n');
+                while (true) {
+                    cout << "0) Mostrar Ruta Bloque (Dinamico)\n"; ///
+                    cout << "1) Mostrar caracteristicas del disco\n"; ///
+                    cout << "2) Adicionar registro\n"; ///
+                    cout << "3) Adicionar N registros desde CSV\n"; ///
+                    cout << "4) Adicionar todo CSV\n"; ///
+                    cout << "5) Eliminar registro\n"; ///
+                    cout << "6) Modificar registro\n"; ///
+                    cout << "7) Inserción de longitud variabl (Demo)\n"; ///
+                    cout << "8) Ejecutar consulta SQL\n"; ///
+                    cout << "9) Adicionar/Volcar relacion a Sectores\n"; ///
+                    cout << "10) Salir\n"; ///
+                    cout << ">> ";
 
-            cout << "¿Tipo de inserción?\n";
-            cout << "1) Longitud variable\n";
-            cout << "2) Longitud fija (bitmap)\n";
-            cout << ">> ";
-            int opcion;
-            cin >> opcion;
-            cin.ignore(1, '\n');
+                    string opt;
+                    getline(cin, opt);
+                    if (opt == "10") break;
 
-            if (adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco)) {
-                cout << "HRegdsadsaistros agregados correctamente.\n";
-                //
-            }
-            else
-                cout << "No se puddsaieron dsaadsdsagregar los registros.\n";
-        }
+                    if (opt == "0") {
+                        int numeroBloque;
+                        int opcion;
+                        cout << "Numero de Bloque que desea consultar: ";
+                        cin >> numeroBloque;
+                        cin.ignore(1, '\n');
 
-        else if (opt == "4") {
-            cout << "¿Tipo de inserción?\n";
-            cout << "1) Longitud variable\n";
-            cout << "2) Longitud fidsaja (bitmap)\n";
-            cout << ">> ";
-            int opcion;
-            cin >> opcion;
-            cin.ignore(1, '\n');
+                        // Mostrar PATHs
+                        cout << "Ingrese opcion\n";
+                        cout << "1) Con Espacios Libres\n";
+                        cout << "2) Rutas Solamente\n";
+                        cout << ">> ";
+                        cin >> opcion;
+                        mostrarSectoresDeBloque(numeroBloque, opcion, miDisco);
+                        cout << "Mostrado Correctamente\n";
+                        cout << "Mensaje Probar Final\n";
+                    }
+                    else if (opt == "1") {
+                        miDisco.printDisco();
+                        miDisco.printCapacidadesDetalle();
+                        miDisco.mostrarArbolDisco();
+                    }
+                    // Supongamos tabla="titanic"
+                    else if (opt == "2") {
 
-            if (adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\titanicG.csv", "titanic", opcion, miDisco))
-                cout << "Todos los registros del CSV agregados correctamente.\n";
-            else
-                cout << "No se pudieron agregar todos los registros.\n";
-        }
-        else if (opt == "5") {
-            cout << "¿Tipo de eliminacion?\n";
-            cout << "1) Longitud variable\n";
-            cout << "2) Longitud fija (bitmap)\n";
-            cout << ">> ";
-            int opcion;
-            cin >> opcion;
-            cin.ignore(1, '\n');
+                        cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
+                        cout << "1790000#4000#3#1#2#yes#no#no#nohfdhjf#no#0#no#unfurnished\n" << endl;
+                        string input = "1790000#4000#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
+                        if (input.back() != '\n')
+                            input.push_back('\n');
 
-            if(opcion ==2){
-                if (eliminarRegistro("housing", 193, miDisco)) {
-                    cout << "Eliminado correctamente\n";
-                    cout << "Entrando a Eliminar Registro \n" << std::endl;
+                        cout << "¿Tipo de inserción?\n";
+                        cout << "1) Longitud variable\n";
+                        cout << "2) Longitud fija (bitmap)\n";
+                        cout << ">> ";
+                        int opcion;
+                        cin >> opcion;
+                        cin.ignore(1, '\n');
+
+                        bool ok = false;
+                        if (opcion == 1)
+                            std::cout << "" << std::endl;
+                        else if (opcion == 2) {
+                            ok = adicionarRegistroUnico(input.c_str(), "housing", miDisco);
+                        }
+                        else {
+                            std::cout << "Opcion Invalida " << std::endl; break;
+                        }
+
+                        if (ok)
+                            cout << "Registro agregado correctamente\n";
+                        else
+                            cout << "No se pudo agregar el registro\n";
+                    }
+
+                    else if (opt == "3") {
+                        int n;
+                        cout << "¿Cuantos registros desea agregar? ";
+                        cin >> n;
+                        cin.ignore(1, '\n');
+
+                        cout << "¿Tipo de inserción?\n";
+                        cout << "1) Longitud variable\n";
+                        cout << "2) Longitud fija (bitmap)\n";
+                        cout << ">> ";
+                        int opcion;
+                        cin >> opcion;
+                        cin.ignore(1, '\n');
+
+                        if (adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco)) {
+                            cout << "HRegdsadsaistros agregados correctamente.\n";
+                            //
+                        }
+                        else
+                            cout << "No se puddsaieron dsaadsdsagregar los registros.\n";
+                    }
+
+                    else if (opt == "4") {
+                        cout << "¿Tipo de inserción?\n";
+                        cout << "1) Longitud variable\n";
+                        cout << "2) Longitud fidsaja (bitmap)\n";
+                        cout << ">> ";
+                        int opcion;
+                        cin >> opcion;
+                        cin.ignore(1, '\n');
+
+                        if (adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco))
+                            cout << "Todos los registros del CSV agregados correctamente.\n";
+                        else
+                            cout << "No se pudieron agregar todos los registros.\n";
+                    }
+                    else if (opt == "5") {
+                        cout << "¿Tipo de eliminacion?\n";
+                        cout << "1) Longitud variable\n";
+                        cout << "2) Longitud fija (bitmap)\n";
+                        cout << ">> ";
+                        int opcion;
+                        cin >> opcion;
+                        cin.ignore(1, '\n');
+
+                        if (opcion == 2) {
+                            if (eliminarRegistro("housing", 193, miDisco)) {
+                                cout << "Eliminado correctamente\n";
+                                cout << "Entrando a Eliminar Registro \n" << std::endl;
+                            }
+                        }
+                        if (opcion == 1) {
+                            bool ok = eliminar_registro_variable(1, 2, miDisco.getTamBloque(), miDisco);
+                            assert(ok);
+                        }
+                        else {
+                            cout << "No se pudo eliminar el registro \n";
+                        }
+                    }
+
+                    else if (opt == "6") {
+                        cout << "Tipo de Modificacion?\n";
+                        cout << "1) Longitud variable\n";
+                        cout << "2) Longitud fija\n";
+                        cout << ">> ";
+                        int n; cin >> n;
+
+                        const char* nuevoReg = "1790000#9#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
+                        if (n == 2) {
+                            if (modificarRegistro("housing", 4, nuevoReg, miDisco)) {
+                                cout << "Modificado correctamente\n";
+                            }
+                        }
+                        else if (n == 1) {
+                            if (modify_registro_variable(1, 1, "housing", "furnishingstatus", "semi-furnished", miDisco)) {
+                                cout << "Modificado correctamente_var\n";
+                            }
+                        }
+                    }
+
+                    else if (opt == "7") { //demo
+                        int n;
+                        cin >> n;
+
+                        if (!adicionarNRegistrosVariable(n, "data\\usr\\db\\titanic.txt", "titanic", miDisco)) {
+                            std::cout << "Al menos un registro no se pudo insedsrtar en modo variable.\n";
+                        }
+                        else {
+                            std::cout << "Los 5 registros se insertaron exitosamente en Bloque1.\n";
+                        }
+
+                    }
+
+                    else if (opt == "8") {
+                        string sel, from, where;
+                        cout << "SELECT "; getline(cin, sel);
+                        cout << "FROM ";   getline(cin, from);
+                        cout << "WHERE ";  getline(cin, where);
+                        agregarTablaCatalogo(basePath.c_str(), from.c_str());
+                        ejecutar_query(sel.c_str(), from.c_str(), where.c_str(),
+                            schemaPath.c_str(), basePath.c_str(),
+                            miDisco, discoPath.c_str());
+                        cout << "Tamaño de la tabla: " << relationSizeBytes(from.c_str(), basePath.c_str()) << " bytes\n";
+                    }
+
+                    else if (opt == "9") {
+                        cout << "Nombre de la relacion: ";
+                        string tabla; getline(cin, tabla);
+                        miDisco.volcarRelacionASectores(tabla.c_str());
+                    }
+
+                    else {
+                        cout << "Opcion invalida\n";
+                    }
                 }
             }
-            if(opcion==1){
-                bool ok = eliminar_registro_variable(1,2, miDisco.getTamBloque(),miDisco);
-                assert(ok);
+        }
+        else if (choice == 2) {
+            // Menú Buffer
+            if (!discoConfigDone) {
+                cout << "Configura primero el disco.\n";
             }
             else {
-                cout << "No se pudo eliminar el registro \n";
+                while (true) {
+                    cout << "\n--- MENU BUFFER ---\n";
+                    cout << "1) Pin pagina\n";
+                    cout << "2) Unpin pagina\n";
+                    cout << "3) Mostrar estado\n";
+                    cout << "4) Flush all\n";
+                    cout << "5) Mostrar stats\n";
+                    cout << "6) Volver al menu principal\n";
+                    cout << ">> ";
+                    int opc; cin >> opc; cin.ignore();
+                    if (opc == 6) break;
+                    switch (opc) {
+                    case 1: {
+                        int pid; char op; bool pin;
+                        cout << "ID: "; cin >> pid;
+                        cout << "RW: "; cin >> op;
+                        cout << "Pin? "; cin >> pin;
+                        cout << "Mensaje Previo" << endl;
+                        auto p = pBufPool->pinPage(pid, op, pin);
+                        cout << (p ? "OK" : "Fallo") << "\n";
+                        cout << "Mensaje Siguiente" << endl;
+                        break;
+                    }
+                    case 2: {
+                        int pid; cout << "ID: "; cin >> pid;
+                        pBufPool->unpinPage(pid);
+                        break;
+                    }
+                    case 3: pBufPool->printBuffer(); break;
+                    case 4: pBufPool->flushAll(); break;
+                    case 5: pBufPool->printStats(); break;
+                    default: cout << "Inválida\n";
+                    }
+                }
             }
         }
-
-        else if (opt == "6") {
-            cout << "Tipo de Modificacion?\n";
-            cout << "1) Longitud variable\n";
-            cout << "2) Longitud fija\n";
-            cout << ">> ";
-            int n;cin>>n;
-
-            const char* nuevoReg = "1790000#9#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
-            if(n==2){
-            if (modificarRegistro("housing", 4, nuevoReg, miDisco)) {
-                cout << "Modificado correctamente\n";
-            }
-            }
-            else if(n==1){
-            if(modify_registro_variable(1, 1, "housing", "furnishingstatus", "semi-furnished",miDisco)){
-                cout << "Modificado correctamente_var\n";
-            }
+        else if (choice == 3) {
+            break;
         }
-        }
-
-        else if (opt == "7") { //demo
-            //// --- Inserción de longitud variable ---
-            //cout << "Ingrese nombre de la relación (p.ej. \"titanic\"): ";
-
-            //cout << "Ingrese registro (campos separados por '#', terminado en '\\n'):\n";
-
-            //char relacion[] = "titanic";
-            //char input[] = "1#0#3#Braund# Mr. Owen Harris#male#22#1#0#A/5 21171#7.25##S";
-            //char input2[] = "2#1#1#Cumings# Mrs. John Bradley (Florence Briggs Thayer)#female#38#1#0#PC 17599#71.2833#C85#C";
-            //char input3[] = "7#0#1#McCarthy# Mr. Timothy J#male#54#0#0#17463#51.8625#E46#S";
-
-
-            //char* reg_var = format_registro_variable(input, relacion);
-            //char* reg_var2 = format_registro_variable(input2, relacion);
-            //char* reg_var3 = format_registro_variable(input3, relacion);
-            //    
-            //int tam = miDisco.getTamBloque();
-            //char* bloque = new char[tam]; // Dynamically allocate memory for the array
-            //memset(bloque, 0, tam);       // Initialize the array to zero
-
-            //int espacio=miDisco.getTamBloque();
-            //    // Formatear el registro variable
-            //bool ok =insert_registro_variable(reg_var, espacio, bloque, miDisco);
-            //assert(ok);
-            //std::cout << "format_bloque_variable paso la prueba." << std::endl;
-            //ok = insert_registro_variable(reg_var2, espacio, bloque, miDisco);
-            //assert(ok);
-            //std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
-
-            //ok = insert_registro_variable(reg_var3, espacio, bloque, miDisco);
-            //assert(ok);
-            //std::cout << "format_bloque_variable2 paso la prueba." << std::endl;
-            int n;
-            cin>>n;
-
-            if (!adicionarNRegistrosVariable(n, "data\\usr\\db\\titanic.txt", "titanic", miDisco)) {
-                std::cout << "Al menos un registro no se pudo insedsrtar en modo variable.\n";
-            }
-            else {
-                std::cout << "Los 5 registros se insertaron exitosamente en Bloque1.\n";
-            }
-
-            /*if (volcar_bloque_a_archivo(bloque, tamBloque)) {
-            std::cout << "Se volcó el bloque con éxito en bloque.txt\n";
-            } else {
-            std::cout << "No se pudo volcar el bloque a bloque.txt\n";
-            }
-            */
-
-            //ok=eliminar_registro_variable(1,2, miDisco.getTamBloque());
-            //assert(ok);
-            //std::cout << "Eliminación completa" << std::endl;
-        }
-
-        else if (opt == "8") {
-            string sel, from, where;
-            cout << "SELECT "; getline(cin, sel);
-            cout << "FROM ";   getline(cin, from);
-            cout << "WHERE ";  getline(cin, where);
-            agregarTablaCatalogo(basePath.c_str(), from.c_str());
-            ejecutar_query(sel.c_str(), from.c_str(), where.c_str(),
-                schemaPath.c_str(), basePath.c_str(),
-                miDisco, discoPath.c_str());
-            cout << "Tamaño de la tabla: " << relationSizeBytes(from.c_str(), basePath.c_str()) << " bytes\n";
-        }
-
-        else if (opt == "9") {
-            cout << "Nombre de la relacion: ";
-            string tabla; getline(cin, tabla);
-            miDisco.volcarRelacionASectores(tabla.c_str());
-        }
-
         else {
-            cout << "Opcion invalida\n";
+            cout << "Opción inválida\n";
         }
     }
+
+    // Liberar
+    delete pBufPool;
     return 0;
 }
+
