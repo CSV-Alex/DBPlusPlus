@@ -184,6 +184,21 @@ public:
     const char* getBufferRuta() const { return bufferRuta; }
     const char* getBufferLectura() const { return bufferLectura; }
 
+    void crearBloqueFisico(int nroBloque) {
+        // Asume que "discoNuevoPath" es el path base global
+        char dirPath[MAX_PATH_LEN];
+        snprintf(dirPath, sizeof(dirPath), "%sBLOQUES", discoNuevoPath);
+        struct stat st = { 0 };
+        if (stat(dirPath, &st) == -1) {
+            _mkdir(dirPath);
+        }
+        char filePath[MAX_PATH_LEN];
+        snprintf(filePath, sizeof(filePath), "%sBLOQUES\Bloque%d.txt", discoNuevoPath, nroBloque);
+        // Crear archivo vacío, el código de adicionarRegistroUnico luego escribe la cabecera
+        FILE* f = fopen(filePath, "wb");
+        if (f) fclose(f);
+    }
+
     void createBufferDir() {
         const std::string bufferDir = "BUFFERPOOL";
         make_dir(bufferDir.c_str());

@@ -9,8 +9,62 @@
 #include <fstream>
 #include "Disco.h"
 #include "DiscoPaths.h"
+#include "Catalogo.cpp"
 
 #define MAX_TOKENS    256
+
+static const int MAX_FIXEDLEN = 1024;
+
+// Lee catalogo.txt y retorna el número de último bloque asignado a `relacion` (0 si no existe)
+static int leerBloqueDeCatalogo(const char* rutaCatalogo, const char* relacion) {
+    FILE* f = fopen(rutaCatalogo, "r");
+    if (!f) return 0;
+    char linea[512];
+    int bloqueN = 0;
+    while (fgets(linea, sizeof(linea), f)) {
+        // Quitar CR/LF
+        linea[strcspn(linea, "\r\n")] = '\0';
+        // Separar por '|'
+        char* sep = strchr(linea, '|');
+        if (!sep) continue;
+        *sep = '\0';
+        if (strcmp(linea, relacion) == 0) {
+            int n = 0;
+            if (sscanf(sep + 1, "%*[^0-9]%d.txt", &n) == 1) {
+                bloqueN = n;
+            }
+        }
+    }
+    fclose(f);
+    return bloqueN;
+}
+
+
+static char* obtenerRelacionDeBloque(const char* rutaCatalogo, int nroBloque) {
+    static char rel[MAX_STR_LEN];
+    FILE* f = fopen(rutaCatalogo, "r");
+    if (!f) return nullptr;
+    char línea[256];
+    char buscado[32];
+    snprintf(buscado, sizeof(buscado), "Bloque%d.txt", nroBloque);
+    while (fgets(línea, sizeof(línea), f)) {
+        if (strstr(línea, buscado)) {
+            // copia lo que hay antes de '|' como relación
+            char* sep = strchr(línea, '|');
+            if (sep) {
+                size_t len = sep - línea;
+                if (len >= sizeof(rel)) len = sizeof(rel) - 1;
+                strncpy(rel, línea, len);
+                rel[len] = '\0';
+                fclose(f);
+                return rel;
+            }
+        }
+    }
+    fclose(f);
+    return nullptr;
+}
+
 
 static int getTamBloqueFromDisco(Disco& disco) {
     return disco.getTamBloque();
@@ -1155,12 +1209,12 @@ static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* regi
 
 /// #P1#Works#BeforeTheCorruption
 static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion, Disco& disco, bool esPagina = false) {
-    
-    const char* root = esPagina
-        ? "BUFFERPOOL\\"
+
+    const char* discoNuevoPath = esPagina
+        ? bufferPoolPath
         : discoNuevoPath;
 
-    
+
     // --- 0) Preparar datos y calcular longitud fija de bloque ---
     int registroSize;
     static char regBuf[MAX_BUF]; // Buffer para el RLF
@@ -1244,6 +1298,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     char savedSectores[MAX_BUF] = { 0 }; // Para guardar sectores del bloque elegido
 
+    printf("DEBUG: Entrando al bucle de búsqueda de bloque para relacion='%s'\n", relacion);
     // 2) Buscar bloque y sector libres (cada bloque ocupa fixedLen bytes total)
     //printf("DEBUG: Buscando bloque libre para tamaño de registro = %d\n", tamRegistro);
     while (true) {
@@ -1255,13 +1310,25 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             break;
         }
 
+        // 3) Avanzamos el contador de bloques
+        nroBloque++;
+        printf("DEBUG: Procesando Bloque #%d\n", nroBloque);
+
+        // 4) SALTO: si ya está asignado a otra relación, lo omitimos
+        const char* relAsig = obtenerRelacionDeBloque(rutaCatalogo, nroBloque);
+        printf("DEBUG: Bloque#%d asignado a '%s' (o NULL si no existe)\n",
+            nroBloque, relAsig ? relAsig : "NULL");
+        if (relAsig && strcmp(relAsig, relacion) != 0) {
+            printf("DEBUG: Bloque#%d NO es de '%s', salto al siguiente\n", nroBloque, relacion);
+            continue;
+        }
+
         // Saltar bloques vacíos generados por "||"
         if (lenBloque == 2 && lineaBloque[0] == '|' && lineaBloque[1] == '|') {
             continue;
         }
 
-        nroBloque++;
-        //printf("DEBUG: Leyendo Bloque #%d (lenBloque = %d bytes)\n", nroBloque, lenBloque);
+        printf("DEBUG: Leyendo Bloque #%d (lenBloque = %d bytes)\n", nroBloque, lenBloque);
 
         // 2.1) Extraer espacioLibreBloque sin strtok:
         char tempEspacio[MAX_BUF];

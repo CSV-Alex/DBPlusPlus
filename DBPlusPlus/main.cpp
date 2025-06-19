@@ -780,7 +780,7 @@ int main() {
 
                         cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
                         cout << "1790000#4000#3#1#2#yes#no#no#nohfdhjf#no#0#no#unfurnished\n" << endl;
-                        string input = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
+                        string input = "890#1#1#\"Behr# Mr.Karl Howell\"#male#26#0#0#111369#30#C148#C\n";
                         if (input.back() != '\n')
                             input.push_back('\n');
 
@@ -796,7 +796,7 @@ int main() {
                         if (opcion == 1)
                             std::cout << "" << std::endl;
                         else if (opcion == 2) {
-                            ok = adicionarRegistroUnico(input.c_str(), "housing", miDisco);
+                            ok = adicionarRegistroUnico(input.c_str(), "titanic", miDisco);
                         }
                         else {
                             std::cout << "Opcion Invalida " << std::endl; break;
@@ -831,9 +831,9 @@ int main() {
                     }
 
                     else if (opt == "4") {
-                        cout << "¿Tipo de inserción?\n";
+                        cout << "¿Tipo de insercion?\n";
                         cout << "1) Longitud variable\n";
-                        cout << "2) Longitud fidsaja (bitmap)\n";
+                        cout << "2) Longitud fija (bitmap)\n";
                         cout << ">> ";
                         int opcion;
                         cin >> opcion;
