@@ -948,7 +948,7 @@ int main() {
                     case 1: {
                         int pid; char op; bool pin;
                         cout << "ID: "; cin >> pid;
-                        cout << "RW: "; cin >> op;
+                        cout << "R/W: "; cin >> op;
                         cout << "Pin? "; cin >> pin;
                         cout << "Mensaje Previo" << endl;
                         auto p = pBufPool->pinPage(pid, op, pin);
@@ -961,7 +961,7 @@ int main() {
                         pBufPool->unpinPage(pid);
                         break;
                     }
-                    case 3: pBufPool->printBuffer(); break;
+                    case 3: pBufPool->Status(); break;
                     case 4: pBufPool->flushAll(); break;
                     case 5: pBufPool->printStats(); break;
                     case 6: {

@@ -42,6 +42,7 @@ public:
     int   getId() const { return _id; }
     bool  isDirty() const { return _dirty; }
     int   getPinCount() const { return _pinCount; }
+    int   getPinStatus() const { return _pinned; }
 
     void pin(char op, bool makePermanent = false) {
         _pinCount++;
@@ -184,7 +185,7 @@ public:
     void viewContent() const {
         std::ifstream in(_path, std::ios::binary);
         if (!in.is_open()) {
-            std::cout << "ERRdsadasOR: No se puede abrir " << _path << std::endl;
+            std::cout << "ERROR: No se puede abrir " << _path << std::endl;
             return;
         }
         std::cout << "--- Contenido de Page" << _id << " ---" << std::endl;
@@ -213,7 +214,7 @@ public:
     void flushAll();
 
     void printStats() const ;
-    void printBuffer() const ;
+    void Status() const ;
 
 private:
     bool evictOne();
@@ -324,12 +325,13 @@ void BufferPool::printStats() const {
         << "  Hits: " << _hitCount
         << "  Hitrate(): " << std::fixed << std::setprecision(2)<<float(_hitCount)/float(_totalCount) << "\n";
 }
-void BufferPool::printBuffer() const {
+void BufferPool::Status() const {
     std::cout << "---- BufferPool State ----\n";
     std::cout <<"|"<<std::setw(10)<< "Frame " << "|"
     <<std::setw(10)<< " Page " <<"|"
     <<std::setw(10)<< " dirty" << "|"
     <<std::setw(10)<< " pinCount" << "|"
+    <<std::setw(10)<< " pinStatus" << "|"
     << "\n";
 
     for (auto& f : _frames) {
@@ -338,6 +340,7 @@ void BufferPool::printBuffer() const {
                 <<std::setw(10)<<f.page->getId()<<"|"
                 <<std::setw(10)<<f.page->isDirty()<<"|"
                 <<std::setw(10)<<f.page->getPinCount()<<"|"
+                <<std::setw(10)<<f.page->getPinStatus()<<"|"
                 << "\n";
         }
         else {
