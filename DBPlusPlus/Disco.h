@@ -9,6 +9,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector> //solo para guardar cambios
+#include "DiscoPaths.h"
 
 //#define MAX_BUF      512
 #define MAX_STR_LEN 64
@@ -22,7 +23,7 @@ static const int MAX_BUF = 512;
 static const int MAX_SECTORES = 100;
 
 class Disco {
-private:
+protected:
     int platos;
     int pistas;
     int sectores;
@@ -32,8 +33,6 @@ private:
     long long capacidadTotal;
     long long capacidadLibre;
     int nroBloques;
-
-    std::vector<std::pair<long, std::string>> cambiosDirBloques;
 
     char rutaCatalogo[MAX_PATH_LEN];
     char rutaDirBloques[MAX_PATH_LEN];
@@ -192,7 +191,7 @@ public:
         snprintf(dirPath, sizeof(dirPath), "%sBLOQUES", discoNuevoPath);
         struct stat st = { 0 };
         if (stat(dirPath, &st) == -1) {
-            _mkdir(dirPath);
+            make_dir(dirPath);
         }
         char filePath[MAX_PATH_LEN];
         snprintf(filePath, sizeof(filePath), "%sBLOQUES\Bloque%d.txt", discoNuevoPath, nroBloque);
@@ -553,7 +552,7 @@ public:
         char rutaBloque[MAX_PATH_LEN];
         snprintf(rutaBloque, sizeof(rutaBloque),
             "DISCO\\BLOQUES\\Bloque%d.txt", bloqueN);
-        FILE* fbloc = fopen(rutaBloque, "rb");
+        FILE* fbloc = fopen(rutaBloque, "r+b");
         if (!fbloc) {
             std::perror("Error al abrir BloqueN.txt");
             return;

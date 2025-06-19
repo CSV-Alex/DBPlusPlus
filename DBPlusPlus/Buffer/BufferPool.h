@@ -9,6 +9,9 @@
 #include <iomanip>
 #include <iostream>
 #include <list>
+#include <filesystem>
+#include <vector>
+#include <algorithm>
 
 #include "../Disco.h"
 #include "../DiscoPaths.h"
@@ -137,6 +140,7 @@ public:
             true
         );
         if (ok) {
+            registrarPaginaModificada(getId());
             _dirty = true;
         }
         return ok;
@@ -347,4 +351,42 @@ void BufferPool::Status() const {
             std::cout << "Frame " << f.id << " [vacio]\n";
         }
     }
+}
+
+inline void registrarPaginaModificada(int nroBloque) {
+    paginasModificadas.push_back(nroBloque);
+}
+
+void flushBufferToDisk(Disco& disco) {
+    namespace fs = std::filesystem;
+
+    // 1) Reemplaza PageN.txt → BloqueN.txt + volcar sectores
+    for (int N : paginasModificadas) {
+        fs::path src = fs::path(bufferPagePath) / ("Page" + std::to_string(N) + ".txt");
+        fs::path dest = fs::path(discoPath) / "BLOQUES" / ("Bloque" + std::to_string(N) + ".txt");
+        std::error_code ec;
+        fs::remove(dest, ec);            // borra versión vieja
+        fs::rename(src, dest, ec);       // mueve la Page al disco
+        disco.volcarBloqueASectores(N);  // reescribe sectores
+    }
+    paginasModificadas.clear();
+
+    // 2) Pon los parches en dirBloques.txt
+    fs::path dirFile = fs::path(discoPath) / "dirBloques.txt";
+    FILE* f = fopen(dirFile.string().c_str(), "r+b");
+    if (!f) return;
+
+    // Para mayor seguridad, aplica en orden de offset
+    sort(cambiosDirBloques.begin(), cambiosDirBloques.end(),
+        [](auto& a, auto& b) { return a.first < b.first; });
+
+    for (auto& parche : cambiosDirBloques) {
+        long offset = parche.first;
+        const std::string& data = parche.second;
+        fseek(f, offset, SEEK_SET);
+        fwrite(data.data(), 1, data.size(), f);
+    }
+    fflush(f);
+    fclose(f);
+    cambiosDirBloques.clear();
 }

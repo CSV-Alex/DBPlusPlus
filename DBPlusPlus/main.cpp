@@ -962,7 +962,12 @@ int main() {
                         break;
                     }
                     case 3: pBufPool->Status(); break;
-                    case 4: pBufPool->flushAll(); break;
+                    case 4: 
+                        
+                        flushBufferToDisk(miDisco);
+                        std::cout << "Todos los cambios del buffer han sido volcados a didasdsasco.\n";
+                        break;
+
                     case 5: pBufPool->printStats(); break;
                     case 6: {
                         int pid;

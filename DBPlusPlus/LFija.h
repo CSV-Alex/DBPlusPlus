@@ -1509,6 +1509,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     }
     else {
         disco.registrarCambioDirBloques(posLineaBloque, bufferNueva, fixedLen);
+        registrarPaginaModificada(nroBloque);
     }
     fclose(fdir);
     //printf("DEBUG: Reescritura de bloque #%d en dirBloques.txt: %zu bytes escritos (esperados %d)\n",
