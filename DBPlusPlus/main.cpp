@@ -727,7 +727,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 4; // Número de frames por defecto
+                int n_frames = 2; // Número dde frames por defecto
                 pBufPool = new BufferPool(n_frames, (size_t)miDisco.getTamBloque(), miDisco);
                 discoConfigDone = true;
             }
@@ -933,7 +933,7 @@ int main() {
             else {
                 while (true) {
                     cout << "\n--- MENU BUFFER ---\n";
-                    cout << "1) Pin pagina\n";
+                    cout << "1) Piasdsadadsn pagina\n";
                     cout << "2) Unpin pagina\n";
                     cout << "3) Mostrar estado\n";
                     cout << "4) Flush all\n";

@@ -36,7 +36,8 @@ public:
         : _id(id),
         _disk(disk),
         _path("BUFFERPOOL\\BLOQUES\\Page" + std::to_string(id) + ".txt"),
-        _pinned(pinned),operation(op)
+        _pinned(pinned),operation(op),
+        _dirty(false)
     {
         loadFromDisk(disk);
         _pinCount = 0;
@@ -47,15 +48,24 @@ public:
     bool  isDirty() const { return _dirty; }
     int   getPinCount() const { return _pinCount; }
     int   getPinStatus() const { return _pinned; }
-    char   getop() const { return operation; }
+    char   getOp() const { return operation; }
+    size_t getLastAccess() const { return _lruAccess; }
+    std::string getBufferPath() const { return _path; }
 
     void pin(char op, bool makePermanent = false) {
-        _pinCount++;
-        bool isWrite = (op == 'W');
-        if(isWrite){ operation = 'W'; }
-        else { operation = 'R'; }
+        ++_pinCount;
+        if (op == 'W') {
+            operation = 'W';
+            _dirty = true;
+            registrarPaginaModificada(_id);   // NUEVO: registro para flushBufferToDisk
+        }
+        else {
+            operation = 'R';
+        }
         if (makePermanent) _pinned = true;
+        _lruAccess = ++_globalCounter;
     }
+
     void unpin() {
         if (_pinCount > 0) _pinCount--;
         _pinned=false;
@@ -78,6 +88,13 @@ public:
         _dirty = false;
     }
 
+    void reloadFromDisk() {
+        // usa tu función interna loadFromDisk
+        loadFromDisk(_disk);
+        // la página ya no está “dirty” tras la recarga
+        _dirty = false;
+    }
+
 protected:
     int    _id;
     Disco& _disk;
@@ -88,6 +105,9 @@ protected:
     std::deque<std::pair<char, bool>> _ops;
     char operation; //R or W
     std::string _relation;
+
+    static inline size_t _globalCounter = 0;            // NUEVO: contador global
+    size_t _lruAccess = 0;              // NUEVO: timestamp local
 
     void loadFromDisk(Disco& disk) {
         // Construyo la ruta absoluta al bloque en DISCO\BLOQUES
@@ -234,49 +254,81 @@ private:
     size_t                          _hitCount{ 0 }, _totalCount{ 0 };
 };
 
+void flushPageToDisk(Disco& disco, int pageId) {
+    namespace fs = std::filesystem;
+    // Construir rutas
+    fs::path src = fs::path(bufferPagePath) / ("Page" + std::to_string(pageId) + ".txt");
+    fs::path dest = fs::path(discoPath) / "BLOQUES" / ("Bloque" + std::to_string(pageId) + ".txt");
+
+    std::error_code ec;
+    // 1) Copiar (sobrescribe si existe)
+    fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+        std::cerr << "[FLUSH ERROR] copy_file "
+            << src.string() << " → " << dest.string()
+            << ": " << ec.message() << "\n";
+        return;
+    }
+    // 2) Eliminar versión temporal en BUFFERPOOL
+    fs::remove(src, ec);
+    if (ec) {
+        std::cerr << "[FLUSH ERROR] remove "
+            << src.string() << ": " << ec.message() << "\n";
+    }
+    // 3) Volcar sectores al block real
+    disco.volcarBloqueASectores(pageId);
+
+    // 4) Limpiar de la lista de modificadas
+    paginasModificadas.erase(
+        std::remove(paginasModificadas.begin(), paginasModificadas.end(), pageId),
+        paginasModificadas.end()
+    );
+}
+
+
 bool BufferPool::evictOne() {
-    // 1) Buscar la página no bloqueada con mayor antigüedad en LRU
-    int victim = -1;
-    int bestPos = std::numeric_limits<int>::max();
-    for (const auto& [pageId, frameIdx] : _pageTable) {
-        Page* P = _frames[frameIdx].page.get();
-        if (!P->getPinStatus()) {  // sólo páginas con _pinned==false
-            int pos = _lru.getpos(pageId);
-            if (pos >= 0 && pos < bestPos) {
-                bestPos = pos;
-                victim = pageId;
+    // 1) Elegir victimId según LRU (timestamp más antiguo), saltando páginas pineadas
+    int victimId = -1;
+    size_t oldest = std::numeric_limits<size_t>::max();
+    for (auto& [pid, fidx] : _pageTable) {
+        Page* pg = _frames[fidx].page.get();
+        if (!pg->getPinStatus()) {
+            size_t t = pg->getLastAccess();
+            if (t < oldest) {
+                oldest = t;
+                victimId = pid;
             }
         }
     }
+    // Si no hay víctima válida
+    if (victimId < 0) return false;
 
-    // 2) Si no hay víctima válida, no se puede desalojar
-    if (victim < 0) 
-        return false;
+    int   fidx = _pageTable[victimId];
+    Page* victimPg = _frames[fidx].page.get();
 
-    std::cout << "[DEBUG] victim " << victim << std::endl;
-
-    // 3) Preparar desplazamiento
-    int fidx = _pageTable[victim];
-    Page* P = _frames[fidx].page.get();
-
-    // 4) Si está dirty, preguntar al usuario
-    if (P->isDirty()) {
-        std::cout << "La página " << victim
-                  << " tiene cambios. ¿Guardar cambios antes de desalojar? (s/n): ";
-        char resp; 
-        std::cin >> resp;
-        if (resp == 's' || resp == 'S') {
-            P->flush(_disk);
-            std::cout << "Cambios guardados.\n";
-        } else {
-            std::cout << "Descartando cambios de página " << victim << ".\n";
+    // 2) Si está sucia, preguntar y elegir flush o descartar
+    if (victimPg->isDirty()) {
+        std::cout << "Página " << victimId
+            << " sucia. ¿Guardar antes de expulsar? (s/n): ";
+        char r; std::cin >> r;
+        if (r == 's' || r == 'S') {
+            // Flush individual: copia, borra temp y volcar sectores
+            flushPageToDisk(_disk, victimId);
+        }
+        else {
+            // Descartar: eliminar sólo el archivo temporal
+            std::filesystem::remove(victimPg->getBufferPath());
         }
     }
+    else {
+        // No está sucia → borrar directamente el archivo temporal
+        std::filesystem::remove(victimPg->getBufferPath());
+    }
 
-    // 5) Eliminar la página del buffer
-    _pageTable.erase(victim);
-    _frames[fidx].page.reset();      // libera el frame
-    _lru.deletePage(victim);         // la quita de LRU
+    // 3) Expulsar la página de memoria y estructuras
+    _frames[fidx].page.reset();
+    _pageTable.erase(victimId);
+    _lru.deletePage(victimId);
 
     return true;
 }
@@ -306,30 +358,37 @@ BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk): _disk(disk)
 BufferPool::~BufferPool() {
         flushAll();
     }
+
+
 Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
+
     std::cout << "[DEBUG] Mensaje antes del bucle infinito" << std::endl;
-    _totalCount++;
+    ++_totalCount;
     auto it = _pageTable.find(pageId);
     if (it != _pageTable.end()) {
-        int fidx = it->second;
-        _hitCount++;
-        if(_frames[fidx].page->getop() == 'W') {
-            std::cout << "La pagina " << pageId << "tiene una operacion W previa. Quiere guardar estos cambios?\n";
-            char resp; std::cin >> resp;
-            if(resp == 's' || resp == 'S') {
-                _frames[fidx].page->flush(_disk);
-                std::cout << "Cambios guardados.\n";
+        ++_hitCount;
+        Page* pg = _frames[it->second].page.get();
+        // --- NUEVO: solo aquí preguntamos ---
+        if (pg->getOp() == 'W' && pg->isDirty()) {
+            std::cout << "La página " << pageId
+                << " está sucia. ¿Guardar cambios antes de continuar? (s/n): ";
+            char r; std::cin >> r;
+            if (r == 's' || r == 'S') {
+                // flushBufferToDisk recorrerá todas las páginas modificadas
+                flushPageToDisk(_disk, pageId);
+
             }
-            else {
-                std::cout << "Descartando cambios d e página " << pageId << ".\n";
-            }
+            // si dice 'n', descartamos; el vector paginasModificadas
+            // quedará intacto hasta el próximo flush explícito
         }
-        _frames[fidx].page->pin(op, pinned);
-        _lru.pin(pageId);
-        return _frames[fidx].page.get();
+        pg->reloadFromDisk();
+        pg->pin(op, pinned);
+        return pg;
     }
     return loadNewPage(pageId, op, pinned);
 }
+
+
 void BufferPool::unpinPage(int pageId) {
     auto it = _pageTable.find(pageId);
     if (it == _pageTable.end()) return;
@@ -337,6 +396,7 @@ void BufferPool::unpinPage(int pageId) {
     _frames[fidx].page->unpin();
     _lru.unpin(pageId);
 }
+
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {
     return pinPage(pageId, op, pinned);
 }
@@ -358,29 +418,20 @@ void BufferPool::printStats() const {
         << "  Hitrate(): " << std::fixed << std::setprecision(2)<<float(_hitCount)/float(_totalCount) << "\n";
 }
 void BufferPool::Status() {
-    std::cout << "---- BufferPool State ----\n";
-    std::cout <<"|"<<std::setw(10)<< "Frame " << "|"
-    <<std::setw(10)<< " Page " <<"|"
-    <<std::setw(10)<< " Op" << "|"
-    <<std::setw(10)<< " dirty" << "|"
-    <<std::setw(10)<< " pinCount" << "|"
-    <<std::setw(10)<< " pinStatus" << "|"
-    <<std::setw(10)<< " Last Accessed" << "|"
-    << "\n";
-
+    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | LastAcc | PinStat |\n";
     for (auto& f : _frames) {
         if (f.page) {
-            std::cout <<"|"<<std::setw(10)<<f.id<<"|"
-                <<std::setw(10)<<f.page->getId()<<"|"
-                <<std::setw(10)<<f.page->getop()<<"|" //here
-                <<std::setw(10)<<f.page->isDirty()<<"|"
-                <<std::setw(10)<<f.page->getPinCount()<<"|"
-                <<std::setw(10)<<f.page->getPinStatus()<<"|"
-                <<std::setw(10)<<_lru.getpos(f.page->getId())<<"|"
-                << "\n";
+            std::cout << "| " << std::setw(5) << f.id
+                << " | " << std::setw(6) << f.page->getId()
+                << " | " << std::setw(5) << f.page->isDirty()
+                << " | " << std::setw(6) << f.page->getPinCount()
+                << " | " << std::setw(6) << f.page->getOp()
+                << " | " << std::setw(7) << f.page->getLastAccess()  // NUEVO: mostrar timestamp
+                << " | " << std::setw(7) << f.page->getPinStatus()
+                << " |\n";
         }
         else {
-            std::cout << "Frame " << f.id << " [vacio]\n";
+            std::cout << "| " << std::setw(5) << f.id << " |   -    |   0   |   0    |   -    |    0    |    0    |\n";
         }
     }
 }
@@ -396,9 +447,33 @@ void flushBufferToDisk(Disco& disco) {
     for (int N : paginasModificadas) {
         fs::path src = fs::path(bufferPagePath) / ("Page" + std::to_string(N) + ".txt");
         fs::path dest = fs::path(discoPath) / "BLOQUES" / ("Bloque" + std::to_string(N) + ".txt");
+
+        std::cout << dest << endl;
+        std::cout << src << endl;
+        std::cout << "Paginas en memoria: " << N << endl;
+
         std::error_code ec;
-        fs::remove(dest, ec);            // borra versión vieja
-        fs::rename(src, dest, ec);       // mueve la Page al disco
+
+        // Copiamos (sobrescribe si ya existe)
+        fs::copy_file(src, dest,
+            fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            std::cerr << "[FLUSH ERROR] copy_file "
+                << src.string() << " → " << dest.string()
+                << ": " << ec.message() << "\n";
+            continue;
+        }
+
+        // borra versión vieja
+        // Borramos la página del buffer pool
+        fs::remove(src, ec);
+        if (ec) {
+            std::cerr << "[FLUSH ERROR] remove "
+                << src.string()
+                << ": " << ec.message() << "\n";
+            // no salimos, igual intentamos volcar sectores
+        }
+
         disco.volcarBloqueASectores(N);  // reescribe sectores
     }
     paginasModificadas.clear();

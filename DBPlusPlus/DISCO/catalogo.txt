@@ -1,6 +1,0 @@
-housing|DISCO/BLOQUES\Bloque1.txt
-housing|DISCO/BLOQUES\Bloque2.txt
-housing|DISCO/BLOQUES\Bloque3.txt
-housing|DISCO/BLOQUES\Bloque4.txt
-housing|DISCO/BLOQUES\Bloque5.txt
-housing|DISCO/BLOQUES\Bloque6.txt
