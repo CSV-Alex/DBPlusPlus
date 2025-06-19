@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <list>
 
@@ -321,16 +322,22 @@ void BufferPool::flushAll() { //indiscriminate
 void BufferPool::printStats() const {
     std::cout << "Requests: " << _totalCount
         << "  Hits: " << _hitCount
-        << "  Misses: " << _totalCount-_hitCount << "\n";
+        << "  Hitrate(): " << std::fixed << std::setprecision(2)<<float(_hitCount)/float(_totalCount) << "\n";
 }
 void BufferPool::printBuffer() const {
     std::cout << "---- BufferPool State ----\n";
+    std::cout <<"|"<<std::setw(10)<< "Frame " << "|"
+    <<std::setw(10)<< " Page " <<"|"
+    <<std::setw(10)<< " dirty" << "|"
+    <<std::setw(10)<< " pinCount" << "|"
+    << "\n";
+
     for (auto& f : _frames) {
         if (f.page) {
-            std::cout << "Frame " << f.id
-                << " => Page " << f.page->getId()
-                << " | dirty=" << f.page->isDirty()
-                << " | pins=" << f.page->getPinCount()
+            std::cout <<"|"<<std::setw(10)<<f.id<<"|"
+                <<std::setw(10)<<f.page->getId()<<"|"
+                <<std::setw(10)<<f.page->isDirty()<<"|"
+                <<std::setw(10)<<f.page->getPinCount()<<"|"
                 << "\n";
         }
         else {
