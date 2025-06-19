@@ -58,7 +58,7 @@ public:
     }
     void unpin() {
         if (_pinCount > 0) _pinCount--;
-
+        _pinned=false;
     }
 
     void forceUnpin(bool saveChanges = true) {
@@ -235,31 +235,49 @@ private:
 };
 
 bool BufferPool::evictOne() {
-    int victim = _lru.victim();
-    if (victim < 0) return false;
+    // 1) Buscar la página no bloqueada con mayor antigüedad en LRU
+    int victim = -1;
+    int bestPos = std::numeric_limits<int>::max();
+    for (const auto& [pageId, frameIdx] : _pageTable) {
+        Page* P = _frames[frameIdx].page.get();
+        if (!P->getPinStatus()) {  // sólo páginas con _pinned==false
+            int pos = _lru.getpos(pageId);
+            if (pos >= 0 && pos < bestPos) {
+                bestPos = pos;
+                victim = pageId;
+            }
+        }
+    }
+
+    // 2) Si no hay víctima válida, no se puede desalojar
+    if (victim < 0) 
+        return false;
+
+    std::cout << "[DEBUG] victim " << victim << std::endl;
+
+    // 3) Preparar desplazamiento
     int fidx = _pageTable[victim];
-    auto* P = _frames[fidx].page.get();
+    Page* P = _frames[fidx].page.get();
 
-    if (P->getPinCount() > 0) return false;
-
-    // *** NUEVO: preguntar al usuario antes de flush ***
+    // 4) Si está dirty, preguntar al usuario
     if (P->isDirty()) {
         std::cout << "La página " << victim
-            << " tiene cambios. ¿Guardar cambios antes de desalojar? (s/n): ";
-        char resp; std::cin >> resp;
+                  << " tiene cambios. ¿Guardar cambios antes de desalojar? (s/n): ";
+        char resp; 
+        std::cin >> resp;
         if (resp == 's' || resp == 'S') {
             P->flush(_disk);
             std::cout << "Cambios guardados.\n";
-        }
-        else {
+        } else {
             std::cout << "Descartando cambios de página " << victim << ".\n";
         }
     }
 
-    // Borramos la página del buffer
+    // 5) Eliminar la página del buffer
     _pageTable.erase(victim);
-    P = nullptr;               // libera el frame
-    _lru.deletePage(victim);
+    _frames[fidx].page.reset();      // libera el frame
+    _lru.deletePage(victim);         // la quita de LRU
+
     return true;
 }
 
@@ -295,6 +313,17 @@ Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
     if (it != _pageTable.end()) {
         int fidx = it->second;
         _hitCount++;
+        if(_frames[fidx].page->getop() == 'W') {
+            std::cout << "La pagina " << pageId << "tiene una operacion W previa. Quiere guardar estos cambios?\n";
+            char resp; std::cin >> resp;
+            if(resp == 's' || resp == 'S') {
+                _frames[fidx].page->flush(_disk);
+                std::cout << "Cambios guardados.\n";
+            }
+            else {
+                std::cout << "Descartando cambios d e página " << pageId << ".\n";
+            }
+        }
         _frames[fidx].page->pin(op, pinned);
         _lru.pin(pageId);
         return _frames[fidx].page.get();
@@ -314,7 +343,7 @@ Page* BufferPool::getPage(int pageId, char op, bool pinned) {
 
 void BufferPool::flushPage(int pageId) {
     auto it = _pageTable.find(pageId);
-    if (it == _pageTable.end()) return;
+    if (it == _pageTable.end()) return; 
     _frames[it->second].page->flush(_disk);
 }
 void BufferPool::flushAll() { //indiscriminate
