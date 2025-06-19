@@ -115,7 +115,7 @@ static int safe_atoi(const char* str) {
 static bool isBlockAllowed(const char* nombreRelacion, int nroBloque) {
     char rutaCatalogo[MAX_PATH_LEN];
     snprintf(rutaCatalogo, sizeof(rutaCatalogo),
-        "%s%s", discoNuevoPath, "catalogo.txt");
+        "%s%s", discoPath, "catalogo.txt");
     FILE* fcat = fopen(rutaCatalogo, "r");
     if (!fcat) {
         return true;
@@ -132,7 +132,7 @@ static bool isBlockAllowed(const char* nombreRelacion, int nroBloque) {
         char bloquePath[MAX_PATH_LEN];
         snprintf(bloquePath, sizeof(bloquePath),
             "%sBLOQUES\\Bloque%d.txt",
-            discoNuevoPath, nroBloque);
+            discoPath, nroBloque);
         if (strcmp(path, bloquePath) == 0) {
             fclose(fcat);
             return (strcmp(rel, nombreRelacion) == 0);
@@ -601,9 +601,9 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
     printf("DEBUG: Entrando a eliminarRegistro para relación='%s', posiciónGlobal=%d\n",
         relacion, posicionGlobal);
 
-    const char* rutaBase = esPagina
+    const char* discoNuevoPath = esPagina
         ? "BUFFERPOOL\\BLOQUES"
-        : discoNuevoPath;
+        : discoPath;
 
     // 1) Determinar en qué bloque está la posiciónGlobal.
     int bloqueN = 0;
@@ -1100,6 +1100,7 @@ static bool modificarRegistro(const char* relacion, int posicion, const char* nu
         printf("ERROR: crearRLF falló para modificación.\n");
         return false;
     }
+
     int registroSize = 0;
     obtenerRegistroSize(relacion, &registroSize);
     if (registroSize <= 0) {
@@ -1212,13 +1213,14 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     const char* discoNuevoPath = esPagina
         ? bufferPoolPath
-        : discoNuevoPath;
+        : discoPath;
 
 
     // --- 0) Preparar datos y calcular longitud fija de bloque ---
     int registroSize;
     static char regBuf[MAX_BUF]; // Buffer para el RLF
     static int regLen;           // Longitud de regBuf
+
 
     // 0.1) Debug entrada
     //printf("DEBUG: Entrando a adicionarRegistroUnico para relacion='%s', registroTxt='%s'\n",
@@ -1284,6 +1286,10 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         return false;
     }
     //printf("DEBUG: dirBloques.txt abierto con éxito.\n");
+
+    printf("DEBUG: Buscando bloque para '%s' en %s\n",
+        relacion,
+        esPagina ? "BUFFERPOOL" : "DISCO");
 
     char lineaBloque[MAX_BUF];
     int nroBloque = 0;
@@ -1429,7 +1435,6 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     // 3) Volver al inicio exacto del bloque en dirBloques.txt (posición en bytes)
     //printf("DEBUG: Volviendo a byte offset %ld para sobreescribir bloque #%d\n",
     //    posLineaBloque, nroBloque);
-    fseek(fdir, posLineaBloque, SEEK_SET);
 
     // 4) Reconstruir el bloque completo de exactly fixedLen bytes
     char bufferNueva[MAX_BUF] = { 0 };
@@ -1491,13 +1496,20 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         bufferNueva[fixedLen - 1] = '|';
     }
 
+
+
     //printf("DEBUG: Bloque reconstruido (fixedLen %d bytes):\n", fixedLen);
     //printf("       %.*s\n", fixedLen, bufferNueva);
 
     // 4.5) Sobreescribir exactamente fixedLen bytes en dirBloques.txt
     fseek(fdir, posLineaBloque, SEEK_SET);
-    size_t escritosDir = fwrite(bufferNueva, 1, fixedLen, fdir);
-    fflush(fdir);
+    if (!esPagina) {
+        fwrite(bufferNueva, 1, fixedLen, fdir);
+        fflush(fdir);
+    }
+    else {
+        disco.registrarCambioDirBloques(posLineaBloque, bufferNueva, fixedLen);
+    }
     fclose(fdir);
     //printf("DEBUG: Reescritura de bloque #%d en dirBloques.txt: %zu bytes escritos (esperados %d)\n",
     //    nroBloque, escritosDir, fixedLen);
@@ -1506,12 +1518,22 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     // 5) Ahora crear/abrir BloqueN.txt y aprovechar espacio libre (bitmap)
     // -------------------------------------------------------------
     char rutaBloque[MAX_PATH_LEN];
-    snprintf(rutaBloque, sizeof(rutaBloque),
-        "%sBLOQUES\\Bloque%d.txt",
-        discoNuevoPath, nroBloque);
+    if (!esPagina) {
+        // modo DISCO
+        snprintf(rutaBloque, sizeof(rutaBloque),
+            "%sBLOQUES\\Bloque%d.txt",
+            discoPath, nroBloque);
+    }
+    else {
+        // modo PÁGINA (buffer)
+        snprintf(rutaBloque, sizeof(rutaBloque),
+            "%sPage%d.txt",
+            bufferPagePath, nroBloque);
+    }
+
     printf("DEBUG: Ruta BloqueN.txt = '%s'\n", rutaBloque);
 
-    FILE* fbloc = fopen(rutaBloque, "r+b");
+    FILE* fbloc = fopen(rutaBloque, esPagina ? "r+b" : "r+b");
     size_t raw_header_len = 0;
     int numRegAnt = 0;
     int numMaxAnt = 0;

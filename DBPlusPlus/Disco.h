@@ -8,7 +8,7 @@
 #include <direct.h>     // tambien para _mkdir
 #include <iostream>
 #include <fstream>
-
+#include <vector> //solo para guardar cambios
 
 //#define MAX_BUF      512
 #define MAX_STR_LEN 64
@@ -32,6 +32,8 @@ private:
     long long capacidadTotal;
     long long capacidadLibre;
     int nroBloques;
+
+    std::vector<std::pair<long, std::string>> cambiosDirBloques;
 
     char rutaCatalogo[MAX_PATH_LEN];
     char rutaDirBloques[MAX_PATH_LEN];
@@ -242,6 +244,23 @@ public:
                 }
             }
         }
+    }
+
+    void debugPrintCambiosDirBloques() const {
+        std::cout << "[DEBUG] cambiosDirBloques (" << cambiosDirBloques.size() << " cambios):\n";
+        for (size_t i = 0; i < cambiosDirBloques.size(); ++i) {
+            std::cout << "  [" << i << "] Offset: " << cambiosDirBloques[i].first
+                << ", Datos (size=" << cambiosDirBloques[i].second.size() << "): ";
+
+            std::cout << cambiosDirBloques[i].second.substr(0, 40);
+            if (cambiosDirBloques[i].second.size() > 40) std::cout << "...";
+            std::cout << "\n";
+        }
+    }
+
+    void registrarCambioDirBloques(long offset, const char* datos, int len) {
+        cambiosDirBloques.emplace_back(offset, std::string(datos, len));
+        debugPrintCambiosDirBloques();
     }
 
 
