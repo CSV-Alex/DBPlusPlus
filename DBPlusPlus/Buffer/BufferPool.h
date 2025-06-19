@@ -343,7 +343,7 @@ void BufferPool::Status() {
         if (f.page) {
             std::cout <<"|"<<std::setw(10)<<f.id<<"|"
                 <<std::setw(10)<<f.page->getId()<<"|"
-                <<std::setw(10)<<f.page->isDirty()<<"|" //here
+                <<std::setw(10)<<f.page->getop()<<"|" //here
                 <<std::setw(10)<<f.page->isDirty()<<"|"
                 <<std::setw(10)<<f.page->getPinCount()<<"|"
                 <<std::setw(10)<<f.page->getPinStatus()<<"|"
