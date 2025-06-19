@@ -35,7 +35,7 @@ public:
         _pinned(pinned)
     {
         loadFromDisk(disk);
-        _pinCount = 1;
+        _pinCount = 0;
     }
     virtual ~Page() = default;
 
@@ -285,7 +285,7 @@ BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk): _disk(disk)
 BufferPool::~BufferPool() {
         flushAll();
     }
-Page* BufferPool::pinPage(int pageId, char op, bool pinned = false) {
+Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
     cout << "[DEBUG] Mensaje antes del bucle infinito" << endl;
     _totalCount++;
     auto it = _pageTable.find(pageId);
@@ -305,7 +305,7 @@ void BufferPool::unpinPage(int pageId) {
     _frames[fidx].page->unpin();
     _lru.unpin(pageId);
 }
-Page* BufferPool::getPage(int pageId, char op, bool pinned = false) {
+Page* BufferPool::getPage(int pageId, char op, bool pinned) {
     return pinPage(pageId, op, pinned);
 }
 
