@@ -105,13 +105,6 @@ protected:
     }
 };
 
-struct Frame {
-    std::unique_ptr<Page> page;
-    int                    id;
-    Frame(int id_) : id(id_) {}
-};
-
-
 /**
  * Clase Page extendida para soportar operaciones de registro fijo:
  * Objetivo: representar una página en memoria con capacidad de insertar,
@@ -200,9 +193,15 @@ public:
     }
 };
 
+struct Frame {
+    std::unique_ptr<Page> page;
+    int                    id;
+    Frame(int id_) : id(id_) {}
+};
+
 class BufferPool {
 public:
-    BufferPool(size_t bufBytes, size_t pageBytes, Disco& disk);
+    BufferPool(int n_frames, size_t pageBytes, Disco& disk);
     ~BufferPool();
 
     Page* pinPage(int pageId, char op, bool pinned = false);
@@ -220,8 +219,8 @@ private:
     Page* loadNewPage(int pageId, char op, bool pinned);
 
     Disco& _disk;
-    size_t                          _bufBytes;
     size_t                          _pageBytes;
+    int                            _n_frames; //default value 4
     std::vector<Frame>              _frames;
     std::unordered_map<int, int>     _pageTable;  // pageId → frameIdx
 
@@ -241,7 +240,7 @@ bool BufferPool::evictOne() {
     // *** NUEVO: preguntar al usuario antes de flush ***
     if (P->isDirty()) {
         cout << "La página " << victim
-            << " está dirty. ¿Guardar cambios antes de desalojar? (s/n): ";
+            << " tiene cambios. ¿Guardar cambios antes de desalojar? (s/n): ";
         char resp; cin >> resp;
         if (resp == 's' || resp == 'S') {
             P->flush(_disk);
@@ -276,12 +275,9 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
 }
 
 
-BufferPool::BufferPool(size_t bufBytes, size_t pageBytes, Disco& disk)
-        : _disk(disk), _bufBytes(bufBytes), _pageBytes(pageBytes)
-    {
-        size_t nFrames = bufBytes / pageBytes;
-        _frames.reserve(nFrames);
-        for (size_t i = 0; i < nFrames; ++i) _frames.emplace_back((int)i);
+BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk): _disk(disk), _pageBytes(pageBytes), _n_frames(n_frames){
+        _frames.reserve(n_frames);
+        for (size_t i = 0; i < n_frames; ++i) _frames.emplace_back((int)i);
         _disk.createBufferDir(); // crea carpeta BUFFERPOOL
     }
 BufferPool::~BufferPool() {

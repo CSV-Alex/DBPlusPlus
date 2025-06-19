@@ -688,14 +688,14 @@ int main() {
                 cin >> modo;
                 cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
-                int platos, pistas, sectores, tamSector, tamBloque;
+                int platos, pistas, sectores, tamSector, sectores_per_bloque, tamBloque;
                 if (modo == 2) {
                     cout << "Numero de platos: "; cin >> platos;
                     cout << "Numero de pistas: "; cin >> pistas;
                     cout << "Numero de sectores: "; cin >> sectores;
                     cout << "Tamaño del sector (bytes): "; cin >> tamSector;
-                    cout << "Sectores por bloque: "; cin >> tamBloque;
-                    tamBloque = tamSector * tamBloque;
+                    cout << "Sectores por bloque: "; cin >> sectores_per_bloque;
+                    tamBloque = tamSector * sectores_per_bloque;
                     cin.ignore(numeric_limits<streamsize>::max(), '\n');
                 }
                 else if (modo == 1) {
@@ -727,9 +727,8 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                size_t pageBytes = miDisco.getTamBloque();
-                size_t bufferBytes = 3 * pageBytes;
-                pBufPool = new BufferPool(bufferBytes, pageBytes, miDisco);
+                int n_frames = 4; // Número de frames por defecto
+                pBufPool = new BufferPool(n_frames, (size_t)miDisco.getTamBloque(), miDisco);
                 discoConfigDone = true;
             }
             else {
