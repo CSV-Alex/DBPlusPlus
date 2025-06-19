@@ -16,6 +16,7 @@
 #include "../Disco.h"
 #include "../DiscoPaths.h"
 #include "LRU.h"
+#include "../LFija.h"
 
 class PageWithRecords;
 
@@ -245,15 +246,15 @@ bool BufferPool::evictOne() {
 
     // *** NUEVO: preguntar al usuario antes de flush ***
     if (P->isDirty()) {
-        cout << "La página " << victim
+        std::cout << "La página " << victim
             << " tiene cambios. ¿Guardar cambios antes de desalojar? (s/n): ";
-        char resp; cin >> resp;
+        char resp; std::cin >> resp;
         if (resp == 's' || resp == 'S') {
             P->flush(_disk);
-            cout << "Cambios guardados.\n";
+            std::cout << "Cambios guardados.\n";
         }
         else {
-            cout << "Descartando cambios de página " << victim << ".\n";
+            std::cout << "Descartando cambios de página " << victim << ".\n";
         }
     }
 
@@ -290,7 +291,7 @@ BufferPool::~BufferPool() {
         flushAll();
     }
 Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
-    cout << "[DEBUG] Mensaje antes del bucle infinito" << endl;
+    std::cout << "[DEBUG] Mensaje antes del bucle infinito" << std::endl;
     _totalCount++;
     auto it = _pageTable.find(pageId);
     if (it != _pageTable.end()) {
