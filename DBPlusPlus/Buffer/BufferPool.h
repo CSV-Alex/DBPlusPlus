@@ -32,11 +32,11 @@ struct Cambios {
 
 class Page {
 public:
-    Page(int id, Disco& disk, bool pinned = false)
+    Page(int id, Disco& disk,char op, bool pinned = false)
         : _id(id),
         _disk(disk),
         _path("BUFFERPOOL\\BLOQUES\\Page" + std::to_string(id) + ".txt"),
-        _pinned(pinned)
+        _pinned(pinned),operation(op)
     {
         loadFromDisk(disk);
         _pinCount = 0;
@@ -47,20 +47,18 @@ public:
     bool  isDirty() const { return _dirty; }
     int   getPinCount() const { return _pinCount; }
     int   getPinStatus() const { return _pinned; }
+    char   getop() const { return operation; }
 
     void pin(char op, bool makePermanent = false) {
         _pinCount++;
         bool isWrite = (op == 'W');
-        _ops.emplace_back(op, isWrite);
-        updateDirty();
+        if(isWrite){ operation = 'W'; }
+        else { operation = 'R'; }
         if (makePermanent) _pinned = true;
     }
     void unpin() {
         if (_pinCount > 0) _pinCount--;
-        if (!_ops.empty()) {
-            _ops.pop_front();
-            updateDirty();
-        }
+
     }
 
     void forceUnpin(bool saveChanges = true) {
@@ -88,7 +86,7 @@ protected:
     int    _pinCount{ 0 };
     bool   _pinned{ false };
     std::deque<std::pair<char, bool>> _ops;
-    std::vector<std::pair<std::string, std::vector<Cambios>>> _changes;
+    char operation; //R or W
     std::string _relation;
 
     void loadFromDisk(Disco& disk) {
@@ -105,7 +103,7 @@ protected:
         out << in.rdbuf();
     }
 
-    void updateDirty() {
+    void resetDirty() {
         _dirty = false;
         for (auto& op : _ops) if (op.second) { _dirty = true; break; }
     }
@@ -219,7 +217,7 @@ public:
     void flushAll();
 
     void printStats() const ;
-    void Status() const ;
+    void Status() ;
 
 private:
     bool evictOne();
@@ -330,22 +328,26 @@ void BufferPool::printStats() const {
         << "  Hits: " << _hitCount
         << "  Hitrate(): " << std::fixed << std::setprecision(2)<<float(_hitCount)/float(_totalCount) << "\n";
 }
-void BufferPool::Status() const {
+void BufferPool::Status() {
     std::cout << "---- BufferPool State ----\n";
     std::cout <<"|"<<std::setw(10)<< "Frame " << "|"
     <<std::setw(10)<< " Page " <<"|"
+    <<std::setw(10)<< " Op" << "|"
     <<std::setw(10)<< " dirty" << "|"
     <<std::setw(10)<< " pinCount" << "|"
     <<std::setw(10)<< " pinStatus" << "|"
+    <<std::setw(10)<< " Last Accessed" << "|"
     << "\n";
 
     for (auto& f : _frames) {
         if (f.page) {
             std::cout <<"|"<<std::setw(10)<<f.id<<"|"
                 <<std::setw(10)<<f.page->getId()<<"|"
+                <<std::setw(10)<<f.page->isDirty()<<"|" //here
                 <<std::setw(10)<<f.page->isDirty()<<"|"
                 <<std::setw(10)<<f.page->getPinCount()<<"|"
                 <<std::setw(10)<<f.page->getPinStatus()<<"|"
+                <<std::setw(10)<<_lru.getpos(f.page->getId())<<"|"
                 << "\n";
         }
         else {

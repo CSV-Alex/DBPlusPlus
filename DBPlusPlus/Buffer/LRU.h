@@ -9,6 +9,7 @@ public:
     void pin(int pageId) { touch(pageId); }
     void unpin(int pageId) { touch(pageId); }
     void deletePage(int pageId);
+    int getpos(int pageId);
     int victim()   ;
 private:
     std::list<int> lru;
@@ -36,4 +37,12 @@ void LRUReplacer::touch(int pageId) { //reposiciona la pagina al final de la lis
     }
     lru.push_back(pageId);
     pos[pageId] = std::prev(lru.end());
+}
+
+int LRUReplacer::getpos(int pageId) {
+    auto it = pos.find(pageId);
+    if (it != pos.end()) {
+        return std::distance(lru.begin(), it->second);
+    }
+    return -1; //not found
 }
