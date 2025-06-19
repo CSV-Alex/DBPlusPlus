@@ -16,6 +16,18 @@
 static const int MAX_FIXEDLEN = 1024;
 
 // Lee catalogo.txt y retorna el número de último bloque asignado a `relacion` (0 si no existe)
+// -----------------------------------------------------------------------------
+// Función: leerBloqueDeCatalogo
+// Objetivo de la función:
+//     Leer el archivo de catálogo y retornar el número del último bloque
+//     asignado a una relación dada.
+// Input:
+//     const char* rutaCatalogo  – ruta al archivo catalogo.txt.
+//     const char* relacion      – nombre de la relación a buscar.
+// Output:
+//     int  – número de bloque hallado, o 0 si no existe o hay error al abrir.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static int leerBloqueDeCatalogo(const char* rutaCatalogo, const char* relacion) {
     FILE* f = fopen(rutaCatalogo, "r");
     if (!f) return 0;
@@ -38,7 +50,18 @@ static int leerBloqueDeCatalogo(const char* rutaCatalogo, const char* relacion) 
     fclose(f);
     return bloqueN;
 }
-
+// -----------------------------------------------------------------------------
+// Función: obtenerRelacionDeBloque
+// Objetivo de la función:
+//     Obtener el nombre de la relación asociada a un bloque específico,
+//     leyendo catalogo.txt.
+// Input:
+//     const char* rutaCatalogo  – ruta al archivo catalogo.txt.
+//     int nroBloque             – número del bloque a consultar.
+// Output:
+//     char* – cadena estática con el nombre de la relación, o nullptr si no existe.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 
 static char* obtenerRelacionDeBloque(const char* rutaCatalogo, int nroBloque) {
     static char rel[MAX_STR_LEN];
@@ -65,19 +88,55 @@ static char* obtenerRelacionDeBloque(const char* rutaCatalogo, int nroBloque) {
     return nullptr;
 }
 
-
+// -----------------------------------------------------------------------------
+// Función: getTamBloqueFromDisco
+// Objetivo de la función:
+//     Proveer el tamaño de bloque consultando al objeto Disco.
+// Input:
+//     Disco& disco  – referencia al objeto Disco.
+// Output:
+//     int  – tamaño en bytes de cada bloque.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static int getTamBloqueFromDisco(Disco& disco) {
     return disco.getTamBloque();
 }
-
+// -----------------------------------------------------------------------------
+// Función: getBufferRutaFromDisco
+// Objetivo de la función:
+//     Obtener el buffer de ruta interna del disco.
+// Input:
+//     const Disco& disco  – referencia constante al objeto Disco.
+// Output:
+//     const char*  – puntero al buffer de ruta del Disco.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static const char* getBufferRutaFromDisco(const Disco& disco) {
     return disco.getBufferRuta();
 }
-
+// -----------------------------------------------------------------------------
+// Función: getBufferLecturaFromDisco
+// Objetivo de la función:
+//     Obtener el buffer de lectura interna del disco.
+// Input:
+//     const Disco& disco  – referencia constante al objeto Disco.
+// Output:
+//     const char*  – puntero al buffer de lectura del Disco.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static const char* getBufferLecturaFromDisco(const Disco& disco) {
     return disco.getBufferLectura();
 }
-
+// -----------------------------------------------------------------------------
+// Función: safe_atoi
+// Objetivo de la función:
+//     Convertir de forma segura una cadena a entero, devolviendo 0 si no es numérica.
+// Input:
+//     const char* str  – cadena a convertir.
+// Output:
+//     int  – valor numérico convertido o 0 en caso de fallo.
+// Autor: Alex Cañapataña
+// ----------------------------------------------------------------------------
 // Convierte una cadena a entero de forma segura.
 // Retorna 0 si la cadena no es un número válido.
 /// Importante
@@ -110,7 +169,18 @@ static int safe_atoi(const char* str) {
     }
     return found_digit ? sign * result : 0;
 }
-
+// -----------------------------------------------------------------------------
+// Función: isBlockAllowed
+// Objetivo de la función:
+//     Verificar si un bloque está permitido para una relación dada,
+//     comparando rutas en catalogo.txt.
+// Input:
+//     const char* nombreRelacion  – nombre de la relación.
+//     int nroBloque               – número del bloque a validar.
+// Output:
+//     bool  – true si el bloque está permitido o no está en catálogo; false en caso contrario.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------    
 /// Importante
 static bool isBlockAllowed(const char* nombreRelacion, int nroBloque) {
     char rutaCatalogo[MAX_PATH_LEN];
@@ -141,7 +211,18 @@ static bool isBlockAllowed(const char* nombreRelacion, int nroBloque) {
     fclose(fcat);
     return true;
 }
-
+// -----------------------------------------------------------------------------
+// Función: validarCampos
+// Objetivo de la función:
+//     Validar que cada campo de un registro separado por ‘#’ no exceda su longitud máxima.
+// Input:
+//     const char* registro    – cadena con campos separados por ‘#’.
+//     int numFields           – número esperado de campos.
+//     int* maxLenArr          – arreglo de longitudes máximas para cada campo.
+// Output:
+//     bool  – true si todos los campos cumplen su longitud; false si alguno excede.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 /// Importante
 static bool validarCampos(const char* registro, int numFields, int* maxLenArr) {
     char copy[MAX_BUF];
@@ -158,7 +239,21 @@ static bool validarCampos(const char* registro, int numFields, int* maxLenArr) {
     return (idx == numFields);
 }
 
-
+// -----------------------------------------------------------------------------
+// Función: calcularCabeceraBloque
+// Objetivo de la función:
+//     Calcular y construir el encabezado de un bloque de longitud fija,
+//     estimando cuántos registros caben con bitmap.
+// Input:
+//     int tamBloque          – tamaño total del bloque en bytes.
+//     int registroSize       – tamaño en bytes de cada registro fijo.
+//     char* bufferHeader     – buffer de salida para la cabecera generada.
+//     size_t* outHeaderLen   – puntero para longitud de la cabecera generada.
+//     int* outNumMax         – puntero para número máximo de registros cabables.
+// Output:
+//     void (resultados en outHeaderLen y outNumMax).
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static void calcularCabeceraBloque(int tamBloque, int registroSize,
     char* bufferHeader,
     size_t* outHeaderLen,
@@ -224,6 +319,17 @@ static void calcularCabeceraBloque(int tamBloque, int registroSize,
     *outNumMax = numMax;
 }
 
+// -----------------------------------------------------------------------------
+// Función: calcularLongitudFija
+// Objetivo de la función:
+//     Leer un archivo de texto de datos (separados por ‘#’), determinar
+//     la longitud máxima de cada campo y registrar la información en longitudfija.txt.
+// Input:
+//     const char* rutaTXT  – ruta al archivo de texto de datos.
+// Output:
+//     void (registra en longitudfija.txt o imprime error por stderr).
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 
 static void calcularLongitudFija(const char* rutaTXT) {
     FILE* ftxt = fopen(rutaTXT, "r");
@@ -303,6 +409,17 @@ static void calcularLongitudFija(const char* rutaTXT) {
     fclose(flog);
 }
 
+// -----------------------------------------------------------------------------
+// Función: obtenerRegistroSize
+// Objetivo de la función:
+//     Leer longitudfija.txt para calcular el tamaño total en bytes de un registro fijo.
+// Input:
+//     const char* relacion    – nombre de la relación.
+//     int* outRegistroSize    – puntero para recibir el tamaño calculado.
+// Output:
+//     void (outRegistroSize ajustado; 0 si no lo encuentra).
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 /// Buscar forma de reemplazarlo por obtenerTamañoRegistro
 static void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
     FILE* flog = fopen(rutaLongitudFija, "r");
@@ -355,6 +472,18 @@ static void obtenerRegistroSize(const char* relacion, int* outRegistroSize) {
     fclose(flog);
     *outRegistroSize = 0;
 }
+// -----------------------------------------------------------------------------
+// Función: obtenerLongitudesPorCampo
+// Objetivo de la función:
+//     Leer longitudfija.txt y extraer el número de campos y sus longitudes máximas.
+// Input:
+//     const char* relacion  – nombre de la relación.
+//     int* numFields        – puntero para recibir número de campos.
+//     int* maxLenArr        – arreglo para recibir longitudes máximas.
+// Output:
+//     bool  – true si se cargaron correctamente; false si falla.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 
 /// Observar
 static bool obtenerLongitudesPorCampo(const char* relacion, int* numFields, int* maxLenArr) {
@@ -415,7 +544,19 @@ static bool obtenerLongitudesPorCampo(const char* relacion, int* numFields, int*
     *numFields = 0;
     return false;
 }
-
+// -----------------------------------------------------------------------------
+// Función: mostrarSectoresDeBloque
+// Objetivo de la función:
+//     Mostrar información de sectores de un bloque variable, ya sea espacio libre
+//     o rutas completas según opción.
+// Input:
+//     int bloqueN    – número de bloque a consultar.
+//     int opcion     – 1 para espacio libre, 2 para solo rutas.
+//     Disco disco    – objeto Disco usado para resolver rutas.
+// Output:
+//     void (imprime al stdout el detalle de sectores).
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static void mostrarSectoresDeBloque(int bloqueN, int opcion, Disco disco) {
     if (opcion != 1 && opcion != 2) {
         std::cout << "Opción inválida. Use 1 (mostrar espacios libres) o 2 (solo rutas).\n";
@@ -521,7 +662,20 @@ static void mostrarSectoresDeBloque(int bloqueN, int opcion, Disco disco) {
 
     std::cout << "Total de sectores mostrados: " << sectorCount << "\n";
 }
-
+// -----------------------------------------------------------------------------
+// Función: crearRLF
+// Objetivo de la función:
+//     Construir en un buffer un Registro de Longitud Fija (RLF) a partir de un
+//     texto de campos separados por ‘#’, rellenando y separando según longitudes.
+// Input:
+//     const char* registroTxt  – cadena original de campos separados por ‘#’.
+//     const char* relacion     – relación para obtener longitudes de campo.
+//     char* outBuffer          – buffer de salida para el RLF generado.
+//     int* outLen              – puntero para recibir longitud final del RLF.
+// Output:
+//     bool  – true si se genera correctamente; false en caso de error.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
     int numFields = 0;
     int maxLen[MAX_FIELDS] = { 0 };
@@ -596,7 +750,20 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
     return true;
 }
-
+// -----------------------------------------------------------------------------
+// Función: eliminarRegistro
+// Objetivo de la función:
+//     Eliminar un registro en una posición global de una tabla paginada o en disco,
+//     actualizando bitmap, volcando bloques y directorios según sea página o disco.
+// Input:
+//     const char* relacion      – nombre de la relación.
+//     int posicionGlobal        – índice global del registro a borrar (1-based).
+//     Disco disco               – objeto Disco para operaciones de bloque/sector.
+//     bool esPagina             – true si opera en bufferpool, false si en disco físico.
+// Output:
+//     bool  – true si se completa la eliminación; false en error.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco disco, bool esPagina = false) {
     printf("DEBUG: Entrando a eliminarRegistro para relación='%s', posiciónGlobal=%d\n",
         relacion, posicionGlobal);
@@ -1028,7 +1195,21 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
 
     return true;
 }
-
+// -----------------------------------------------------------------------------
+// Función: modificarRegistro
+// Objetivo de la función:
+//     Modificar un registro en una posición global: elimina el antiguo y escribe
+//     el nuevo RLF correspondiente, actualizando bloques y volcando cambios.
+// Input:
+//     const char* relacion      – nombre de la relación.
+//     int posicion              – índice global del registro a modificar.
+//     const char* nuevoRegistroTxt – texto del nuevo registro separado por ‘#’.
+//     Disco disco               – objeto Disco para operaciones de bloque/sector.
+//     bool esPagina             – true si opera en bufferpool, false si en disco físico.
+// Output:
+//     bool  – true si la modificación fue exitosa; false en caso contrario.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static bool modificarRegistro(const char* relacion, int posicion, const char* nuevoRegistroTxt, Disco disco, bool esPagina = false) {
     printf("DEBUG: Entrando a modificarRegistro para relación='%s', posición=%d\n", relacion, posicion);
 
@@ -1201,7 +1382,17 @@ static bool modificarRegistro(const char* relacion, int posicion, const char* nu
     printf("DEBUG: modificarRegistro completado para Bloque%d, posición %d\n", bloqueN, posicion);
     return true;
 }
-
+// -----------------------------------------------------------------------------
+// Función: adicionarRegistroUnicoBitmap
+// Objetivo de la función:
+//     (Stub) Insertar un registro en modo bitmap — pendiente de implementar.
+// Input:
+//     const char* nombreRel     – nombre de la relación.
+//     const char* registroTxt   – campos separados por ‘#’.
+// Output:
+//     bool  – false (no implementado).
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* registroTxt) {
     return false;
 }
@@ -1209,6 +1400,20 @@ static bool adicionarRegistroUnicoBitmap(const char* nombreRel, const char* regi
 //////////////////// insertar de forma fija
 
 /// #P1#Works#BeforeTheCorruption
+// -----------------------------------------------------------------------------
+// Función: adicionarRegistroUnico
+// Objetivo de la función:
+//     Insertar un registro fijo o variable en un bloque, manejando creación,
+//     actualización de bitmap, reutilización o anexado según el caso.
+// Input:
+//     const char* registroTxt  – texto con campos separados por ‘#’.
+//     const char* relacion     – nombre de la relación.
+//     Disco& disco             – objeto Disco para operaciones de bloque.
+//     bool esPagina            – true para bufferpool, false para disco físico.
+// Output:
+//     bool  – true si la inserción tuvo éxito; false en error.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion, Disco& disco, bool esPagina = false) {
 
     const char* discoNuevoPath = esPagina
@@ -1786,6 +1991,21 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     }
 }
 
+// -----------------------------------------------------------------------------
+// Función: adicionarNRegistros
+// Objetivo de la función:
+//     Leer n líneas de un CSV, transformar comas a ‘#’ e insertar cada registro
+//     llamando a adicionarRegistroUnico o bitmap según opción.
+// Input:
+//     int n                  – número de registros a procesar.
+//     const char* csvPath    – ruta al archivo CSV.
+//     const char* tabla      – nombre de la tabla/relación.
+//     int opcion             – 1 para bitmap, otro valor para fijo.
+//     Disco& disco           – objeto Disco para inserción.
+// Output:
+//     bool  – true si todas las inserciones fueron exitosas; false si falla alguna.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, int opcion, Disco& disco) {
     FILE* fcsv = fopen(csvPath, "r");
     if (!fcsv) {
@@ -1837,6 +2057,20 @@ static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, i
     return true;
 }
 
+// -----------------------------------------------------------------------------
+// Función: adicionarTodoCSV
+// Objetivo de la función:
+//     Leer todas las líneas de un CSV tras el encabezado, convertir comas a ‘#’
+//     e insertar cada registro llamando a adicionarRegistroUnico o bitmap.
+// Input:
+//     const char* csvPath    – ruta al archivo CSV.
+//     const char* tabla      – nombre de la tabla/relación.
+//     int opcion             – 1 para bitmap, otro valor para fijo.
+//     Disco& disco           – objeto Disco para inserción.
+// Output:
+//     bool  – true si todas las inserciones fueron exitosas; false si falla alguna.
+// Autor: Alex Cañapataña
+// -----------------------------------------------------------------------------
 static bool adicionarTodoCSV(const char* csvPath, const char* tabla, int opcion, Disco& disco) {
     FILE* fcsv = fopen(csvPath, "r");
     if (!fcsv) {
