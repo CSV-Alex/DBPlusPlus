@@ -32,11 +32,11 @@ struct Cambios {
 
 class Page {
 public:
-    Page(int id, Disco& disk,char op, bool pinned = false)
+    Page(int id, Disco& disk, char op, bool pinned = false)
         : _id(id),
         _disk(disk),
         _path("BUFFERPOOL\\BLOQUES\\Page" + std::to_string(id) + ".txt"),
-        _pinned(pinned),operation(op),
+        _pinned(pinned), operation(op),
         _dirty(false)
     {
         loadFromDisk(disk);
@@ -68,7 +68,7 @@ public:
 
     void unpin() {
         if (_pinCount > 0) _pinCount--;
-        _pinned=false;
+        _pinned = false;
     }
 
     void forceUnpin(bool saveChanges = true) {
@@ -135,7 +135,7 @@ protected:
  *           eliminar y modificar registros de longitud fija.
  * Input: identificador de página y referencia al disco.
  * Output: ninguna, modifica el contenido en memoria y marca la página dirty.
- * Autor: Nombre del alumno
+ * Autor: Alexander
  */
 class PageWithRecords : public Page {
 public:
@@ -144,6 +144,7 @@ public:
 
     bool esPagina = true;
     /**
+     * Autor: Alex
      * Inserta un registro de longitud fija en la página.
      * @param relacion Nombre de la relación (e.g., "housing").
      * @param registroTxt Cadena con los campos separados por '#', termina con '\n'.
@@ -166,6 +167,7 @@ public:
     }
 
     /**
+     * Autor: Alex
      * Elimina un registro de longitud fija en la posición global dada.
      * @param relacion Nombre de la relación.
      * @param posicion Posición global del registro a eliminar.
@@ -189,7 +191,8 @@ public:
      * @param relacion Nombre de la relación.
      * @param posicion Posición global.
      * @param nuevoRegistroTxt Cadena de nuevos campos separados por '#'.
-     * @return true si se modificó correctamente.
+     * @return true si se modificó correctamente
+     * Autor: Alex
      */
     bool modifyFixed(const std::string& relacion, int posicion, const std::string& nuevoRegistroTxt) {
         bool ok = modificarRegistro(
@@ -236,8 +239,8 @@ public:
     void flushPage(int pageId);
     void flushAll();
 
-    void printStats() const ;
-    void Status() ;
+    void printStats() const;
+    void Status();
 
 private:
     bool evictOne();
@@ -254,6 +257,12 @@ private:
     size_t                          _hitCount{ 0 }, _totalCount{ 0 };
 };
 
+/**
+ * Objetivo: Volcar una página individual del buffer al disco
+ * Input: Disco& disco, int pageId
+ * Output: Nada; escribe Bloque<pageId>.txt en disco y elimina Page<pageId>.txt
+ * Autor: Alex
+ */
 void flushPageToDisk(Disco& disco, int pageId) {
     namespace fs = std::filesystem;
     // Construir rutas
@@ -285,7 +294,12 @@ void flushPageToDisk(Disco& disco, int pageId) {
     );
 }
 
-
+/**
+ * Objetivo: Seleccionar y expulsar una página según política LRU.
+ * Input: Ninguno; usa estado interno (_pageTable, _frames, _lru).
+ * Output: devuelve true si desalojó una página, false si no encontró víctima.
+ * Autor: Alexander
+ */
 bool BufferPool::evictOne() {
     // 1) Elegir victimId según LRU (timestamp más antiguo), saltando páginas pineadas
     int victimId = -1;
@@ -333,6 +347,12 @@ bool BufferPool::evictOne() {
     return true;
 }
 
+/**
+ * Autor: Alexander
+ * Objetivo: Cargar una nueva página en buffer, expulsando si es necesario.
+ * Input: int pageId, char op, bool pinned
+ * Output: Page* puntero a la página cargada o nullptr si falla.
+ */
 Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
     _totalCount++;
     for (auto& f : _frames) {
@@ -350,16 +370,22 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
 }
 
 
-BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk): _disk(disk), _pageBytes(pageBytes), _n_frames(n_frames){
-        _frames.reserve(n_frames);
-        for (size_t i = 0; i < n_frames; ++i) _frames.emplace_back((int)i);
-        _disk.createBufferDir(); // crea carpeta BUFFERPOOL
-    }
+BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk) : _disk(disk), _pageBytes(pageBytes), _n_frames(n_frames) {
+    _frames.reserve(n_frames);
+    for (size_t i = 0; i < n_frames; ++i) _frames.emplace_back((int)i);
+    _disk.createBufferDir(); // crea carpeta BUFFERPOOL
+}
 BufferPool::~BufferPool() {
-        flushAll();
-    }
+    flushAll();
+}
 
 
+/**
+ * Objetivo: Obtener (pin) una página; si existe, pregunta flush+reload, sino la trae.
+ * Input: int pageId, char op, bool pinned
+ * Output: Page* puntero a la página o nullptr si falla.
+  * Autor: Alexander
+ */
 Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
 
     std::cout << "[DEBUG] Mensaje antes del bucle infinito" << std::endl;
@@ -401,22 +427,48 @@ Page* BufferPool::getPage(int pageId, char op, bool pinned) {
     return pinPage(pageId, op, pinned);
 }
 
+/**
+ * Autor: Alexander
+ * Objetivo: Volcar una sola página al disco (copia y borra temp + volcar sectores)
+ * Input: Disco& disco, int pageId
+ * Output: Ninguno; escribe Bloque<pageId>.txt y elimina Page<pageId>.txt
+ */
 void BufferPool::flushPage(int pageId) {
     auto it = _pageTable.find(pageId);
-    if (it == _pageTable.end()) return; 
+    if (it == _pageTable.end()) return;
     _frames[it->second].page->flush(_disk);
 }
+
+/**
+ * Autor: Alexander
+ * Objetivo: Volcar todas las páginas sucias del buffer al disco
+ * Input: Ninguno
+ * Output: Ninguno; recorre frames y llama flush() en cada página dirty
+ */
 void BufferPool::flushAll() { //indiscriminate
     for (auto& f : _frames)
         if (f.page && f.page->isDirty())
             f.page->flush(_disk);
 }
 
+/**
+ * Autor: Alex
+ * Objetivo: Mostrar estadísticas de accesos y aciertos
+ * Input: Ninguno
+ * Output: Imprime Requests, Hits y Hit rate
+ */
 void BufferPool::printStats() const {
     std::cout << "Requests: " << _totalCount
         << "  Hits: " << _hitCount
-        << "  Hitrate(): " << std::fixed << std::setprecision(2)<<float(_hitCount)/float(_totalCount) << "\n";
+        << "  Hitrate(): " << std::fixed << std::setprecision(2) << float(_hitCount) / float(_totalCount) << "\n";
 }
+
+/**
+ * Autor: Alex
+ * Objetivo: Mostrar estado de cada frame (ID, página, dirty, pinCount, op, lastAccess, pinStatus)
+ * Input: Ninguno
+ * Output: Imprime tabla de estado
+ */
 void BufferPool::Status() {
     std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | LastAcc | PinStat |\n";
     for (auto& f : _frames) {
@@ -440,6 +492,12 @@ inline void registrarPaginaModificada(int nroBloque) {
     paginasModificadas.push_back(nroBloque);
 }
 
+/**
+ * Autor: Alex
+ * Objetivo: Volcar todas las páginas registradas en paginasModificadas al disco
+ * Input: Disco& disco
+ * Output: Copia y borra cada PageN.txt, revierte cambios en dirBloques.txt
+ */
 void flushBufferToDisk(Disco& disco) {
     namespace fs = std::filesystem;
 

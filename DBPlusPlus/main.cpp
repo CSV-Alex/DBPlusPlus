@@ -641,6 +641,15 @@ void ejecutar_query(const char* selectField,
     }
 }
 
+std::string leerArchivo(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("No se pudo abrir el archivo: " + path);
+    }
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
 
 
 int main() {
@@ -727,7 +736,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 2; // Número dde frames por defecto
+                int n_frames = 4; // Número dde frames por defecto
                 pBufPool = new BufferPool(n_frames, (size_t)miDisco.getTamBloque(), miDisco);
                 discoConfigDone = true;
             }
@@ -747,6 +756,7 @@ int main() {
                     cout << "8) Ejecutar consulta SQL\n"; ///
                     cout << "9) Adicionar/Volcar relacion a Sectores\n"; ///
                     cout << "10) Salir\n"; ///
+                    cout << "11) Auxiliar Mostrar\n";
                     cout << ">> ";
 
                     string opt;
@@ -919,6 +929,27 @@ int main() {
                         miDisco.volcarRelacionASectores(tabla.c_str());
                     }
 
+                    else if (opt == "11") {
+                                            
+                        int numero;
+                        std::cout << "Ingrese el número de página: ";
+                        std::cin >> numero;
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+                        std::string ruta = std::string(rutaBloque)
+                            + "\Bloque" + std::to_string(numero) + ".txt";
+
+                        try {
+                            std::string contenido = leerArchivo(ruta);
+                            std::cout << " " << ruta << "\n"
+                                << contenido << "\n";
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
+                        } 
+                        std::cerr << "Error: " << "\n";
+                        
+                    }
                     else {
                         cout << "Opcion invalida\n";
                     }
@@ -941,6 +972,7 @@ int main() {
                     cout << "6) Cambios en pagina\n";
                     cout << "7) Ver contenido pagina\n";
                     cout << "8) Volver al menu principal\n";
+                    cout << "9) Mostrar\n";
                     cout << ">> ";
                     int opc; cin >> opc; cin.ignore();
                     if (opc == 8) break;
@@ -1045,6 +1077,27 @@ int main() {
                         }
                         break;
                     }
+                    
+                    case 9: {
+                        std::string base = bufferPagePath;
+
+                        int numero;
+                        std::cout << "Ingrese el número de página: ";
+                        std::cin >> numero;
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+                        std::string ruta = base + "/Page" + std::to_string(numero) + ".txt";
+
+                        try {
+                            std::string contenido = leerArchivo(ruta);
+                            std::cout << "--- Contenido de " << ruta << " ---\n"
+                                << contenido << "\n";
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
+                        }
+                    }
+
                     default: cout << "Inválida\n";
                     }
                 }

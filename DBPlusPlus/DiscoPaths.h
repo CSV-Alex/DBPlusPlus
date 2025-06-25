@@ -9,6 +9,7 @@ extern const char* discoPath;
 extern const char* bufferPoolPath;
 extern const char* rutaCatalogo;
 extern const char* bufferPagePath;
+extern const char* rutaBloque;
 
 extern std::vector<std::pair<long, std::string>> cambiosDirBloques;
 extern std::vector<int> paginasModificadas;
