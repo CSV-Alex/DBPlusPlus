@@ -1,12 +1,12 @@
 
-/*#pragma once
+#pragma once
 #include <list>
 #include <unordered_map>
 #include <vector>
 #include <memory>
 #include <string>
 
-//#include "ReplacementStrategy.h"
+#include "ReplacementStrategy.h"
 
 class LRUReplacer: public ReplacementStrategy {
     public:
@@ -36,4 +36,4 @@ class LRUReplacer: public ReplacementStrategy {
             lru.push_back(pageId);
             pos[pageId] = std::prev(lru.end());
         }
-};*/
+};
