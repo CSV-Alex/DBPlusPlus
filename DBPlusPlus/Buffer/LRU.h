@@ -4,12 +4,13 @@
 
 /**
  * Autor: Alexander
- * Objetivo: Implementar política de reemplazo LRU (Least Recently Used) para páginas.
- * Input: Métodos utilizan el identificador de página.
- * Output: Gestión interna de la lista LRU y selección de víctima.
+ * Objetivo: Implementar polï¿½tica de reemplazo LRU (Least Recently Used) para pï¿½ginas.
+ * Input: Mï¿½todos utilizan el identificador de pï¿½gina.
+ * Output: Gestiï¿½n interna de la lista LRU y selecciï¿½n de vï¿½ctima.
  */
-class LRUReplacer {
+class LRU:public ReplacementStrategy {
 public:
+    LRU(); //constructor por defecto
     void newPage(int pageId) { touch(pageId); } //no es exactamente una nueva pagina, solo la toca
     void pin(int pageId) { touch(pageId); }
     void unpin(int pageId) { touch(pageId); }
@@ -22,13 +23,19 @@ private:
     void touch(int pageId);
 };
 
+LRU::LRU() {
+    // Constructor por defecto, inicializa la lista LRU y el mapa de posiciones
+    lru.clear();
+    pos.clear();
+}
+
 /**
  * Autor: Alexander
- * Objetivo: Borrar una página de las estructuras LRU.
+ * Objetivo: Borrar una pï¿½gina de las estructuras LRU.
  * Input: int pageId
  * Output: Ninguno
  */
-void LRUReplacer::deletePage(int pageId) {
+void LRU::deletePage(int pageId) {
     auto it = pos.find(pageId);
     if (it != pos.end()) {
         lru.erase(it->second);
@@ -38,22 +45,22 @@ void LRUReplacer::deletePage(int pageId) {
 
 /**
  * Autor: Alexander
- * Objetivo: Devolver la página víctima (menos recientemente usada).
+ * Objetivo: Devolver la pï¿½gina vï¿½ctima (menos recientemente usada).
  * Input: Ninguno
- * Output: ID de la página al frente o -1 si la lista está vacía
+ * Output: ID de la pï¿½gina al frente o -1 si la lista estï¿½ vacï¿½a
  */
-int LRUReplacer::victim() { //first element from LRU list.
+int LRU::victim() { //first element from LRU list.
     if (lru.empty()) return -1;
     return lru.front();
 }
 
 /**
  * Autor: Alexander
- * Objetivo: Reposicionar la página al final de la lista LRU.
+ * Objetivo: Reposicionar la pï¿½gina al final de la lista LRU.
  * Input: int pageId
  * Output: Ninguno
  */
-void LRUReplacer::touch(int pageId) { //reposiciona la pagina al final de la lista
+void LRU::touch(int pageId) { //reposiciona la pagina al final de la lista
     auto it = pos.find(pageId);
     if (it != pos.end()) {
         lru.erase(it->second);
@@ -66,11 +73,11 @@ void LRUReplacer::touch(int pageId) { //reposiciona la pagina al final de la lis
 
 /**
  * Autor: Alexander
- * Objetivo: Calcular la posición de una página en la lista LRU.
+ * Objetivo: Calcular la posiciï¿½n de una pï¿½gina en la lista LRU.
  * Input: int pageId
  * Output: Distancia desde el frente o -1 si no existe
  */
-int LRUReplacer::getpos(int pageId) {
+int LRU::getpos(int pageId) {
     auto it = pos.find(pageId);
     if (it != pos.end()) {
         return std::distance(lru.begin(), it->second);

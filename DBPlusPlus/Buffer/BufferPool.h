@@ -15,8 +15,10 @@
 
 #include "../Disco.h"
 #include "../DiscoPaths.h"
-#include "LRU.h"
 #include "../LFija.h"
+#include "ReplacementStrategy.h"
+#include "Clock.h"
+#include "LRU.h"
 
 class PageWithRecords;
 
@@ -229,7 +231,7 @@ struct Frame {
 
 class BufferPool {
 public:
-    BufferPool(int n_frames, size_t pageBytes, Disco& disk);
+    BufferPool(int n_frames, size_t pageBytes, Disco& disk, bool flag);
     ~BufferPool();
 
     Page* pinPage(int pageId, char op, bool pinned = false);
@@ -252,7 +254,7 @@ private:
     std::vector<Frame>              _frames;
     std::unordered_map<int, int>     _pageTable;  // pageId → frameIdx
 
-    LRUReplacer                     _lru;        // la lista LRU de páginas
+    std::unique_ptr<ReplacementStrategy> _lru;        // la lista LRU de páginas
 
     size_t                          _hitCount{ 0 }, _totalCount{ 0 };
 };
@@ -342,7 +344,7 @@ bool BufferPool::evictOne() {
     // 3) Expulsar la página de memoria y estructuras
     _frames[fidx].page.reset();
     _pageTable.erase(victimId);
-    _lru.deletePage(victimId);
+    _lru->deletePage(victimId);
 
     return true;
 }
@@ -361,7 +363,7 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
             f.page.reset(new PageWithRecords(pageId, _disk, pinned));
             f.page->pin(op, pinned);
             _pageTable[pageId] = f.id;
-            _lru.newPage(pageId);
+            _lru->newPage(pageId);
             return f.page.get();
         }
     }
@@ -370,10 +372,16 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
 }
 
 
-BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk) : _disk(disk), _pageBytes(pageBytes), _n_frames(n_frames) {
+BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk, bool flag)
+    : _disk(disk), _pageBytes(pageBytes), _n_frames(n_frames) {
     _frames.reserve(n_frames);
     for (size_t i = 0; i < n_frames; ++i) _frames.emplace_back((int)i);
     _disk.createBufferDir(); // crea carpeta BUFFERPOOL
+    if (flag) {
+        _lru = std::make_unique<LRU>();
+    } else {
+        _lru = std::make_unique<Clock>(n_frames);
+    }
 }
 BufferPool::~BufferPool() {
     flushAll();
@@ -420,7 +428,7 @@ void BufferPool::unpinPage(int pageId) {
     if (it == _pageTable.end()) return;
     int fidx = it->second;
     _frames[fidx].page->unpin();
-    _lru.unpin(pageId);
+    _lru->unpin(pageId);
 }
 
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {

@@ -37,6 +37,14 @@ void Clock::newPage(int pageId) {
 void Clock::pin(int pageId) {
     touch(pageId);
 }
+void Clock::unpin(int pageId) {
+    for (int i = 0; i < frames_.size(); ++i) {
+        if (frames_[i].pageId == pageId) {
+            frames_[i].used = false; // Mark as not used
+            return;
+        }
+    }
+}
 void Clock::deletePage(int pageId) {
     for (int i = 0; i < frames_.size(); ++i) {
         if (frames_[i].pageId == pageId) {
