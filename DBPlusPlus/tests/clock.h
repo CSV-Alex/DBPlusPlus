@@ -73,11 +73,10 @@ bool BufferPool::access(char p, int op, int pinStatus) {
             if(_frames[hand_].pinCount == 0) { //si no hay mas pines, se puede reemplazar
                 _frames[hand_].clock = 0; //marca el bit de reloj como 0
             }
-            hand_ = (hand_ + 1) % _capacity; //avanza al siguiente frame 
         } 
         else if (_frames[hand_].clock == 1 && _frames[hand_].pinCount==0) { //si el bit de reloj es 1, se reemplaza
             _frames[hand_].clock = 0; //marca el bit de reloj como 0
-            hand_ = (hand_ + 1) % _capacity; //avanza al siguiente frame
+
         }
         else if (_frames[hand_].clock == 0 && _frames[hand_].pinCount==0 && _frames[hand_].pinStatus==0) { //si el bit de reloj es 0 y no hay pines, se reemplaza
             victim = hand_; //se guarda el frame a reemplazar
