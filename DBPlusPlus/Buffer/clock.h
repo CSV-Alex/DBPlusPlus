@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <vector>
 #include <unordered_map>
 #include "replacementStrategy.h"
@@ -26,6 +26,7 @@ protected:
         int pageId; // ID of the page
         bool used;  // Used bit
         bool pinned = false;
+        int pinCount;
     };
     std::vector<Frame>  frames_;
     std::unordered_map<int, int> idx_;
@@ -42,13 +43,13 @@ Clock::Clock(int n)
 
 void Clock::newPage(int pageId) {
     std::cout << "[DEBUG] Clock::newPage() llamado\n";
-    // 1) Busca un slot vacío
+    // 1) Busca un slot vacÃ­o
     int slot = findEmptySlot();
     if (slot < 0) {
         // Buffer lleno, liberar un frame elegido por clock
         slot = victimSlot();
     }
-    // Colocar la nueva página
+    // Colocar la nueva pÃ¡gina
     frames_[slot].pageId = pageId;
     frames_[slot].used = true;
     frames_[slot].pinned = false;
@@ -62,7 +63,8 @@ void Clock::pin(int pageId) {
     if (it == idx_.end()) return;
     Frame& f = frames_[it->second];
     f.pinned = true;
-    //f.used = true;
+    f.pinCount++;
+    f.used = true;
 }
 
 
@@ -71,8 +73,11 @@ void Clock::unpin(int pageId) {
     auto it = idx_.find(pageId);
     if (it == idx_.end()) return;
     Frame& f = frames_[it->second];
-    f.pinned = false;
-    //f.used = true;
+    //f.pinned = false;
+    if (f.pinCount > 0) {
+        f.pinCount--;           // NEW: decrementa contador
+    }
+    f.used = true;              // NEW: opcionalmente marca usado
 }
 
 
@@ -99,29 +104,44 @@ int Clock::victim() {
     for (int scanned = 0; scanned < 2 * n; ++scanned) {
         Frame& f = frames_[hand_];
 
-        // 1ª pasada: expulsar si nunca fue usado y no está pineado
-        if (f.pageId >= 0 && !f.pinned && !f.used) {
-            int oldId = f.pageId;
-            f = Frame{ -1, false, false };          // MODIFICADO: limpiar frame :contentReference[oaicite:0]{index=0}
-            idx_.erase(oldId);                      // MODIFICADO: quitar del índice
-            hand_ = (hand_ + 1) % n;                // MODIFICADO: avanzar la mano
-            return oldId;                           // MODIFICADO: devolver víctima
+        // 0) nunca expulsar si estÃ¡ 'pinned'
+        if (f.pinned) {
+            hand_ = (hand_ + 1) % n;
+            continue;
         }
-        // 2ª pasada: si estaba marcado como usado, limpiar bit y darle otra vuelta
-        if (f.pageId >= 0 && !f.pinned && f.used) {
-            f.used = false;                        // MODIFICADO: limpiar bit used
+
+        // 1) si pinCount > 1, reducimos y pasamos al siguiente
+        if (f.pageId >= 0 && f.pinCount > 1) {
+            f.pinCount--;
+            hand_ = (hand_ + 1) % n;
+            continue;
+        }
+
+        // 2) primera pasada: pinCountâ‰¤1 y !used â†’ expulsar
+        if (f.pageId >= 0 && f.pinCount <= 1 && !f.used) {
+            int victimId = f.pageId;
+            idx_.erase(victimId);
+            f = Frame{ -1, false, false, 0 };  // limpiar todo
+            hand_ = (hand_ + 1) % n;
+            return victimId;
+        }
+
+        // 3) segunda pasada: pinCountâ‰¤1 y used â†’ limpiar used
+        if (f.pageId >= 0 && f.pinCount <= 1 && f.used) {
+            f.used = false;
         }
 
         hand_ = (hand_ + 1) % n;
     }
-    throw std::runtime_error("Clock::victim(): no hay frame elegible");  // inalterado
+    std::cerr << "[ERROR] Clock::victim(): no hay frame elegible, continuando sin expulsar\n";
+    return -1;
 }
 
-// Elige el índice de un frame libre usando victim()
+// Elige el Ã­ndice de un frame libre usando victim()
 int Clock::victimSlot() {
     // Llamamos a victim() para que libere un frame
     int oldPage = victim();
-    // Como victim() ya eliminó el mapeo y vació el frame, buscamos un slot libre
+    // Como victim() ya eliminÃ³ el mapeo y vaciÃ³ el frame, buscamos un slot libre
     int slot = findEmptySlot();
     if (slot < 0) {
         throw std::runtime_error("Clock::victimSlot(): inconsistencia interna");
@@ -129,7 +149,7 @@ int Clock::victimSlot() {
     return slot;
 }
 
-// Busca slot vacío
+// Busca slot vacÃ­o
 int Clock::findEmptySlot() const {
     const int n = static_cast<int>(frames_.size());
     for (int i = 0; i < n; ++i) {
@@ -141,7 +161,7 @@ int Clock::findEmptySlot() const {
 int Clock::findSlotByPage(int pageId) const {
     auto it = idx_.find(pageId);
     if (it != idx_.end()) return it->second;
-    // Búsqueda lineal como respaldo
+    // BÃºsqueda lineal como respaldo
     for (int i = 0, n = frames_.size(); i < n; ++i)
         if (frames_[i].pageId == pageId) return i;
     return -1;

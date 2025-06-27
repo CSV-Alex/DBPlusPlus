@@ -737,7 +737,7 @@ int main() {
                 calcularLongitudFija(housingTXT.c_str());
 
                 /*--------------------------Estatico----------------------------------*/
-                bool usarLRU = false;  // o true, según quieras LRU por defecto
+                bool usarLRU = false;  // o trdsue, según quieras LRU por defecto
                 /*--------------------------------------------------------------------*/
 
                 // --- o bien preguntar en consola ---
@@ -750,7 +750,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 2; // Númdsaero dde frames por defecto
+                int n_frames = 4; // Númdsaero dde frames por defecto
 
 
                 // Creamos segun eleccion
@@ -1083,7 +1083,7 @@ int main() {
                                 cout << "Fallo al modificar.\n";
                         }
                         else {
-                            cout << "Opción inválida\n";
+                            cout << "Opción invaasdadslida\n";
                         }
 
                         // Despineamos; si quieres fludssh inmediato, úsalo tú mismo:
