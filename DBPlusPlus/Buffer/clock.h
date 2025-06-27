@@ -31,13 +31,16 @@ Clock::Clock(int n): hand_(0) {
   }
 
 void Clock::newPage(int pageId) {
+    std::cout << "[DEBUG] Clock::newPage() llamado\n";
     touch(pageId);
 }
 
 void Clock::pin(int pageId) {
+    std::cout << "[DEBUG] Clock::pin() llamado\n";
     touch(pageId);
 }
 void Clock::unpin(int pageId) {
+    std::cout << "[DEBUG] Clock::unpin() llamado\n";
     for (int i = 0; i < frames_.size(); ++i) {
         if (frames_[i].pageId == pageId) {
             frames_[i].used = false; // Mark as not used
@@ -46,6 +49,7 @@ void Clock::unpin(int pageId) {
     }
 }
 void Clock::deletePage(int pageId) {
+    std::cout << "[DEBUG] Clock::delete() llamado\n";
     for (int i = 0; i < frames_.size(); ++i) {
         if (frames_[i].pageId == pageId) {
             frames_[i].pageId = -1; // Clear the frame
@@ -55,6 +59,7 @@ void Clock::deletePage(int pageId) {
     }
 }
 void Clock::touch(int pageId) {
+    std::cout << "[DEBUG] Clock::touch() llamado\n";
     for (int i = 0; i < frames_.size(); ++i) {
         if (frames_[i].pageId == pageId) {
             frames_[i].used = true; // Mark as used
@@ -67,6 +72,7 @@ void Clock::touch(int pageId) {
     hand_ = (hand_ + 1) % frames_.size(); // Move hand to next frame
 }
 int Clock::victim() {
+    std::cout << "[DEBUG] Clock::victim() llamado\n";
     while (true) {
         if (frames_[hand_].used) {
             frames_[hand_].used = false; // Clear used bit

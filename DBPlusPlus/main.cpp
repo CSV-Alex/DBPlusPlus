@@ -13,6 +13,8 @@
 #include "LVariable.h"
 #include "LFija.h"
 #include "Buffer/BufferPool.h"
+#include "Buffer/clock.h"
+#include "Buffer/replacementStrategy.h"
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -734,10 +736,35 @@ int main() {
                 calcularLongitudFija(titanicTXT.c_str());
                 calcularLongitudFija(housingTXT.c_str());
 
+                /*--------------------------Estatico----------------------------------*/
+                bool usarLRU = false;  // o true, según quieras LRU por defecto
+                /*--------------------------------------------------------------------*/
+
+                // --- o bien preguntar en consola ---
+                //std::cout << "Usar LRU (1) o Clock (2)? ";
+                //int opc;
+                //std::cin >> opc;
+                //bool usarLRU = (opc == 1);
+
+                /*--------------------------------------------------------------------*/
+
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 4; // Número dde frames por defecto
-                pBufPool = new BufferPool(n_frames, (size_t)miDisco.getTamBloque(), miDisco);
+                int n_frames = 2; // Númdsaero dde frames por defecto
+
+
+                // Creamos segun eleccion
+                std::unique_ptr<ReplacementStrategy> replacer;
+                if (usarLRU)
+                    replacer = std::make_unique<LRU>();
+                else
+                    replacer = std::make_unique<Clock>(n_frames);
+
+                pBufPool = new BufferPool(n_frames, 
+                                          (size_t)miDisco.getTamBloque(),
+                                          miDisco, 
+                                          std::move(replacer));
+
                 discoConfigDone = true;
             }
             else {
