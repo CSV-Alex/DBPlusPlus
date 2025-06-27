@@ -29,7 +29,7 @@ size_t relationSizeBytes(const char* fileName, const char* basePath) {
     std::ifstream in(tablePath, std::ios::binary);
 
     if (!in) {
-        std::cerr << "Error al abrir el dasdasdsarchivo: " << tablePath << std::endl;
+        std::cerr << "Erdasdsasror al abrir el dasdasdsarchivo: " << tablePath << std::endl;
         return 0;
     }
 
@@ -760,10 +760,10 @@ int main() {
                 else
                     replacer = std::make_unique<Clock>(n_frames);
 
-                pBufPool = new BufferPool(n_frames, 
-                                          (size_t)miDisco.getTamBloque(),
-                                          miDisco, 
-                                          std::move(replacer));
+                pBufPool = new BufferPool(n_frames,
+                    (size_t)miDisco.getTamBloque(),
+                    miDisco,
+                    std::move(replacer));
 
                 discoConfigDone = true;
             }
@@ -957,7 +957,7 @@ int main() {
                     }
 
                     else if (opt == "11") {
-                                            
+
                         int numero;
                         std::cout << "Ingrese el número de página: ";
                         std::cin >> numero;
@@ -973,9 +973,9 @@ int main() {
                         }
                         catch (const std::exception& e) {
                             std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
-                        } 
+                        }
                         std::cerr << "Error: " << "\n";
-                        
+
                     }
                     else {
                         cout << "Opcion invalida\n";
@@ -991,7 +991,7 @@ int main() {
             else {
                 while (true) {
                     cout << "\n--- MENU BUFFER ---\n";
-                    cout << "1) Piasdsadadsn pagina\n";
+                    cout << "1) Pin pagina\n";
                     cout << "2) Unpin pagina\n";
                     cout << "3) Mostrar estado\n";
                     cout << "4) Flush all\n";
@@ -1010,7 +1010,7 @@ int main() {
                         cout << "R/W: "; cin >> op;
                         cout << "Pin? "; cin >> pin;
                         cout << "Mensaje Previo" << endl;
-                        auto p = pBufPool->pinPage(pid, op, pin);
+                        auto p = pBufPool->getPage(pid, op, pin);
                         cout << (p ? "OK" : "Fallo") << "\n";
                         cout << "Mensaje Siguiente" << endl;
                         break;
@@ -1021,8 +1021,8 @@ int main() {
                         break;
                     }
                     case 3: pBufPool->Status(); break;
-                    case 4: 
-                        
+                    case 4:
+
                         flushBufferToDisk(miDisco);
                         std::cout << "Todos los cambios del buffer han sido volcados a didasdsasco.\n";
                         break;
@@ -1033,7 +1033,7 @@ int main() {
                         cout << "ID de página para cambios: ";
                         cin >> pid;
                         // Cargamos en modo escritura (¿dirty?) y la mantenemos pineada
-                        Page* base = pBufPool->pinPage(pid, 'W', true);
+                        Page* base = pBufPool->getPage(pid, 'W', true);
                         if (!base) {
                             cout << "Página " << pid << " no está en buffer.\n";
                             break;
@@ -1086,14 +1086,14 @@ int main() {
                             cout << "Opción inválida\n";
                         }
 
-                        // Despineamos; si quieres flush inmediato, úsalo tú mismo:
+                        // Despineamos; si quieres fludssh inmediato, úsalo tú mismo:
                         pBufPool->unpinPage(pid);
                         break;
                     }
 
                     case 7: {
                         int pid; std::cout << "ID de la pagina: "; std::cin >> pid;
-                        Page* p = pBufPool->pinPage(pid, 'L', false);
+                        Page* p = pBufPool->getPage(pid, 'L', false);
                         if (p) {
                             auto pr = static_cast<PageWithRecords*>(p);
                             pr->viewContent();
@@ -1104,7 +1104,7 @@ int main() {
                         }
                         break;
                     }
-                    
+
                     case 9: {
                         std::string base = bufferPagePath;
 

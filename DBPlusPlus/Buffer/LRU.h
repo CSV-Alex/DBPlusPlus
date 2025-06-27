@@ -8,16 +8,17 @@
  * Input: M�todos utilizan el identificador de p�gina.
  * Output: Gesti�n interna de la lista LRU y selecci�n de v�ctima.
  */
-class LRU:public ReplacementStrategy {
+class LRU :public ReplacementStrategy {
 public:
     LRU(); //constructor por defecto
-    void newPage(int pageId) { touch(pageId); } //no es exactamente una nueva pagina, solo la toca
-    void pin(int pageId) { touch(pageId); }
-    void unpin(int pageId) { touch(pageId); }
+    void newPage(int pageId) override; //no es exactamente una nueva pagina, solo la toca
+    void pin(int pageId);
+    void unpin(int pageId);
     void deletePage(int pageId);
     int getpos(int pageId);
-    int victim()   ;
-private:
+    int victim();
+protected:
+    int _capacity;
     std::list<int> lru;
     std::unordered_map<int, std::list<int>::iterator> pos;
     void touch(int pageId);
@@ -29,6 +30,31 @@ LRU::LRU() {
     pos.clear();
 }
 
+void LRU::pin(int pageId) {
+    // Quita de candidatas a víctima
+    auto it = pos.find(pageId);
+    if (it != pos.end()) {
+        lru.erase(it->second);
+        pos.erase(it);
+    }
+}
+
+void LRU::unpin(int pageId) {
+    // Reincorpora como MRU
+    if (!pos.count(pageId)) {
+        lru.push_back(pageId);
+        pos[pageId] = std::prev(lru.end());
+    }
+}
+
+void LRU::newPage(int pageId) {
+    // Inserta sin sobrepasar capacidad, o expulsa el front antes  
+    if ((int)lru.size() == _capacity) {
+        int old = victim();
+        deletePage(old);
+    }
+    unpin(pageId);  // lo pone como MRU  
+}
 /**
  * Autor: Alexander
  * Objetivo: Borrar una p�gina de las estructuras LRU.
@@ -51,7 +77,10 @@ void LRU::deletePage(int pageId) {
  */
 int LRU::victim() { //first element from LRU list.
     if (lru.empty()) return -1;
-    return lru.front();
+    int v = lru.front();
+    lru.pop_front();
+    pos.erase(v);
+    return v;
 }
 
 /**

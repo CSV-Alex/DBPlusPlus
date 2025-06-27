@@ -210,7 +210,7 @@ public:
         return ok;
     }
 
-    void viewContent() const {
+    void viewContent() {
         std::ifstream in(_path, std::ios::binary);
         if (!in.is_open()) {
             std::cout << "ERROR: No se puede abrir " << _path << std::endl;
@@ -241,9 +241,6 @@ public:
     Page* pinPage(int pageId, char op, bool pinned = false);
     void unpinPage(int pageId);
     Page* getPage(int pageId, char op, bool pinned = false);
-
-    void flushPage(int pageId);
-    void flushAll();
 
     void printStats() const;
     void Status();
@@ -307,23 +304,26 @@ void flushPageToDisk(Disco& disco, int pageId) {
  * Autor: Alexander
  */
 bool BufferPool::evictOne() {
-    // 1) Elegir victimId según LRU (timestamp más antiguo), saltando páginas pineadas
-    int victimId = -1;
-    size_t oldest = std::numeric_limits<size_t>::max();
-    for (auto& [pid, fidx] : _pageTable) {
-        Page* pg = _frames[fidx].page.get();
-        if (!pg->getPinStatus()) {
-            size_t t = pg->getLastAccess();
-            if (t < oldest) {
-                oldest = t;
-                victimId = pid;
-            }
-        }
-    }
-    // Si no hay víctima válida
-    if (victimId < 0) return false;
+    //// 1) Elegir victimId según LRU (timestamp más antiguo), saltando páginas pineadas
+    //int victimId = -1;
+    //size_t oldest = std::numeric_limits<size_t>::max();
+    //for (auto& [pid, fidx] : _pageTable) {
+    //    Page* pg = _frames[fidx].page.get();
+    //    if (!pg->getPinStatus()) {
+    //        size_t t = pg->getLastAccess();
+    //        if (t < oldest) {
+    //            oldest = t;
+    //            victimId = pid;
+    //        }
+    //    }
+    //}
+    //// Si no hay víctima válida
+    //if (victimId < 0) return false;
 
-    int   fidx = _pageTable[victimId];
+    int victimId = _replacer->victim();
+    if (victimId < 0) return false;
+    int fidx = _pageTable[victimId];
+
     Page* victimPg = _frames[fidx].page.get();
 
     // 2) Si está sucia, preguntar y elegir flush o descartar
@@ -360,18 +360,22 @@ bool BufferPool::evictOne() {
  * Output: Page* puntero a la página cargada o nullptr si falla.
  */
 Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
-    _totalCount++;
-    for (auto& f : _frames) {
-        if (!f.page) {
-            std::cout << "[DEBUG] creando PageWithRecords para id=" << pageId << "\n";
-            f.page.reset(new PageWithRecords(pageId, _disk, pinned));
-            f.page->pin(op, pinned);
-            _pageTable[pageId] = f.id;
-            _replacer->newPage(pageId);
-            return f.page.get();
+    //++_totalCount;
+    // Intentar crear en un frame vacío
+    while (true) {
+        for (auto& f : _frames) {
+            if (!f.page) {
+                std::cout << "[DEBUG] creando PageWithRecords para id=" << pageId << "\n";
+                f.page.reset(new PageWithRecords(pageId, _disk, op, pinned)); // se pasa 'op'
+                f.page->pin(op, pinned);
+                _pageTable[pageId] = f.id;
+                _replacer->newPage(pageId);
+                return f.page.get();
+            }
         }
+        // Si no quedó espacio, expulsar uno y reintentar
+        if (!evictOne()) break;
     }
-    if (evictOne()) return loadNewPage(pageId, op, pinned);
     return nullptr;
 }
 
@@ -388,7 +392,7 @@ BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk, std::unique_
 }
 
 BufferPool::~BufferPool() {
-    flushAll();
+    flushBufferToDisk(_disk);
 }
 
 
@@ -401,7 +405,7 @@ BufferPool::~BufferPool() {
 Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
 
     std::cout << "[DEBUG] Mensaje antes del bucle infinito" << std::endl;
-    ++_totalCount;
+    //++_totalCount;
     auto it = _pageTable.find(pageId);
     if (it != _pageTable.end()) {
         ++_hitCount;
@@ -416,11 +420,16 @@ Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
                 flushPageToDisk(_disk, pageId);
 
             }
-            // si dice 'n', descartamos; el vector paginasModificadas
-            // quedará intacto hasta el próximo flush explícito
+            else {
+                // descartamos la copia temporal
+                std::filesystem::remove(pg->getBufferPath());
+                // opcional
+                //pg->forceUnpin(false);
+            }
         }
-        pg->reloadFromDisk();
         pg->pin(op, pinned);
+        _replacer->pin(pageId);
+
         return pg;
     }
     return loadNewPage(pageId, op, pinned);
@@ -436,31 +445,8 @@ void BufferPool::unpinPage(int pageId) {
 }
 
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {
+    ++_totalCount;  // NUEVO: contar todas las peticiones entrantes :contentReference[oaicite:3]{index=3}
     return pinPage(pageId, op, pinned);
-}
-
-/**
- * Autor: Alexander
- * Objetivo: Volcar una sola página al disco (copia y borra temp + volcar sectores)
- * Input: Disco& disco, int pageId
- * Output: Ninguno; escribe Bloque<pageId>.txt y elimina Page<pageId>.txt
- */
-void BufferPool::flushPage(int pageId) {
-    auto it = _pageTable.find(pageId);
-    if (it == _pageTable.end()) return;
-    _frames[it->second].page->flush(_disk);
-}
-
-/**
- * Autor: Alexander
- * Objetivo: Volcar todas las páginas sucias del buffer al disco
- * Input: Ninguno
- * Output: Ninguno; recorre frames y llama flush() en cada página dirty
- */
-void BufferPool::flushAll() { //indiscriminate
-    for (auto& f : _frames)
-        if (f.page && f.page->isDirty())
-            f.page->flush(_disk);
 }
 
 /**
@@ -481,24 +467,61 @@ void BufferPool::printStats() const {
  * Input: Ninguno
  * Output: Imprime tabla de estado
  */
+//void BufferPool::Status() {
+//    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | LastAcc | PinStat |\n";
+//    for (auto& f : _frames) {
+//        if (f.page) {
+//            std::cout << "| " << std::setw(5) << f.id
+//                << " | " << std::setw(6) << f.page->getId()
+//                << " | " << std::setw(5) << f.page->isDirty()
+//                << " | " << std::setw(6) << f.page->getPinCount()
+//                << " | " << std::setw(6) << f.page->getOp()
+//                << " | " << std::setw(7) << f.page->getLastAccess()  // NUEVO: mostrar timestamp
+//                << " | " << std::setw(7) << f.page->getPinStatus()
+//                << " |\n";
+//        }
+//        else {
+//            std::cout << "| " << std::setw(5) << f.id << " |   -    |   0   |   0    |   -    |    0    |    0    |\n";
+//        }
+//    }
+//}
+
 void BufferPool::Status() {
-    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | LastAcc | PinStat |\n";
+    // Cabecera con la nueva columna "Clock"
+    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | PinStat | Clock |\n";
+
+    // Intentamos convertir la estrategia a Clock
+    Clock* clk = dynamic_cast<Clock*>(_replacer.get());
+
     for (auto& f : _frames) {
         if (f.page) {
-            std::cout << "| " << std::setw(5) << f.id
-                << " | " << std::setw(6) << f.page->getId()
-                << " | " << std::setw(5) << f.page->isDirty()
-                << " | " << std::setw(6) << f.page->getPinCount()
-                << " | " << std::setw(6) << f.page->getOp()
-                << " | " << std::setw(7) << f.page->getLastAccess()  // NUEVO: mostrar timestamp
-                << " | " << std::setw(7) << f.page->getPinStatus()
+            int pid = f.page->getId();
+            int dirty = f.page->isDirty() ? 1 : 0;
+            int pincnt = f.page->getPinCount();
+            char optype = f.page->getOp();
+            int pinstat = f.page->getPinStatus();
+            int clockBit = (clk ? clk->getClockBit(pid) : 0);
+
+            std::cout
+                << "| " << std::setw(5) << f.id
+                << " | " << std::setw(6) << pid
+                << " | " << std::setw(5) << dirty
+                << " | " << std::setw(6) << pincnt
+                << " | " << std::setw(6) << optype
+                << " | " << std::setw(7) << pinstat
+                << " | " << std::setw(5) << clockBit
                 << " |\n";
         }
         else {
-            std::cout << "| " << std::setw(5) << f.id << " |   -    |   0   |   0    |   -    |    0    |    0    |\n";
+            // Slot vacío
+            std::cout
+                << "| " << std::setw(5) << f.id
+                << " |   -    |   0   |   0    |   -    |    0    |     0 |\n";
         }
     }
 }
+
+
 
 inline void registrarPaginaModificada(int nroBloque) {
     paginasModificadas.push_back(nroBloque);
@@ -510,6 +533,7 @@ inline void registrarPaginaModificada(int nroBloque) {
  * Input: Disco& disco
  * Output: Copia y borra cada PageN.txt, revierte cambios en dirBloques.txt
  */
+
 void flushBufferToDisk(Disco& disco) {
     namespace fs = std::filesystem;
 
