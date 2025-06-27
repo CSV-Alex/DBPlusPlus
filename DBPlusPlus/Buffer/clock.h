@@ -13,6 +13,7 @@ public:
     void unpin(int pageId) override;
     void deletePage(int pageId) override;
     int victim() override;
+    void touch(int pageId)   override;
 
     int getClockBit(int pageId) const {
         auto it = idx_.find(pageId);
@@ -29,7 +30,6 @@ protected:
     std::vector<Frame>  frames_;
     std::unordered_map<int, int> idx_;
     int hand_; // index of actual page
-    void touch(int pageId);
     int findEmptySlot() const;
     int findSlotByPage(int pageId) const;
     int victimSlot();  // elige un slot libre y lo libera
@@ -62,7 +62,7 @@ void Clock::pin(int pageId) {
     if (it == idx_.end()) return;
     Frame& f = frames_[it->second];
     f.pinned = true;
-    f.used = true;
+    //f.used = true;
 }
 
 
@@ -72,7 +72,7 @@ void Clock::unpin(int pageId) {
     if (it == idx_.end()) return;
     Frame& f = frames_[it->second];
     f.pinned = false;
-    f.used = true;
+    //f.used = true;
 }
 
 
@@ -87,16 +87,9 @@ void Clock::deletePage(int pageId) {
 
 void Clock::touch(int pageId) {
     std::cout << "[DEBUG] Clock::touch() llamado\n";
-    for (int i = 0; i < frames_.size(); ++i) {
-        if (frames_[i].pageId == pageId) {
-            frames_[i].used = true; // Mark as used
-            return;
-        }
-    }
-    // If not found, add a new page
-    frames_[hand_].pageId = pageId;
-    frames_[hand_].used = true; // Mark as used
-    hand_ = (hand_ + 1) % frames_.size(); // Move hand to next frame
+    auto it = idx_.find(pageId);
+    if (it == idx_.end()) return;
+    frames_[it->second].used = true;
 }
 
 typedef ReplacementStrategy RS;

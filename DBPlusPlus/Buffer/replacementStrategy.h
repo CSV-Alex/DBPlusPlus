@@ -18,4 +18,6 @@ public:
 
     // Returns the ID of the victim page to be replaced.
     virtual int victim() =0;
+
+    virtual void touch(int pageId) = 0;
 };

@@ -12,6 +12,7 @@ class LRU :public ReplacementStrategy {
 public:
     LRU(); //constructor por defecto
     void newPage(int pageId) override; //no es exactamente una nueva pagina, solo la toca
+    void touch(int pageId) override;
     void pin(int pageId);
     void unpin(int pageId);
     void deletePage(int pageId);
@@ -21,7 +22,6 @@ protected:
     int _capacity;
     std::list<int> lru;
     std::unordered_map<int, std::list<int>::iterator> pos;
-    void touch(int pageId);
 };
 
 LRU::LRU() {

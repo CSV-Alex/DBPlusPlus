@@ -53,6 +53,10 @@ public:
     size_t getLastAccess() const { return _lruAccess; }
     std::string getBufferPath() const { return _path; }
 
+    void setPinnedPermanent(bool v) {
+        _pinned = v;
+    }
+
     void pin(char op, bool makePermanent = false) {
         ++_pinCount;
         if (op == 'W') {
@@ -69,7 +73,7 @@ public:
 
     void unpin() {
         if (_pinCount > 0) _pinCount--;
-        _pinned = false;
+        //_pinned = false; //pin es permanente
     }
 
     void forceUnpin(bool saveChanges = true) {
@@ -245,6 +249,9 @@ public:
     void printStats() const;
     void Status();
 
+    bool pinPermanent(int pageId);
+    bool unpinPermanent(int pageId);
+
 private:
     bool evictOne();
     Page* loadNewPage(int pageId, char op, bool pinned);
@@ -296,6 +303,24 @@ void flushPageToDisk(Disco& disco, int pageId) {
         paginasModificadas.end()
     );
 }
+
+
+bool BufferPool::pinPermanent(int pageId) {
+    auto it = _pageTable.find(pageId);
+    if (it == _pageTable.end()) return false;
+    _frames[it->second].page->setPinnedPermanent(true);           // NUEVO: marcamos internamente
+    _replacer->pin(pageId);                              // NUEVO: avisamos a Clock
+    return true;
+}
+
+bool BufferPool::unpinPermanent(int pageId) {
+    auto it = _pageTable.find(pageId);
+    if (it == _pageTable.end()) return false;
+    _frames[it->second].page->setPinnedPermanent(false);            // NUEVO
+    _replacer->unpin(pageId);                            // NUEVO
+    return true;
+}
+
 
 /**
  * Objetivo: Seleccionar y expulsar una página según política LRU.
@@ -370,6 +395,9 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
                 f.page->pin(op, pinned);
                 _pageTable[pageId] = f.id;
                 _replacer->newPage(pageId);
+                if (pinned) {
+                    _replacer->pin(pageId);
+                }
                 return f.page.get();
             }
         }
@@ -428,7 +456,7 @@ Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
             }
         }
         pg->pin(op, pinned);
-        _replacer->pin(pageId);
+        _replacer->touch(pageId);
 
         return pg;
     }
@@ -441,7 +469,7 @@ void BufferPool::unpinPage(int pageId) {
     if (it == _pageTable.end()) return;
     int fidx = it->second;
     _frames[fidx].page->unpin();
-    _replacer->unpin(pageId);
+    //_replacer->unpin(pageId); aaa
 }
 
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {
