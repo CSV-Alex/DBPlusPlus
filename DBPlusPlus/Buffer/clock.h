@@ -14,6 +14,7 @@ public:
     void deletePage(int pageId) override;
     int victim() override;
     void touch(int pageId)   override;
+    void setPermanentPin(int pageId, bool value);
 
     int getClockBit(int pageId) const {
         auto it = idx_.find(pageId);
@@ -26,7 +27,7 @@ protected:
         int pageId; // ID of the page
         bool used;  // Used bit
         bool pinned = false;
-        int pinCount;
+        int pinCount = 0;
     };
     std::vector<Frame>  frames_;
     std::unordered_map<int, int> idx_;
@@ -62,7 +63,6 @@ void Clock::pin(int pageId) {
     auto it = idx_.find(pageId);
     if (it == idx_.end()) return;
     Frame& f = frames_[it->second];
-    f.pinned = true;
     f.pinCount++;
     f.used = true;
 }
@@ -77,7 +77,7 @@ void Clock::unpin(int pageId) {
     if (f.pinCount > 0) {
         f.pinCount--;           // NEW: decrementa contador
     }
-    f.used = true;              // NEW: opcionalmente marca usado
+/*    f.used = true; */             // NEW: opcionalmente marca usado
 }
 
 
@@ -101,39 +101,59 @@ typedef ReplacementStrategy RS;
 int Clock::victim() {
     std::cout << "[DEBUG] Clock::victim() llamado\n";
     const int n = static_cast<int>(frames_.size());
-    for (int scanned = 0; scanned < 2 * n; ++scanned) {
+    // 3 fases en un solo bucle de 3*n iteraciones
+    for (int scanned = 0; scanned < 3 * n; ++scanned) {
         Frame& f = frames_[hand_];
 
-        // 0) nunca expulsar si está 'pinned'
+        // DEBUG extra: mostrar estado actual
+        std::cout << "[DEBUG] scan hand=" << hand_
+            << " pageId=" << f.pageId
+            << " pinCount=" << f.pinCount
+            << " pinned=" << f.pinned
+            << " used=" << f.used << "\n";
+
+        // 1) Nunca tocar frames pineados permanentemente
         if (f.pinned) {
             hand_ = (hand_ + 1) % n;
             continue;
         }
 
-        // 1) si pinCount > 1, reducimos y pasamos al siguiente
-        if (f.pageId >= 0 && f.pinCount > 1) {
+        // 2) Fase de consumo de pins temporales
+        if (f.pageId >= 0 && f.pinCount > 0) {
+            int antes = f.pinCount;
             f.pinCount--;
+            std::cout << "[DEBUG] decrement pinCount para page "
+                << f.pageId << ": " << antes
+                << " -> " << f.pinCount << "\n";
             hand_ = (hand_ + 1) % n;
             continue;
         }
 
-        // 2) primera pasada: pinCount≤1 y !used → expulsar
-        if (f.pageId >= 0 && f.pinCount <= 1 && !f.used) {
+        // 3) Fase de segunda oportunidad: limpiar used
+        if (f.pageId >= 0 && f.used) {
+            std::cout << "[DEBUG] limpiar bit used para page "
+                << f.pageId << "\n";
+            f.used = false;
+            hand_ = (hand_ + 1) % n;
+            continue;
+        }
+
+        // 4) Fase de expulsión: sin pins ni used
+        if (f.pageId >= 0 && !f.used) {
+            std::cout << "[DEBUG] expulsando página " << f.pageId << "\n";
             int victimId = f.pageId;
             idx_.erase(victimId);
-            f = Frame{ -1, false, false, 0 };  // limpiar todo
+            // reset completo del frame
+            f = Frame{ -1, /*used*/false, /*pinned*/false, /*pinCount*/0 };
             hand_ = (hand_ + 1) % n;
             return victimId;
         }
 
-        // 3) segunda pasada: pinCount≤1 y used → limpiar used
-        if (f.pageId >= 0 && f.pinCount <= 1 && f.used) {
-            f.used = false;
-        }
-
+        // avanza el puntero
         hand_ = (hand_ + 1) % n;
     }
-    std::cerr << "[ERROR] Clock::victim(): no hay frame elegible, continuando sin expulsar\n";
+
+    std::cerr << "[ERROR] Clock::victim(): no hay frame elegible\n";
     return -1;
 }
 

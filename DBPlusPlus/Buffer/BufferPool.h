@@ -68,6 +68,7 @@ public:
             operation = 'R';
         }
         if (makePermanent) _pinned = true;
+        else _pinned = false;
         _lruAccess = ++_globalCounter;
     }
 
@@ -456,6 +457,7 @@ Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
             }
         }
         pg->pin(op, pinned);
+        _replacer->pin(pageId);
         _replacer->touch(pageId);
 
         return pg;
@@ -469,7 +471,10 @@ void BufferPool::unpinPage(int pageId) {
     if (it == _pageTable.end()) return;
     int fidx = it->second;
     _frames[fidx].page->unpin();
-    //_replacer->unpin(pageId); aaa
+
+    if (_frames[fidx].page->getPinCount() == 0) {
+        _replacer->unpin(pageId);
+    }
 }
 
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {
@@ -495,59 +500,61 @@ void BufferPool::printStats() const {
  * Input: Ninguno
  * Output: Imprime tabla de estado
  */
-//void BufferPool::Status() {
-//    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | LastAcc | PinStat |\n";
-//    for (auto& f : _frames) {
-//        if (f.page) {
-//            std::cout << "| " << std::setw(5) << f.id
-//                << " | " << std::setw(6) << f.page->getId()
-//                << " | " << std::setw(5) << f.page->isDirty()
-//                << " | " << std::setw(6) << f.page->getPinCount()
-//                << " | " << std::setw(6) << f.page->getOp()
-//                << " | " << std::setw(7) << f.page->getLastAccess()  // NUEVO: mostrar timestamp
-//                << " | " << std::setw(7) << f.page->getPinStatus()
-//                << " |\n";
-//        }
-//        else {
-//            std::cout << "| " << std::setw(5) << f.id << " |   -    |   0   |   0    |   -    |    0    |    0    |\n";
-//        }
-//    }
-//}
-
+ //LRU
 void BufferPool::Status() {
-    // Cabecera con la nueva columna "Clock"
-    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | PinStat | Clock |\n";
-
-    // Intentamos convertir la estrategia a Clock
-    Clock* clk = dynamic_cast<Clock*>(_replacer.get());
-
+    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | LastAcc | PinStat |\n";
     for (auto& f : _frames) {
         if (f.page) {
-            int pid = f.page->getId();
-            int dirty = f.page->isDirty() ? 1 : 0;
-            int pincnt = f.page->getPinCount();
-            char optype = f.page->getOp();
-            int pinstat = f.page->getPinStatus();
-            int clockBit = (clk ? clk->getClockBit(pid) : 0);
-
-            std::cout
-                << "| " << std::setw(5) << f.id
-                << " | " << std::setw(6) << pid
-                << " | " << std::setw(5) << dirty
-                << " | " << std::setw(6) << pincnt
-                << " | " << std::setw(6) << optype
-                << " | " << std::setw(7) << pinstat
-                << " | " << std::setw(5) << clockBit
+            std::cout << "| " << std::setw(5) << f.id
+                << " | " << std::setw(6) << f.page->getId()
+                << " | " << std::setw(5) << f.page->isDirty()
+                << " | " << std::setw(6) << f.page->getPinCount()
+                << " | " << std::setw(6) << f.page->getOp()
+                << " | " << std::setw(7) << f.page->getLastAccess()  // NUEVO: mostrar timestamp
+                << " | " << std::setw(7) << f.page->getPinStatus()
                 << " |\n";
         }
         else {
-            // Slot vacío
-            std::cout
-                << "| " << std::setw(5) << f.id
-                << " |   -    |   0   |   0    |   -    |    0    |     0 |\n";
+            std::cout << "| " << std::setw(5) << f.id << " |   -    |   0   |   0    |   -    |    0    |    0    |\n";
         }
     }
 }
+
+//CLOCK
+//void BufferPool::Status() {
+//    // Cabecera con la nueva columna "Clock"
+//    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | PinStat | Clock |\n";
+//
+//    // Intentamos convertir la estrategia a Clock
+//    Clock* clk = dynamic_cast<Clock*>(_replacer.get());
+//
+//    for (auto& f : _frames) {
+//        if (f.page) {
+//            int pid = f.page->getId();
+//            int dirty = f.page->isDirty() ? 1 : 0;
+//            int pincnt = f.page->getPinCount();
+//            char optype = f.page->getOp();
+//            int pinstat = f.page->getPinStatus();
+//            int clockBit = (clk ? clk->getClockBit(pid) : 0);
+//
+//            std::cout
+//                << "| " << std::setw(5) << f.id
+//                << " | " << std::setw(6) << pid
+//                << " | " << std::setw(5) << dirty
+//                << " | " << std::setw(6) << pincnt
+//                << " | " << std::setw(6) << optype
+//                << " | " << std::setw(7) << pinstat
+//                << " | " << std::setw(5) << clockBit
+//                << " |\n";
+//        }
+//        else {
+//            // Slot vacío
+//            std::cout
+//                << "| " << std::setw(5) << f.id
+//                << " |   -    |   0   |   0    |   -    |    0    |     0 |\n";
+//        }
+//    }
+//}
 
 
 

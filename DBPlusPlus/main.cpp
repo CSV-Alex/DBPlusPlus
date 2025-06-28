@@ -737,10 +737,10 @@ int main() {
                 calcularLongitudFija(housingTXT.c_str());
 
                 /*--------------------------Estatico----------------------------------*/
-                bool usarLRU = false;  // o trdsue, según quieras LRU por defecto
+                bool usarLRU = true;  // o trdsue, según quieras LRU por defecto
                 /*--------------------------------------------------------------------*/
 
-                // --- o bien preguntar en consola ---
+                // --- o bien pradsdseguntar en consola ---
                 //std::cout << "Usar LRU (1) o Clock (2)? ";
                 //int opc;
                 //std::cin >> opc;
@@ -750,7 +750,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 4; // Númdsaero dde frames por defecto
+                int n_frames = 5; // Númdsdasaero dde frames por defecto
 
 
                 // Creamos segun eleccion
@@ -769,10 +769,10 @@ int main() {
             }
             else {
 
-                cout << "\n***** Bienvenido a MEGATRON 3000 *****\n\n";
+                cout << "\n***** Bidasdsesadadsvenido a MEGATdasRON 3000 *****\n\n";
 
                 while (true) {
-                    cout << "0) Mostrar Ruta Bloque (Dinamico)\n"; ///
+                    cout << "0) Mostrar Rutdsssa Bloque (Dinamico)\n"; ///
                     cout << "1) Mostrar caracteristicas del disco\n"; ///
                     cout << "2) Adicionar registro\n"; ///
                     cout << "3) Adicionar N registros desde CSV\n"; ///
@@ -1000,9 +1000,10 @@ int main() {
                     cout << "7) Ver contenido pagina\n";
                     cout << "8) Volver al menu principal\n";
                     cout << "9) Mostrar\n";
+                    cout << "10) Toggle permanent pin\n";
                     cout << ">> ";
                     int opc; cin >> opc; cin.ignore();
-                    if (opc == 8) break;
+                    if (opc == 11) break;
                     switch (opc) {
                     case 1: {
                         int pid; char op; bool pin;
@@ -1123,6 +1124,10 @@ int main() {
                         catch (const std::exception& e) {
                             std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
                         }
+                    }
+
+                    case 10: {
+
                     }
 
                     default: cout << "Inválida\n";
