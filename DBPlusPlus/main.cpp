@@ -739,7 +739,7 @@ int main() {
                 calcularLongitudFija(housingTXT.c_str());
 
                 /*--------------------------Estatico----------------------------------*/
-                bool usarLRU = true;  // o trdsue, según quieras LRU por defecto
+                bool usarLRU = false;  // o trdsue, según quieras LRU por defecto
                 /*--------------------------------------------------------------------*/
 
                 // --- o bien pradsdseguntar en consola ---
@@ -758,7 +758,7 @@ int main() {
                 // Creamos segun eleccion
                 std::unique_ptr<ReplacementStrategy> replacer;
                 if (usarLRU)
-                    replacer = std::make_unique<LRU>();
+                    replacer = std::make_unique<LRU>(n_frames);
                 else
                     replacer = std::make_unique<Clock>(n_frames);
 
@@ -1139,7 +1139,7 @@ int main() {
 
                         if (where.empty()) {
                             // no hay WHERE → tomo todos los bloques del catálogo
-                            bloques = getBlocksFromCatalog(
+                            bloques = getBlocksFromCatalog( //DEBUG
                                 discoPath + "catalogo.txt",
                                 from
                             );
@@ -1150,7 +1150,7 @@ int main() {
                             std::string field, op, val;
                             iss >> field >> op >> val;
 
-                            bloques = findBlocksWithCondition(
+                            bloques = findBlocksWithCondition( //DEBug
                                 discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
                                 basePath + from + ".txt",      // p.ej. "…\\housing.txt"
                                 field,
