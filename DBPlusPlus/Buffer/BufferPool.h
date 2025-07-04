@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <mutex>
 #include <vector>
 #include <deque>
 #include <unordered_map>
@@ -18,6 +19,9 @@
 #include "ReplacementStrategy.h"
 #include "Clock.h"
 #include "LRU.h"
+
+#include <QtCore/QObject>
+
 
 class PageWithRecords;
 
@@ -248,12 +252,14 @@ public:
     Page* getPage(int pageId, char op, bool pinned = false);
 
     void printStats() const;
+    void printEventsStatus();
     void Status();
 
     bool pinPermanent(int pageId);
     bool unpinPermanent(int pageId);
 
 private:
+    void publishEvent(const std::string& evt, int pageId);
     bool evictOne();
     Page* loadNewPage(int pageId, char op, bool pinned);
 
@@ -267,6 +273,25 @@ private:
 
     size_t                          _hitCount{ 0 }, _totalCount{ 0 };
 };
+
+// Un mutex para serializar accesos concurrentes
+inline std::mutex& getEventFileMutex() {
+    static std::mutex m; return m;
+}
+
+// Append de un evento al log
+inline void appendEvent(const std::string& evt, int pageId) {
+    std::lock_guard<std::mutex> lk(getEventFileMutex());
+    std::ofstream f("events.log", std::ios::app);
+    if (f) {
+        f << "[EVENT] " << evt << " " << pageId << "\n";
+    }
+}
+
+// NUEVO: helper para imprimir eventos al stdout
+void BufferPool::publishEvent(const std::string& evt, int pageId) {
+    //appendEvent(evt, pageId);
+}
 
 /**
  * Objetivo: Volcar una página individual del buffer al disco
@@ -303,6 +328,9 @@ void flushPageToDisk(Disco& disco, int pageId) {
         std::remove(paginasModificadas.begin(), paginasModificadas.end(), pageId),
         paginasModificadas.end()
     );
+
+    // NUEVO: evento de flush
+    cout << "[EVENT] pageFlushed " << pageId << endl;
 }
 
 
@@ -376,6 +404,9 @@ bool BufferPool::evictOne() {
     _pageTable.erase(victimId);
     _replacer->deletePage(victimId);
 
+    // NUEVO: evento de expulsión
+    publishEvent("pageEvicted", victimId);
+
     return true;
 }
 
@@ -399,6 +430,9 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
                 if (pinned) {
                     _replacer->pin(pageId);
                 }
+
+                publishEvent("pageLoaded", pageId);
+
                 return f.page.get();
             }
         }
@@ -460,6 +494,9 @@ Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
         _replacer->pin(pageId);
         _replacer->touch(pageId);
 
+        // NUEVO: evento de pin
+        publishEvent("pagePinned", pageId);
+
         return pg;
     }
     return loadNewPage(pageId, op, pinned);
@@ -474,6 +511,9 @@ void BufferPool::unpinPage(int pageId) {
 
     if (_frames[fidx].page->getPinCount() == 0) {
         _replacer->unpin(pageId);
+
+        // NUEVO: evento de unpin
+        publishEvent("pageUnpinned", pageId);
     }
 }
 
@@ -493,6 +533,36 @@ void BufferPool::printStats() const {
         << "  Hits: " << _hitCount
         << "  Hitrate(): " << std::fixed << std::setprecision(2) << float(_hitCount) / float(_totalCount) << "\n";
 }
+
+void BufferPool::printEventsStatus()
+{
+    std::lock_guard<std::mutex> lk(getEventFileMutex());
+    std::ofstream f("events.log", std::ios::trunc);
+    if (!f.is_open())
+        return;
+
+    // Cabecera para que el watcher (o tú) reconozca bloque de estado
+    f << "#STATUS\n";
+
+    for (auto& fr : _frames) {
+        if (fr.page) {
+            f
+                << fr.id << ' '                              // Frame
+                << fr.page->getId() << ' '                   // PageID
+                << fr.page->isDirty() << ' '                 // Dirty
+                << fr.page->getPinCount() << ' '             // PinCnt
+                << fr.page->getOp() << ' '                   // OpType
+                << fr.page->getLastAccess() << ' '           // LastAcc
+                << fr.page->getPinStatus()                   // PinStat
+                << "\n";
+        }
+        else {
+            // frame vacío: PageID=-1
+            f << fr.id << " -1 0 0 - 0 0\n";
+        }
+    }
+}
+
 
 /**
  * Autor: Alex

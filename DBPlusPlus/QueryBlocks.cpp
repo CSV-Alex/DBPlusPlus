@@ -157,7 +157,18 @@ std::vector<int> findBlocksWithCondition(
         auto records = split(data, '|');
         for (auto& rec : records) {
             if (rec.empty()) continue;
-            auto fields = split(rec, '#');
+
+            // MODIFICACIÓN: limpiamos TODO '@' del registro antes de split
+            std::string recClean;
+            recClean.reserve(rec.size());
+            for (char ch : rec) {
+                if (ch != '@')
+                    recClean.push_back(ch);
+            }
+
+            // ahora partimos recClean en campos
+            auto fields = split(recClean, '#');
+
             if (whereIndex < (int)fields.size()
                 && evalCondition(fields[whereIndex], whereOp, whereVal))
             {

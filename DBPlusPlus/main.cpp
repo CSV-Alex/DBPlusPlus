@@ -648,7 +648,7 @@ void ejecutar_query(const char* selectField,
 std::string leerArchivo(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open()) {
-        throw std::runtime_error("No se pudo abrir el archivo: " + path);
+        throw std::runtime_error("No se pudo abrir el archadsivo: " + path);
     }
     std::ostringstream buffer;
     buffer << file.rdbuf();
@@ -657,6 +657,7 @@ std::string leerArchivo(const std::string& path) {
 
 
 int main() {
+
     // Variables para configuración de disco
     bool discoConfigDone = false;
     BufferPool* pBufPool = nullptr;
@@ -677,10 +678,14 @@ int main() {
     const int def_tamBloque = 6400;
     Disco miDisco(def_platos, def_pistas, def_sectores, def_tamSector, def_tamBloque);
 
+    std::cout << "[DEBUG] BufferPool arranca en: " << std::filesystem::current_path() << "\n";
+    std::cout << "[DEBUG] Abriedxfxcghndo esquema: " << schemaPath << "\n";
+    // Borra el log de sesiones anteriores
+    std::ofstream clean("events.log", std::ios::trunc);
 
     while (true) {
         // Menú principal
-        cout << "\n=== MEGATRON 3000 - MENU PRINCIPAL ===\n";
+        cout << "\n=== MEGRONadsadsads 3000 - MENU PRINCIPAL ===\n";
         cout << "1) Menu Disco" << (discoConfigDone ? " (ya configurado)" : "") << "\n";
         cout << "2) Menu Buffer" << (discoConfigDone ? "" : " (requiere config de disco)") << "\n";
         cout << "3) Salir\n";
@@ -693,7 +698,7 @@ int main() {
             // Menú Disco
             if (!discoConfigDone) {
                 cout << "\n--- Configuración del Disco ---\n";
-                cout << "1) Usar configuración por defecto\n";
+                cout << "1) Usaadsr configuración por defecto\n";
                 cout << "2) Ingresar configuración personalizada\n";
                 cout << "3) Usar disco ya existente\n";
                 cout << ">> ";
@@ -771,7 +776,7 @@ int main() {
             }
             else {
 
-                cout << "\n***** Bidasdsesadadsvenido a MEGATdasRON 3000 *****\n\n";
+                cout << "\n***** BiMEGATdasRON 3000 *****\n\n";
 
                 while (true) {
                     cout << "0) Mostrar Rutdsssa Bloque (Dinamico)\n"; ///
@@ -1009,6 +1014,7 @@ int main() {
                     if (opc == 11) break;
                     switch (opc) {
                     case 1: {
+                        cout << "Usando visualizados:\n ";
                         int pid; char op; bool pin;
                         cout << "ID: "; cin >> pid;
                         cout << "R/W: "; cin >> op;
@@ -1024,7 +1030,9 @@ int main() {
                         pBufPool->unpinPage(pid);
                         break;
                     }
-                    case 3: pBufPool->Status(); break;
+                    case 3: pBufPool->Status(); 
+                            pBufPool->printEventsStatus();
+                            break;
                     case 4:
 
                         flushBufferToDisk(miDisco);
