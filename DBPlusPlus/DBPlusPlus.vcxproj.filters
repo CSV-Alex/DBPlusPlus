@@ -60,6 +60,9 @@
     <ClCompile Include="Catalogo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="QueryBlocks.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="data\usr\db\titanic.tsv">
@@ -115,6 +118,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Buffer\u_ReplacementStrategy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="QueryBlocks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

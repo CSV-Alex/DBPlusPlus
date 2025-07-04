@@ -135,6 +135,7 @@
     <ClCompile Include="LVariable.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NonSense.cpp" />
+    <ClCompile Include="QueryBlocks.cpp" />
     <ClCompile Include="Titanic.cpp" />
     <ClCompile Include="TitanicData.cpp" />
     <ClCompile Include="Utils.cpp" />
@@ -158,6 +159,7 @@
     <ClInclude Include="Disco.h" />
     <ClInclude Include="DiscoPaths.h" />
     <ClInclude Include="LVariable.h" />
+    <ClInclude Include="QueryBlocks.h" />
     <ClInclude Include="Titanic.h" />
     <ClInclude Include="TitanicData.h" />
     <ClInclude Include="Utils.h" />

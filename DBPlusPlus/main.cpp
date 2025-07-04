@@ -15,6 +15,8 @@
 #include "Buffer/BufferPool.h"
 #include "Buffer/clock.h"
 #include "Buffer/replacementStrategy.h"
+#include "QueryBlocks.h"
+#include <sstream>
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -1000,7 +1002,8 @@ int main() {
                     cout << "7) Ver contenido pagina\n";
                     cout << "8) Volver al menu principal\n";
                     cout << "9) Mostrar\n";
-                    cout << "10) Toggle permanent pin\n";
+                    cout << "10) Consulta SQL\n";
+                    cout << "11) Salir\n";
                     cout << ">> ";
                     int opc; cin >> opc; cin.ignore();
                     if (opc == 11) break;
@@ -1127,7 +1130,41 @@ int main() {
                     }
 
                     case 10: {
+                        std::string sel, from, where;
+                        std::cout << "SELECT "; std::getline(std::cin, sel);
+                        std::cout << "FROM ";   std::getline(std::cin, from);
+                        std::cout << "WHERE ";  std::getline(std::cin, where);
 
+                        std::vector<int> bloques;
+
+                        if (where.empty()) {
+                            // no hay WHERE → tomo todos los bloques del catálogo
+                            bloques = getBlocksFromCatalog(
+                                discoPath + "catalogo.txt",
+                                from
+                            );
+                        }
+                        else {
+                            // hay WHERE → parsear "campo op valor"
+                            std::istringstream iss(where);
+                            std::string field, op, val;
+                            iss >> field >> op >> val;
+
+                            bloques = findBlocksWithCondition(
+                                discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
+                                basePath + from + ".txt",      // p.ej. "…\\housing.txt"
+                                field,
+                                op,
+                                val
+                            );
+                        }
+
+                        // mostrar bloques únicos
+                        std::cout << "Bloques que contienen datos para "
+                            << from << ":\n";
+                        for (int b : bloques) {
+                            std::cout << "  Bloque" << b << ".txt\n";
+                        }
                     }
 
                     default: cout << "Inválida\n";
