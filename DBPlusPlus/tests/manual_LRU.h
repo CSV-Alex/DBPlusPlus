@@ -82,7 +82,7 @@ bool BufferPool::access(char p, int op, int pinStatus) {
             Frame &f = _frames[i];
             if (f.pin_status != 0) continue;
             if (f.pinCount > 1) {
-                // procesar una operación pendiente
+                std::cout<< "resolviendo op pendiente en frame "<< f.opQueue.front().first << std::endl;
                 f.opQueue.pop();
                 f.pinCount--;
                 _op_order++;
