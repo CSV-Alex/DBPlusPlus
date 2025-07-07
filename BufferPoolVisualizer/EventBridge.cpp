@@ -1,4 +1,4 @@
-#include "EventBridge.h"
+ï»¿#include "EventBridge.h"
 #include <QDebug>
 #include <windows.h>  // para CREATE_NEW_CONSOLE
 
@@ -9,7 +9,7 @@ EventBridge::EventBridge(QObject* parent)
     connect(&proc, &QProcess::readyReadStandardOutput,
         this, &EventBridge::handleStdout);
 
-    // debug: proceso arrancó
+    // debug: proceso arrancÃ³
     connect(&proc, &QProcess::started,
         this, &EventBridge::handleProcessStarted);
 
@@ -17,7 +17,7 @@ EventBridge::EventBridge(QObject* parent)
     connect(&proc, &QProcess::errorOccurred,
         this, &EventBridge::handleProcessError);
 
-    // debug: proceso terminó
+    // debug: proceso terminÃ³
     connect(&proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
         this, &EventBridge::handleProcessFinished);
 }
@@ -37,7 +37,7 @@ void EventBridge::startConsole(const QString& exePath)
         }
     );
 
-    // Que proc capture sólo stdout (para tus [EVENT]…)
+    // Que proc capture sÃ³lo stdout (para tus [EVENT]â€¦)
     proc.setProcessChannelMode(QProcess::MergedChannels);
 
     // Opcional: si tu exe necesita un working dir concreto:
@@ -47,7 +47,7 @@ void EventBridge::startConsole(const QString& exePath)
     proc.start(exePath);
 
     if (!proc.waitForStarted(3000)) {
-        qWarning() << "[EventBridge] ¡No arrancó la consola!";
+        qWarning() << "[EventBridge] Â¡No arrancÃ³ la consola!";
     }
 }
 

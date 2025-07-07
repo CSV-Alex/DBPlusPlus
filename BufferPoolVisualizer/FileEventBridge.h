@@ -1,30 +1,29 @@
 #pragma once
-
 #include <QObject>
 #include <QFile>
 #include <QProcess>
 #include <QTimer>
 
-class FileEventBridge : public QObject
-{
+class FileEventBridge : public QObject {
     Q_OBJECT
 public:
     explicit FileEventBridge(QObject* parent = nullptr);
 
-    /** Arranca tu DBPlusPlus.exe en nueva consola y deja stdin/stdout heredados */
+    // estos 2 métodos pasan a ser invocables desde QML
     Q_INVOKABLE void startConsole(const QString& exePath,
         const QString& workingDir = QString());
+    Q_INVOKABLE void readStatus();
+    Q_INVOKABLE void sendInput(const QString& cmd);
 
-signals:
-    /// Emite cada vez que hay un nuevo bloque "#STATUS" parseado
-    void statusUpdated(const QStringList& rows);
+    // signal para notificar a QML que llegó un nuevo bloque #STATUS
+    Q_SIGNAL void statusUpdated(const QStringList& rows);
 
-private slots:
+private Q_SLOTS:
     void checkFile();
 
 private:
-    QProcess  m_proc;
-    QFile     m_file;
-    qint64    m_lastPos = 0;
-    QTimer    m_timer;
+    QFile    m_file;
+    QProcess m_proc;
+    QTimer   m_timer;
+    qint64   m_lastPos = 0;
 };

@@ -744,7 +744,7 @@ int main() {
                 calcularLongitudFija(housingTXT.c_str());
 
                 /*--------------------------Estatico----------------------------------*/
-                bool usarLRU = true;  // o trdsue, según quieras LRU por defecto
+                bool usarLRU = false;  // o trdsue, según quieras LRU por defecto
                 /*--------------------------------------------------------------------*/
 
                 // --- o bien pradsdseguntar en consola ---
@@ -1008,10 +1008,11 @@ int main() {
                     cout << "8) Volver al menu principal\n";
                     cout << "9) Mostrar\n";
                     cout << "10) Consulta SQL\n";
-                    cout << "11) Salir\n";
+                    cout << "11) Automatizacion consulta SQL\n";
+                    cout << "12) Salir\n";
                     cout << ">> ";
                     int opc; cin >> opc; cin.ignore();
-                    if (opc == 11) break;
+                    if (opc == 12) break;
                     switch (opc) {
                     case 1: {
                         cout << "Usando visualizados:\n ";
@@ -1138,42 +1139,142 @@ int main() {
                     }
 
                     case 10: {
-                        std::string sel, from, where;
-                        std::cout << "SELECT "; std::getline(std::cin, sel);
-                        std::cout << "FROM ";   std::getline(std::cin, from);
-                        std::cout << "WHERE ";  std::getline(std::cin, where);
+                        //try {
+                            std::string sel, from, where;
+                            std::cout << "SELECT "; std::getline(std::cin, sel);
+                            std::cout << "FROM ";   std::getline(std::cin, from);
+                            std::cout << "WHERE ";  std::getline(std::cin, where);
 
-                        std::vector<int> bloques;
+                            std::string catalogFile = "DISCO\\catalogo.txt";
 
-                        if (where.empty()) {
-                            // no hay WHERE → tomo todos los bloques del catálogo
-                            bloques = getBlocksFromCatalog(
-                                discoPath + "catalogo.txt",
-                                from
-                            );
-                        }
-                        else {
-                            // hay WHERE → parsear "campo op valor"
-                            std::istringstream iss(where);
-                            std::string field, op, val;
-                            iss >> field >> op >> val;
+                            std::vector<int> bloques;
 
-                            bloques = findBlocksWithCondition(
-                                discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
-                                basePath + from + ".txt",      // p.ej. "…\\housing.txt"
+                            if (where.empty()) {
+                                // no hay WHERE → tomo todos los bloques del catálogo
+                                bloques = getBlocksFromCatalog(
+                                    discoPath + "catalogo.txt",
+                                    from
+                                );
+                            }
+                            else {
+                                // hay WHERE → parsear "campo op valor"
+                                std::istringstream iss(where);
+                                std::string field, op, val;
+                                iss >> field >> op >> val;
+
+                                bloques = findBlocksWithCondition(
+                                    catalogFile,
+                                    discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
+                                    basePath + from + ".txt",      // p.ej. "…\\housing.txt"
+                                    from,
+                                    field,
+                                    op,
+                                    val
+                                );
+                            }
+
+                            // mostrar bloques únicos
+                            std::cout << "Bloques que contienen datos para "
+                                << from << ":\n";
+                            for (int b : bloques) {
+                                std::cout << "  Bloque" << b << ".txt\n";
+                            }
+                        //}
+                        //catch (const std::exception& e) {
+                        //    std::cerr << "ERROR en la consulta: " << e.what() << "\n";
+                        //}
+                    }
+
+                    case 11: {
+                        //try {
+                            std::string sel, from, where;
+                            std::cout << "SELECT "; std::getline(std::cin, sel);
+                            std::cout << "FROM ";   std::getline(std::cin, from);
+                            std::cout << "WHERE ";  std::getline(std::cin, where);
+
+                            std::string catalogFile = "DISCO\\catalogo.txt";
+
+                            std::vector<int> bloques;
+
+                            string field, op, val;
+
+                            if (where.empty()) {
+                                // no hay WHERE → tomo todos los bloques del catálogo
+                                bloques = getBlocksFromCatalog(
+                                    discoPath + "catalogo.txt",
+                                    from
+                                );
+                            }
+                            else {
+                                // hay WHERE → parsear "campo op valor"
+                                std::istringstream iss(where);
+                                iss >> field >> op >> val;
+
+                                bloques = findBlocksWithCondition(
+                                    catalogFile,
+                                    discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
+                                    basePath + from + ".txt",      // p.ej. "…\\housing.txt"
+                                    from,
+                                    field,
+                                    op,
+                                    val
+                                );
+                            }
+
+                            // 3) Pinear todos los bloques encontrados
+                            cout << "\nPineando páginas en buffer:\n";
+                            for (int b : bloques) {
+                                // op 'R' de lectura, pinned = true (permanente)
+                                pBufPool->pinPage(b, 'R', true);  // :contentReference[oaicite:0]{index=0}
+                                cout << "  Página " << b << " pineada\n";
+                            }
+
+                            // 4) Obtener en memoria todos los registros que cumplen
+                            auto records = getRecordsFromBlocks(
+                                bloques,
+                                discoPath + "BLOQUES\\",
+                                basePath + from + ".txt",
+                                from,
                                 field,
                                 op,
                                 val
                             );
-                        }
 
-                        // mostrar bloques únicos
-                        std::cout << "Bloques que contienen datos para "
-                            << from << ":\n";
-                        for (int b : bloques) {
-                            std::cout << "  Bloque" << b << ".txt\n";
-                        }
+                            // 5) Imprimir tabla con cabecera y filas alineadas
+                            auto headers = getRelationHeader(basePath + from + ".txt");
+                            vector<size_t> w(headers.size());
+                            // calcular ancho de cada columna
+                            for (int i = 0; i < (int)headers.size(); ++i)
+                                w[i] = headers[i].size();
+                            for (auto& row : records)
+                                for (int j = 0; j < (int)row.size(); ++j)
+                                    w[j] = max(w[j], row[j].size());
+
+                            // imprimir cabecera
+                            for (int i = 0; i < (int)headers.size(); ++i) {
+                                cout << setw(w[i]) << headers[i]
+                                    << (i + 1 < (int)headers.size() ? " | " : "\n");
+                            }
+                            // línea separadora
+                            for (int i = 0; i < (int)w.size(); ++i) {
+                                cout << string(w[i], '-')
+                                    << (i + 1 < (int)w.size() ? "-+-" : "\n");
+                            }
+                            // imprimir filas
+                            for (auto& row : records) {
+                                for (int j = 0; j < (int)row.size(); ++j) {
+                                    cout << setw(w[j]) << row[j]
+                                        << (j + 1 < (int)row.size() ? " | " : "\n");
+                                }
+                            }
+                        //}
+
+                        //catch (const std::exception& e) {
+                        //    std::cerr << "ERROR en la consulta: " << e.what() << "\n";
+                        //}
                     }
+
+
 
                     default: cout << "Inválida\n";
                     }
