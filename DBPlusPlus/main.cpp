@@ -16,6 +16,7 @@
 #include "Buffer/clock.h"
 #include "Buffer/replacementStrategy.h"
 #include "QueryBlocks.h"
+#include "QueryHashBlocks.h"
 #include <sstream>
 
 #define MAX_BUF      1024
@@ -658,7 +659,7 @@ std::string leerArchivo(const std::string& path) {
 
 int main() {
 
-    // Variables para configuración de disco
+    // Variables para configuracion de disco
     bool discoConfigDone = false;
     BufferPool* pBufPool = nullptr;
 
@@ -684,7 +685,7 @@ int main() {
     std::ofstream clean("events.log", std::ios::trunc);
 
     while (true) {
-        // Menú principal
+        // Menu principal
         cout << "\n=== MEGRONadsadsads 3000 - MENU PRINCIPAL ===\n";
         cout << "1) Menu Disco" << (discoConfigDone ? " (ya configurado)" : "") << "\n";
         cout << "2) Menu Buffer" << (discoConfigDone ? "" : " (requiere config de disco)") << "\n";
@@ -695,11 +696,11 @@ int main() {
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         if (choice == 1) {
-            // Menú Disco
+            // Menu Disco
             if (!discoConfigDone) {
-                cout << "\n--- Configuración del Disco ---\n";
-                cout << "1) Usaadsr configuración por defecto\n";
-                cout << "2) Ingresar configuración personalizada\n";
+                cout << "\n--- Configuracion del Disco ---\n";
+                cout << "1) Usaadsr configuracion por defecto\n";
+                cout << "2) Ingresar configuracion personalizada\n";
                 cout << "3) Usar disco ya existente\n";
                 cout << ">> ";
                 int modo;
@@ -744,7 +745,7 @@ int main() {
                 calcularLongitudFija(housingTXT.c_str());
 
                 /*--------------------------Estatico----------------------------------*/
-                bool usarLRU = false;  // o trdsue, según quieras LRU por defecto
+                bool usarLRU = false;  // o trdsue, segun quieras LRU por defecto
                 /*--------------------------------------------------------------------*/
 
                 // --- o bien pradsdseguntar en consola ---
@@ -757,7 +758,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 5; // Númdsdasaero dde frames por defecto
+                int n_frames = 5; // Numdsdasaero dde frames por defecto
 
 
                 // Creamos segun eleccion
@@ -786,7 +787,7 @@ int main() {
                     cout << "4) Adicionar todo CSV\n"; ///
                     cout << "5) Eliminar registro\n"; ///
                     cout << "6) Modificar registro\n"; ///
-                    cout << "7) Inserción de longitud variabl (Demo)\n"; ///
+                    cout << "7) Insercion de longitud variabl (Demo)\n"; ///
                     cout << "8) Ejecutar consulta SQL\n"; ///
                     cout << "9) Adicionar/Volcar relacion a Sectores\n"; ///
                     cout << "10) Salir\n"; ///
@@ -828,7 +829,7 @@ int main() {
                         if (input.back() != '\n')
                             input.push_back('\n');
 
-                        cout << "¿Tipo de inserción?\n";
+                        cout << "¿Tipo de insercion?\n";
                         cout << "1) Longitud variable\n";
                         cout << "2) Longitud fija (bitmap)\n";
                         cout << ">> ";
@@ -858,7 +859,7 @@ int main() {
                         cin >> n;
                         cin.ignore(1, '\n');
 
-                        cout << "¿Tipo de inserción?\n";
+                        cout << "¿Tipo de insercion?\n";
                         cout << "1) Longitud variable\n";
                         cout << "2) Longitud fija (bitmap)\n";
                         cout << ">> ";
@@ -966,7 +967,7 @@ int main() {
                     else if (opt == "11") {
 
                         int numero;
-                        std::cout << "Ingrese el número de página: ";
+                        std::cout << "Ingrese el numero de pagina: ";
                         std::cin >> numero;
                         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
@@ -991,7 +992,7 @@ int main() {
             }
         }
         else if (choice == 2) {
-            // Menú Buffer
+            // Menu Buffer
             if (!discoConfigDone) {
                 cout << "Configura primero el disco.\n";
             }
@@ -1043,12 +1044,12 @@ int main() {
                     case 5: pBufPool->printStats(); break;
                     case 6: {
                         int pid;
-                        cout << "ID de página para cambios: ";
+                        cout << "ID de pagina para cambios: ";
                         cin >> pid;
                         // Cargamos en modo escritura (¿dirty?) y la mantenemos pineada
                         Page* base = pBufPool->getPage(pid, 'W', true);
                         if (!base) {
-                            cout << "Página " << pid << " no está en buffer.\n";
+                            cout << "Pagina " << pid << " no esta en buffer.\n";
                             break;
                         }
 
@@ -1056,13 +1057,13 @@ int main() {
                             << typeid(*base).name() << "\n";
                         auto page = dynamic_cast<PageWithRecords*>(base);
                         if (!page) {
-                            cout << "ERRDOR: Esta página no soporta ops de registro.\n";
+                            cout << "ERRDOR: Esta pagina no soporta ops de registro.\n";
                             pBufPool->unpinPage(pid);
                             break;
                         }
 
-                        // Mini-menú de operaciones
-                        cout << "\n--- OPERACIONES EN PÁGINA " << pid << " ---\n";
+                        // Mini-menu de operaciones
+                        cout << "\n--- OPERACIONES EN PaGINA " << pid << " ---\n";
                         cout << "1) Insertar\n";
                         cout << "2) Eliminar\n";
                         cout << "3) Modificar\n";
@@ -1078,7 +1079,7 @@ int main() {
                                 cout << "Fallo al insertar.\n";
                         }
                         else if (op == 2) {
-                            cout << "Posición global a eliminar: ";
+                            cout << "Posicion global a eliminar: ";
                             int pos; cin >> pos;
                             if (page->deleteFixed("housing", pos))
                                 cout << "Eliminado OK en memoria.\n";
@@ -1086,7 +1087,7 @@ int main() {
                                 cout << "Fallo al eliminar.\n";
                         }
                         else if (op == 3) {
-                            cout << "Posición global a modificar: ";
+                            cout << "Posicion global a modificar: ";
                             int pos; cin >> pos; cin.ignore();
                             cout << "Nuevo registro (# separados, termina '\\n'): ";
                             string reg = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished";
@@ -1096,10 +1097,10 @@ int main() {
                                 cout << "Fallo al modificar.\n";
                         }
                         else {
-                            cout << "Opción invaasdadslida\n";
+                            cout << "Opcion invaasdadslida\n";
                         }
 
-                        // Despineamos; si quieres fludssh inmediato, úsalo tú mismo:
+                        // Despineamos; si quieres fludssh inmediato, usalo tu mismo:
                         pBufPool->unpinPage(pid);
                         break;
                     }
@@ -1122,7 +1123,7 @@ int main() {
                         std::string base = bufferPagePath;
 
                         int numero;
-                        std::cout << "Ingrese el número de página: ";
+                        std::cout << "Ingrese el numero de pagina: ";
                         std::cin >> numero;
                         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
@@ -1139,144 +1140,178 @@ int main() {
                     }
 
                     case 10: {
-                        //try {
-                            std::string sel, from, where;
-                            std::cout << "SELECT "; std::getline(std::cin, sel);
-                            std::cout << "FROM ";   std::getline(std::cin, from);
-                            std::cout << "WHERE ";  std::getline(std::cin, where);
+                        int method;
+                        std::cout << "\n--- CONSULTA SQL ---\n"
+                            << "1) Secuencial\n"
+                            << "2) Hash\n"
+                            << "3) B-Tree (simulado aun)\n"
+                            << ">> Elige metodo: ";
+                        std::cin >> method;
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-                            std::string catalogFile = "DISCO\\catalogo.txt";
+                        std::string sel, from, where;
+                        std::cout << "SELECT "; std::getline(std::cin, sel);
+                        std::cout << "FROM   "; std::getline(std::cin, from);
+                        std::cout << "WHERE  "; std::getline(std::cin, where);
 
+                        std::string field, op, val;
+                        if (!where.empty()) {
+                            std::istringstream iss(where);
+                            iss >> field >> op >> val;
+                        }
+
+                        std::string catalogFile = discoPath + "catalogo.txt";
+                        std::string blocksDir = discoPath + "BLOQUES\\";
+                        std::string tableFile = basePath + from + ".txt";
+
+                        if (method == 1) {
+                            // 1) Secuencial
                             std::vector<int> bloques;
-
                             if (where.empty()) {
-                                // no hay WHERE → tomo todos los bloques del catálogo
-                                bloques = getBlocksFromCatalog(
-                                    discoPath + "catalogo.txt",
-                                    from
-                                );
+                                bloques = getBlocksFromCatalog(catalogFile, from);
                             }
                             else {
-                                // hay WHERE → parsear "campo op valor"
-                                std::istringstream iss(where);
-                                std::string field, op, val;
-                                iss >> field >> op >> val;
-
                                 bloques = findBlocksWithCondition(
                                     catalogFile,
-                                    discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
-                                    basePath + from + ".txt",      // p.ej. "…\\housing.txt"
-                                    from,
-                                    field,
-                                    op,
-                                    val
+                                    blocksDir,
+                                    tableFile,
+                                    from, field, op, val
                                 );
                             }
-
-                            // mostrar bloques únicos
-                            std::cout << "Bloques que contienen datos para "
-                                << from << ":\n";
-                            for (int b : bloques) {
+                            std::cout << "Bloques (secuencial):\n";
+                            for (int b : bloques)
                                 std::cout << "  Bloque" << b << ".txt\n";
-                            }
-                        //}
-                        //catch (const std::exception& e) {
-                        //    std::cerr << "ERROR en la consulta: " << e.what() << "\n";
-                        //}
-                    }
-
-                    case 11: {
-                        //try {
-                            std::string sel, from, where;
-                            std::cout << "SELECT "; std::getline(std::cin, sel);
-                            std::cout << "FROM ";   std::getline(std::cin, from);
-                            std::cout << "WHERE ";  std::getline(std::cin, where);
-
-                            std::string catalogFile = "DISCO\\catalogo.txt";
-
-                            std::vector<int> bloques;
-
-                            string field, op, val;
-
-                            if (where.empty()) {
-                                // no hay WHERE → tomo todos los bloques del catálogo
-                                bloques = getBlocksFromCatalog(
-                                    discoPath + "catalogo.txt",
+                        }
+                        else if (method == 2) {
+                            // 2) Hash
+                            try {
+                                HashIndex idx(
+                                    catalogFile,
+                                    blocksDir,
+                                    tableFile,
                                     from
                                 );
-                            }
-                            else {
-                                // hay WHERE → parsear "campo op valor"
-                                std::istringstream iss(where);
-                                iss >> field >> op >> val;
+                                std::cout << "indice hash sobre campo: "
+                                    << idx.indexField() << "\n";
 
-                                bloques = findBlocksWithCondition(
-                                    catalogFile,
-                                    discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
-                                    basePath + from + ".txt",      // p.ej. "…\\housing.txt"
-                                    from,
-                                    field,
-                                    op,
-                                    val
-                                );
-                            }
+                                // Solo soporta igualdad en el campo indexado
+                                auto rows = idx.query(val);
 
-                            // 3) Pinear todos los bloques encontrados
-                            cout << "\nPineando páginas en buffer:\n";
-                            for (int b : bloques) {
-                                // op 'R' de lectura, pinned = true (permanente)
-                                pBufPool->pinPage(b, 'R', true);  // :contentReference[oaicite:0]{index=0}
-                                cout << "  Página " << b << " pineada\n";
-                            }
-
-                            // 4) Obtener en memoria todos los registros que cumplen
-                            auto records = getRecordsFromBlocks(
-                                bloques,
-                                discoPath + "BLOQUES\\",
-                                basePath + from + ".txt",
-                                from,
-                                field,
-                                op,
-                                val
-                            );
-
-                            // 5) Imprimir tabla con cabecera y filas alineadas
-                            auto headers = getRelationHeader(basePath + from + ".txt");
-                            vector<size_t> w(headers.size());
-                            // calcular ancho de cada columna
-                            for (int i = 0; i < (int)headers.size(); ++i)
-                                w[i] = headers[i].size();
-                            for (auto& row : records)
-                                for (int j = 0; j < (int)row.size(); ++j)
-                                    w[j] = max(w[j], row[j].size());
-
-                            // imprimir cabecera
-                            for (int i = 0; i < (int)headers.size(); ++i) {
-                                cout << setw(w[i]) << headers[i]
-                                    << (i + 1 < (int)headers.size() ? " | " : "\n");
-                            }
-                            // línea separadora
-                            for (int i = 0; i < (int)w.size(); ++i) {
-                                cout << string(w[i], '-')
-                                    << (i + 1 < (int)w.size() ? "-+-" : "\n");
-                            }
-                            // imprimir filas
-                            for (auto& row : records) {
-                                for (int j = 0; j < (int)row.size(); ++j) {
-                                    cout << setw(w[j]) << row[j]
-                                        << (j + 1 < (int)row.size() ? " | " : "\n");
+                                std::cout << "Resultados (hash):\n";
+                                for (const auto& rec : rows) {
+                                    for (size_t i = 0; i < rec.size(); ++i) {
+                                        std::cout << rec[i]
+                                            << (i + 1 < rec.size() ? " | " : "\n");
+                                    }
                                 }
                             }
-                        //}
-
-                        //catch (const std::exception& e) {
-                        //    std::cerr << "ERROR en la consulta: " << e.what() << "\n";
-                        //}
+                            catch (const std::exception& e) {
+                                std::cerr << "ERROR hash: " << e.what() << "\n";
+                            }
+                        }
+                        else if (method == 3) {
+                            // 3) B-Tree (simulado)
+                            std::cout << "[Simulacion B-Tree] Aun no implementado.\n"
+                                << "indice B+Tree sobre campo: " << field << "\n";
+                        }
+                        else {
+                            std::cout << "Opcion de metodo invalida.\n";
+                        }
+                        break;
                     }
 
+                    //case 11: {
+                    //    //try {
+                    //        std::string sel, from, where;
+                    //        std::cout << "SELECT "; std::getline(std::cin, sel);
+                    //        std::cout << "FROM ";   std::getline(std::cin, from);
+                    //        std::cout << "WHERE ";  std::getline(std::cin, where);
+
+                    //        std::string catalogFile = "DISCO\\catalogo.txt";
+
+                    //        std::vector<int> bloques;
+
+                    //        string field, op, val;
+
+                    //        if (where.empty()) {
+                    //            // no hay WHERE → tomo todos los bloques del catalogo
+                    //            bloques = getBlocksFromCatalog(
+                    //                discoPath + "catalogo.txt",
+                    //                from
+                    //            );
+                    //        }
+                    //        else {
+                    //            // hay WHERE → parsear "campo op valor"
+                    //            std::istringstream iss(where);
+                    //            iss >> field >> op >> val;
+
+                    //            bloques = findBlocksWithCondition(
+                    //                catalogFile,
+                    //                discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
+                    //                basePath + from + ".txt",      // p.ej. "…\\housing.txt"
+                    //                from,
+                    //                field,
+                    //                op,
+                    //                val
+                    //            );
+                    //        }
+
+                    //        // 3) Pinear todos los bloques encontrados
+                    //        cout << "\nPineando paginas en buffer:\n";
+                    //        for (int b : bloques) {
+                    //            // op 'R' de lectura, pinned = true (permanente)
+                    //            pBufPool->pinPage(b, 'R', true);  // :contentReference[oaicite:0]{index=0}
+                    //            cout << "  Pagina " << b << " pineada\n";
+                    //        }
+
+                    //        // 4) Obtener en memoria todos los registros que cumplen
+                    //        auto records = getRecordsFromBlocks(
+                    //            bloques,
+                    //            discoPath + "BLOQUES\\",
+                    //            basePath + from + ".txt",
+                    //            from,
+                    //            field,
+                    //            op,
+                    //            val
+                    //        );
+
+                    //        // 5) Imprimir tabla con cabecera y filas alineadas
+                    //        auto headers = getRelationHeader(basePath + from + ".txt");
+                    //        vector<size_t> w(headers.size());
+                    //        // calcular ancho de cada columna
+                    //        for (int i = 0; i < (int)headers.size(); ++i)
+                    //            w[i] = headers[i].size();
+                    //        for (auto& row : records)
+                    //            for (int j = 0; j < (int)row.size(); ++j)
+                    //                w[j] = max(w[j], row[j].size());
+
+                    //        // imprimir cabecera
+                    //        for (int i = 0; i < (int)headers.size(); ++i) {
+                    //            cout << setw(w[i]) << headers[i]
+                    //                << (i + 1 < (int)headers.size() ? " | " : "\n");
+                    //        }
+                    //        // linea separadora
+                    //        for (int i = 0; i < (int)w.size(); ++i) {
+                    //            cout << string(w[i], '-')
+                    //                << (i + 1 < (int)w.size() ? "-+-" : "\n");
+                    //        }
+                    //        // imprimir filas
+                    //        for (auto& row : records) {
+                    //            for (int j = 0; j < (int)row.size(); ++j) {
+                    //                cout << setw(w[j]) << row[j]
+                    //                    << (j + 1 < (int)row.size() ? " | " : "\n");
+                    //            }
+                    //        }
+                    //    //}
+
+                    //    //catch (const std::exception& e) {
+                    //    //    std::cerr << "ERROR en la consulta: " << e.what() << "\n";
+                    //    //}
+                    //}
 
 
-                    default: cout << "Inválida\n";
+
+                    default: cout << "Invalida\n";
                     }
                 }
             }
@@ -1285,7 +1320,7 @@ int main() {
             break;
         }
         else {
-            cout << "Opción inválida\n";
+            cout << "Opcion invalida\n";
         }
     }
 
@@ -1293,4 +1328,3 @@ int main() {
     delete pBufPool;
     return 0;
 }
-

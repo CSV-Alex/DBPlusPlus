@@ -41,3 +41,6 @@ std::vector<std::vector<std::string>> getRecordsFromBlocks(
 );
 
 std::vector<std::string> getRelationHeader(const std::string& tableTxt);
+
+bool readBlockHeader(const std::string& path, int& numRec, std::streampos& off);
+std::vector<std::string> loadRelationHeader(const std::string& tableTxt);

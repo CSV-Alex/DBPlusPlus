@@ -15,7 +15,7 @@
 namespace fs = std::filesystem;
 
 // NUEVO: particiona un string por un delimitador
-static std::vector<std::string> split(const std::string& s, char delim) {
+std::vector<std::string> split(const std::string& s, char delim) {
     std::vector<std::string> elems;
     std::stringstream ss(s);
     std::string item;
@@ -25,7 +25,7 @@ static std::vector<std::string> split(const std::string& s, char delim) {
 }
 
 // NUEVO: lee la cabecera de la relación (línea 0) y extrae los nombres de campo
-static std::vector<std::string> loadRelationHeader(const std::string& tablePath) {
+std::vector<std::string> loadRelationHeader(const std::string& tablePath) {
     std::ifstream in(tablePath);
     if (!in) throw std::runtime_error("No se pudo abrir " + tablePath);
     std::string headerLine;
@@ -34,7 +34,7 @@ static std::vector<std::string> loadRelationHeader(const std::string& tablePath)
 }
 
 // NUEVO: evalúa una condición simple entre cell y val
-static bool evalCondition(const std::string& cell,
+bool evalCondition(const std::string& cell,
     const std::string& op,
     const std::string& val)
 {
@@ -102,7 +102,7 @@ static bool evalCondition(const std::string& cell,
 }
 
 // NUEVO: lee el header de un BloqueN.txt hasta la '/' y extrae numRecords
-static bool readBlockHeader(const std::string& blockPath,
+bool readBlockHeader(const std::string& blockPath,
     int& numRecords,
     std::streampos& dataOffset)
 {
