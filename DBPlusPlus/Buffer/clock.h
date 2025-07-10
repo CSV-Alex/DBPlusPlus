@@ -9,7 +9,7 @@ class Clock : public ReplacementStrategy {
 public:
     Clock(int n);
     void newPage(int pageId) override;
-    void pin(int pageId) override;
+    void pin(int pageId, bool) override;
     void unpin(int pageId) override;
     void deletePage(int pageId) override;
     int victim() override;
@@ -19,15 +19,15 @@ public:
     int getClockBit(int pageId) const {
         auto it = idx_.find(pageId);
         if (it == idx_.end()) return 0;
-        return frames_[it->second].used ? 1 : 0;
+        return frames_[it->second].REF_bit ? 1 : 0;
     }
 
 protected:
     struct Frame {
         int pageId; // ID of the page
-        bool used;  // Used bit
-        bool pinned = false;
         int pinCount = 0;
+        bool pin_status = false;
+        bool REF_bit = false; // used bit
     };
     std::vector<Frame>  frames_;
     std::unordered_map<int, int> idx_;
@@ -52,32 +52,38 @@ void Clock::newPage(int pageId) {
     }
     // Colocar la nueva página
     frames_[slot].pageId = pageId;
-    frames_[slot].used = true;
-    frames_[slot].pinned = false;
+
+    frames_[slot].pin_status = false;
+    frames_[slot].REF_bit = true;
     idx_[pageId] = slot;
 }
 
 
-void Clock::pin(int pageId) {
+void Clock::pin(int pageId, bool pinned) {
     std::cout << "[DEBUG] Clock::pin() llamado\n";
     auto it = idx_.find(pageId);
-    if (it == idx_.end()) return;
+    if (it == idx_.end()) return; //not found
     Frame& f = frames_[it->second];
     f.pinCount++;
-    f.used = true;
+    f.pin_status = pinned; // marca como pineado
+    f.REF_bit = true;
 }
-
-
+void Clock::setPermanentPin(int pageId, bool value) {
+    std::cout << "[DEBUG] Clock::setPermanentPin() llamado\n";
+    auto it = idx_.find(pageId);
+    if (it == idx_.end()) return; //not found
+    frames_[it->second].pin_status = value; // marca como pineado permanentemente
+}   
 void Clock::unpin(int pageId) {
     std::cout << "[DEBUG] Clock::unpin() llamado\n";
     auto it = idx_.find(pageId);
     if (it == idx_.end()) return;
     Frame& f = frames_[it->second];
-    //f.pinned = false;
+    //f.pin_status = false;
     if (f.pinCount > 0) {
         f.pinCount--;           // NEW: decrementa contador
     }
-/*    f.used = true; */             // NEW: opcionalmente marca usado
+/*    f.REF_bit = true; */             // NEW: opcionalmente marca usado
 }
 
 
@@ -94,10 +100,9 @@ void Clock::touch(int pageId) {
     std::cout << "[DEBUG] Clock::touch() llamado\n";
     auto it = idx_.find(pageId);
     if (it == idx_.end()) return;
-    frames_[it->second].used = true;
+    frames_[it->second].REF_bit = true;
 }
 
-typedef ReplacementStrategy RS;
 int Clock::victim() {
     std::cout << "[DEBUG] Clock::victim() llamado\n";
     const int n = static_cast<int>(frames_.size());
@@ -109,11 +114,11 @@ int Clock::victim() {
         std::cout << "[DEBUG] scan hand=" << hand_
             << " pageId=" << f.pageId
             << " pinCount=" << f.pinCount
-            << " pinned=" << f.pinned
-            << " used=" << f.used << "\n";
+            << " pin_status=" << f.pin_status
+            << " REF_bit=" << f.REF_bit << "\n";
 
         // 1) Nunca tocar frames pineados permanentemente
-        if (f.pinned) {
+        if (f.pin_status) {
             hand_ = (hand_ + 1) % n;
             continue;
         }
@@ -129,22 +134,22 @@ int Clock::victim() {
             continue;
         }
 
-        // 3) Fase de segunda oportunidad: limpiar used
-        if (f.pageId >= 0 && f.used) {
-            std::cout << "[DEBUG] limpiar bit used para page "
+        // 3) Fase de segunda oportunidad: limpiar REF_bit
+        if (f.pageId >= 0 && f.REF_bit) {
+            std::cout << "[DEBUG] limpiar bit REF_bit para page "
                 << f.pageId << "\n";
-            f.used = false;
+            f.REF_bit = false;
             hand_ = (hand_ + 1) % n;
             continue;
         }
 
-        // 4) Fase de expulsión: sin pins ni used
-        if (f.pageId >= 0 && !f.used) {
+        // 4) Fase de expulsión: sin pins ni REF_bit
+        if (f.pageId >= 0 && !f.REF_bit) {
             std::cout << "[DEBUG] expulsando página " << f.pageId << "\n";
             int victimId = f.pageId;
             idx_.erase(victimId);
             // reset completo del frame
-            f = Frame{ -1, /*used*/false, /*pinned*/false, /*pinCount*/0 };
+            f = Frame{ -1, /*REF_bit*/false, /*pin_status*/false, /*pinCount*/0 };
             hand_ = (hand_ + 1) % n;
             return victimId;
         }

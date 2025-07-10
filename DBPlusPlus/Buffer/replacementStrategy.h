@@ -5,10 +5,10 @@ public:
     virtual ~ReplacementStrategy() = default;
 
     // Called when a new page is added to the buffer pool.
-    virtual void newPage(int pageId) =0;
+    virtual void newPage(int pageId, bool pinned) =0;
 
     // Called when a page is pinned (accessed).
-    virtual void pin(int pageId) =0;
+    virtual void pin(int pageId, bool pinned) =0;
 
     // Called when a page is unpinned (no longer accessed).
     virtual void unpin(int pageId)=0 ;
