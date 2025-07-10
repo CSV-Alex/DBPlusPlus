@@ -32,15 +32,17 @@ protected:
     std::vector<Frame>  frames_;
     std::unordered_map<int, int> idx_;
     int hand_; // index of actual page
-    bool full;
+    bool full, locked; //full tracks wether buffer is full, locked tracks if the no possible victim in buffer is unpinned
     int findEmptySlot() const;
     int findSlotByPage(int pageId) const;
     int victimSlot();  // elige un slot libre y lo libera
 };
 
-Clock::Clock(int n)
-    : frames_(n, Frame{ -1, false, false }), hand_(0)
-{
+Clock::Clock(int n){
+    frames_.resize(n, Frame{ -1, 0, false, false });
+    hand_ = 0; 
+    full = false; 
+    locked = false; 
 }
 
 void Clock::newPage(int pageId, bool pinned) {
@@ -112,52 +114,50 @@ void Clock::touch(int pageId) {
 }
 
 int Clock::victim() {
-    std::cout << "[DEBUG] Clock::victim() llamado\n";
+    
+    //std::cout << "[DEBUG] Clock::victim() llamado\n";
+    
     const int n = static_cast<int>(frames_.size());
-    // 3 fases en un solo bucle de 3*n iteraciones
-    for (int scanned = 0; scanned < 3 * n; ++scanned) {
+
+    int n_locked = 0; // contador de frames bloqueados
+
+    while(!locked){  //doesn't use n_blocked reset, in order to favor some iterations
         Frame& f = frames_[hand_];
 
-        // 1) Nunca tocar frames pineados permanentemente
-        if (f.pin_status) {
-            hand_ = (hand_ + 1) % n;
-            continue;
-        }
-
-        // 2) Fase de consumo de pins temporales
+        // 1) Fase de consumo de pins temporales
         if (f.pageId >= 0 && f.pinCount > 0) {
-            int antes = f.pinCount;
             f.pinCount--;
-            std::cout << "[DEBUG] decrement pinCount para page "
-                << f.pageId << ": " << antes
-                << " -> " << f.pinCount << "\n";
             hand_ = (hand_ + 1) % n;
             continue;
         }
 
-        // 3) Fase de segunda oportunidad: limpiar REF_bit
-        if (f.pageId >= 0 && f.REF_bit) {
-            std::cout << "[DEBUG] limpiar bit REF_bit para page "
-                << f.pageId << "\n";
+        // 2) Fase de segunda oportunidad: limpiar REF_bit
+        if (f.pageId >= 0 && f.pinCount == 0 && f.REF_bit) {
             f.REF_bit = false;
             hand_ = (hand_ + 1) % n;
             continue;
         }
 
-        // 4) Fase de expulsión: sin pins ni REF_bit
-        if (f.pageId >= 0 && !f.REF_bit) {
-            std::cout << "[DEBUG] expulsando página " << f.pageId << "\n";
+        // 3) Fase de expulsión: sin pins ni REF_bit
+        if (f.pageId >= 0 && !f.REF_bit && !f.pin_status) {
             int victimId = f.pageId;
             idx_.erase(victimId);
             // reset completo del frame
-            f = Frame{ -1, /*REF_bit*/false, /*pin_status*/false, /*pinCount*/0 };
+            f = Frame{ -1, false, false };
             hand_ = (hand_ + 1) % n;
-            return victimId;
+            return victimId; // devuelve el ID de la página expulsada
         }
 
+        // Si llegamos aquí, significa que el frame está bloqueado
+        n_locked++;
+        if (n_locked >= n) {
+            locked = true; // si hemos recorrido todos los frames y están bloqueados, salimos del bucle
+        }
+        
         // avanza el puntero
         hand_ = (hand_ + 1) % n;
     }
+
 
     std::cerr << "[ERROR] Clock::victim(): no hay frame elegible\n";
     return -1;
