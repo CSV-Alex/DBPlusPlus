@@ -8,7 +8,7 @@
 class Clock : public ReplacementStrategy {
 public:
     Clock(int n);
-    void newPage(int pageId) override;
+    void newPage(int pageId, bool) override;
     void pin(int pageId, bool) override;
     void unpin(int pageId) override;
     void deletePage(int pageId) override;
@@ -42,18 +42,24 @@ Clock::Clock(int n)
 {
 }
 
-void Clock::newPage(int pageId) {
+void Clock::newPage(int pageId, bool pinned) {
     std::cout << "[DEBUG] Clock::newPage() llamado\n";
-    // 1) Busca un slot vacío
+    /*// 1) Busca un slot vacío
     int slot = findEmptySlot();
     if (slot < 0) {
         // Buffer lleno, liberar un frame elegido por clock
         slot = victimSlot();
     }
+    */
+   int temp=hand_; //temp hand memory, so it updates itself on initial insertion.
+   int slot; // Usamos el puntero actual como slot inicial
+    while(hand_!= temp || frames_[hand_].pageId >= 0) { //si la pagina ha vuelto a su posicion original o si la pagina es -1 (default) 
+        hand_=(++hand_)%frames_.size(); //avanzamos el puntero
+    }
     // Colocar la nueva página
     frames_[slot].pageId = pageId;
-
-    frames_[slot].pin_status = false;
+    frames_[slot].pinCount = 1; // contador de pins
+    frames_[slot].pin_status = pinned; // marca como pineado
     frames_[slot].REF_bit = true;
     idx_[pageId] = slot;
 }
@@ -109,13 +115,6 @@ int Clock::victim() {
     // 3 fases en un solo bucle de 3*n iteraciones
     for (int scanned = 0; scanned < 3 * n; ++scanned) {
         Frame& f = frames_[hand_];
-
-        // DEBUG extra: mostrar estado actual
-        std::cout << "[DEBUG] scan hand=" << hand_
-            << " pageId=" << f.pageId
-            << " pinCount=" << f.pinCount
-            << " pin_status=" << f.pin_status
-            << " REF_bit=" << f.REF_bit << "\n";
 
         // 1) Nunca tocar frames pineados permanentemente
         if (f.pin_status) {
