@@ -14,16 +14,6 @@
 
 namespace fs = std::filesystem;
 
-// NUEVO: particiona un string por un delimitador
-std::vector<std::string> split(const std::string& s, char delim) {
-    std::vector<std::string> elems;
-    std::stringstream ss(s);
-    std::string item;
-    while (std::getline(ss, item, delim))
-        elems.push_back(item);
-    return elems;
-}
-
 // NUEVO: lee la cabecera de la relación (línea 0) y extrae los nombres de campo
 std::vector<std::string> loadRelationHeader(const std::string& tablePath) {
     std::ifstream in(tablePath);

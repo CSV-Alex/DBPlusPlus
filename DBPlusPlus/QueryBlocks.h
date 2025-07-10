@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <sstream>
 
 // Resultado de una consulta: bloques únicos, registros y cabeceras
 struct QueryResult {
@@ -44,3 +45,13 @@ std::vector<std::string> getRelationHeader(const std::string& tableTxt);
 
 bool readBlockHeader(const std::string& path, int& numRec, std::streampos& off);
 std::vector<std::string> loadRelationHeader(const std::string& tableTxt);
+
+inline std::vector<std::string> split(const std::string& str, char delimiter) {
+    std::vector<std::string> result;
+    std::string token;
+    std::stringstream ss(str);
+    while (std::getline(ss, token, delimiter)) {
+        result.push_back(token);
+    }
+    return result;
+}

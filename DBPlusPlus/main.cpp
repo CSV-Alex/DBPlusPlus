@@ -19,6 +19,7 @@
 #include "QueryHashBlocks.h"
 #include <sstream>
 #include <unordered_set>
+#include "QueryTreeBlocks.h"
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -1240,9 +1241,30 @@ int main() {
                             }
                         }
                         else if (method == 3) {
-                            // 3) B-Tree (simulado)
-                            std::cout << "[Simulacion B-Tree] Aun no implementado.\n"
-                                << "indice B+Tree sobre campo: " << field << "\n";
+                            try {
+                                // 1) Construcción del índice B+ Tree
+                                BPlusTreeIndex idx(
+                                    catalogFile,
+                                    blocksDir,
+                                    tableFile,
+                                    from,
+                                    field,     // Search Key
+                                    2          // orden d
+                                );
+                                std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
+
+                                // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL ---
+                                std::cout << "[Estructura del B+ Tree]\n";
+                                idx.printTree();   // <-- aquí
+
+                                // 2) Ejecutamos la consulta equality
+                                auto hits = idx.queryWithBlocks(val);
+
+                                // 3) … resto de impresión de registros y bloques …
+                            }
+                            catch (const std::exception& e) {
+                                std::cerr << "ERROR B+ Tree: " << e.what() << "\n";
+                            }
                         }
                         else {
                             std::cout << "Opcion de metodo invalida.\n";
