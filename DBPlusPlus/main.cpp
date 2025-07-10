@@ -1138,6 +1138,8 @@ int main() {
                         catch (const std::exception& e) {
                             std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
                         }
+
+                        break;
                     }
 
                     case 10: {
@@ -1248,94 +1250,102 @@ int main() {
                         break;
                     }
 
-                    //case 11: {
-                    //    //try {
-                    //        std::string sel, from, where;
-                    //        std::cout << "SELECT "; std::getline(std::cin, sel);
-                    //        std::cout << "FROM ";   std::getline(std::cin, from);
-                    //        std::cout << "WHERE ";  std::getline(std::cin, where);
+                    case 11: {
+                        int method;
+                        std::cout << "\n--- CONSULTA SQL (con BufferPool) ---\n"
+                                  << "1) Secuencial\n"
+                                  << "2) Hash\n"
+                                  << "3) B-Tree (simulado aun)\n"
+                                  << ">> Elige metodo: ";
+                        std::cin >> method;
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-                    //        std::string catalogFile = "DISCO\\catalogo.txt";
+                        std::string sel, from, where;
+                        std::cout << "SELECT "; std::getline(std::cin, sel);
+                        std::cout << "FROM   "; std::getline(std::cin, from);
+                        std::cout << "WHERE  "; std::getline(std::cin, where);
 
-                    //        std::vector<int> bloques;
+                        std::string field, op, val;
+                        if (!where.empty()) {
+                            std::istringstream iss(where);
+                            iss >> field >> op >> val;
+                        }
 
-                    //        string field, op, val;
+                        std::string catalogFile = discoPath + "catalogo.txt";
+                        std::string blocksDir   = discoPath + "BLOQUES\\";
+                        std::string tableFile   = basePath + from + ".txt";
 
-                    //        if (where.empty()) {
-                    //            // no hay WHERE → tomo todos los bloques del catalogo
-                    //            bloques = getBlocksFromCatalog(
-                    //                discoPath + "catalogo.txt",
-                    //                from
-                    //            );
-                    //        }
-                    //        else {
-                    //            // hay WHERE → parsear "campo op valor"
-                    //            std::istringstream iss(where);
-                    //            iss >> field >> op >> val;
+                        // Aquí acumularemos los IDs de bloque que contienen la condición
+                        std::vector<int> bloquesEncontrados;
 
-                    //            bloques = findBlocksWithCondition(
-                    //                catalogFile,
-                    //                discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
-                    //                basePath + from + ".txt",      // p.ej. "…\\housing.txt"
-                    //                from,
-                    //                field,
-                    //                op,
-                    //                val
-                    //            );
-                    //        }
+                        if (method == 1) {
+                            // 1) Secuencial
+                            if (where.empty()) {
+                                bloquesEncontrados = getBlocksFromCatalog(catalogFile, from);
+                            } else {
+                                bloquesEncontrados = findBlocksWithCondition(
+                                    catalogFile, blocksDir, tableFile,
+                                    from, field, op, val
+                                );
+                            }
+                        }
+                        else if (method == 2) {
+                            // 2) Hash extendible
+                            HashIndex idx(
+                                catalogFile,
+                                blocksDir,
+                                tableFile,
+                                from,
+                                field
+                            );
+                            std::cout << "Índice hash extendido sobre campo: " << field << "\n";
 
-                    //        // 3) Pinear todos los bloques encontrados
-                    //        cout << "\nPineando paginas en buffer:\n";
-                    //        for (int b : bloques) {
-                    //            // op 'R' de lectura, pinned = true (permanente)
-                    //            pBufPool->pinPage(b, 'R', true);  // :contentReference[oaicite:0]{index=0}
-                    //            cout << "  Pagina " << b << " pineada\n";
-                    //        }
+                            auto hits = idx.queryWithBlocks(val);
 
-                    //        // 4) Obtener en memoria todos los registros que cumplen
-                    //        auto records = getRecordsFromBlocks(
-                    //            bloques,
-                    //            discoPath + "BLOQUES\\",
-                    //            basePath + from + ".txt",
-                    //            from,
-                    //            field,
-                    //            op,
-                    //            val
-                    //        );
+                            std::unordered_set<int> seen;
+                            std::cout << "\nResultados (hash extendido):\n";
+                            for (auto& hit : hits) {
+                                // Imprimo cada registro completo
+                                const auto& registro = hit.first;
+                                for (size_t i = 0; i < registro.size(); ++i) {
+                                    std::cout << registro[i]
+                                              << (i + 1 < registro.size() ? " | " : "\n");
+                                }
+                                // Extraigo ID de bloque de la ruta "…/BloqueN.txt"
+                                const std::string& path = hit.second;
+                                auto pos1 = path.rfind("Bloque");
+                                auto pos2 = path.rfind(".txt");
+                                int blk = std::stoi(path.substr(pos1 + 6, pos2 - (pos1 + 6)));
+                                if (seen.insert(blk).second)
+                                    bloquesEncontrados.push_back(blk);
+                            }
+                        }
+                        else if (method == 3) {
+                            // 3) B-Tree (simulado)
+                            std::cout << "[Simulación B-Tree] Aun no implementado.\n"
+                                      << "índice B+Tree sobre campo: " << field << "\n";
+                        }
+                        else {
+                            std::cout << "Opción de método inválida.\n";
+                            break;
+                        }
 
-                    //        // 5) Imprimir tabla con cabecera y filas alineadas
-                    //        auto headers = getRelationHeader(basePath + from + ".txt");
-                    //        vector<size_t> w(headers.size());
-                    //        // calcular ancho de cada columna
-                    //        for (int i = 0; i < (int)headers.size(); ++i)
-                    //            w[i] = headers[i].size();
-                    //        for (auto& row : records)
-                    //            for (int j = 0; j < (int)row.size(); ++j)
-                    //                w[j] = max(w[j], row[j].size());
+                        // 4) Pinear en el buffer pool todos los bloques hallados
+                        std::cout << "\nPineando páginas en buffer pool:\n";
+                        for (int blk : bloquesEncontrados) {
+                            pBufPool->pinPage(blk, 'R', false);
+                            std::cout << "  Página " << blk << " pineada\n";
+                        }
 
-                    //        // imprimir cabecera
-                    //        for (int i = 0; i < (int)headers.size(); ++i) {
-                    //            cout << setw(w[i]) << headers[i]
-                    //                << (i + 1 < (int)headers.size() ? " | " : "\n");
-                    //        }
-                    //        // linea separadora
-                    //        for (int i = 0; i < (int)w.size(); ++i) {
-                    //            cout << string(w[i], '-')
-                    //                << (i + 1 < (int)w.size() ? "-+-" : "\n");
-                    //        }
-                    //        // imprimir filas
-                    //        for (auto& row : records) {
-                    //            for (int j = 0; j < (int)row.size(); ++j) {
-                    //                cout << setw(w[j]) << row[j]
-                    //                    << (j + 1 < (int)row.size() ? " | " : "\n");
-                    //            }
-                    //        }
-                    //    //}
+                        // 5) Mostrar lista de bloques
+                        std::cout << "\nBloques que contienen registros:\n";
+                        for (int blk : bloquesEncontrados) {
+                            std::cout << "  Bloque" << blk << ".txt\n";
+                        }
 
-                    //    //catch (const std::exception& e) {
-                    //    //    std::cerr << "ERROR en la consulta: " << e.what() << "\n";
-                    //    //}
-                    //}
+                        break;
+                    }
+
 
 
 
