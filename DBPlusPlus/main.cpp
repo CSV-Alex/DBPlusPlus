@@ -25,6 +25,8 @@
 #define MAX_SCHEMA  4096
 using namespace std;
 
+bool is_buffer_pool_set=false;
+
 size_t relationSizeBytes(const char* fileName, const char* basePath) {
     char tablePath[512];
     snprintf(tablePath, sizeof(tablePath), "%s%s.txt", basePath, fileName);
@@ -961,7 +963,7 @@ int main() {
             if (!discoConfigDone) {
                 cout << "Configura primero el disco.\n";
             }
-            else {
+            if(!is_buffer_pool_set){
                 cout << "\n--- Configuración del Buffer ---\n";
                 cout << "1) Especifique numero de frames\n";
                 int n_frames; cin>> n_frames;
@@ -980,190 +982,188 @@ int main() {
                 {
                     replacer = std::make_unique<Clock>(n_frames);
                 }
-                else {
-                    continue;
-                }
 
                 pBufPool = new BufferPool(n_frames,(size_t)miDisco.getTamBloque(), miDisco, std::move(replacer)); //constructor de BufferPool
+                is_buffer_pool_set = true;
+            }
 
-                while (true) {
-                    cout << "\n--- MENU BUFFER ---\n";
-                    cout << "1) Pin pagina\n";
-                    cout << "2) Unpin pagina\n";
-                    cout << "3) Mostrar estado\n";
-                    cout << "4) Flush all\n";
-                    cout << "5) Mostrar stats\n";
-                    cout << "6) Cambios en pagina\n";
-                    cout << "7) Ver contenido pagina\n";
-                    cout << "8) Volver al menu principal\n";
-                    cout << "9) Mostrar\n";
-                    cout << "10) Consulta SQL\n";
-                    cout << "11) Salir\n";
+            while (true) {
+                cout << "\n--- MENU BUFFER ---\n";
+                cout << "1) Pin pagina\n";
+                cout << "2) Unpin pagina\n";
+                cout << "3) Mostrar estado\n";
+                cout << "4) Flush all\n";
+                cout << "5) Mostrar stats\n";
+                cout << "6) Cambios en pagina\n";
+                cout << "7) Ver contenido pagina\n";
+                cout << "8) Volver al menu principal\n";
+                cout << "9) Mostrar\n";
+                cout << "10) Consulta SQL\n";
+                cout << "11) Salir\n";
+                cout << ">> ";
+                int opc; cin >> opc; cin.ignore();
+                if (opc == 11) break;
+                switch (opc) {
+                case 1: {
+                    int page_id; char op; bool pin;
+                    cout << "ID: "; cin >> page_id;
+                    cout << "R/W: "; cin >> op;
+                    cout << "Pin? "; cin >> pin;
+                    cout << "Mensaje Previo" << endl;
+                    auto p = pBufPool->getPage(page_id, op, pin);
+                    cout << (p ? "OK" : "Fallo") << "\n";
+                    cout << "Mensaje Siguiente" << endl;
+                    break;
+                }
+                case 2: {
+                    int pid; cout << "ID: "; cin >> pid;
+                    pBufPool->unpinPage(pid);
+                    break;
+                }
+                case 3: pBufPool->Status(); break;
+                case 4:
+
+                    flushBufferToDisk(miDisco);
+                    std::cout << "Todos los cambios del buffer han sido volcados a didasdsasco.\n";
+                    break;
+
+                case 5: pBufPool->printStats(); break;
+                case 6: {
+                    int pid;
+                    cout << "ID de página para cambios: ";
+                    cin >> pid;
+                    // Cargamos en modo escritura (¿dirty?) y la mantenemos pineada
+                    Page* base = pBufPool->getPage(pid, 'W', true);
+                    if (!base) {
+                        cout << "Página " << pid << " no está en buffer.\n";
+                        break;
+                    }
+
+                    std::cout << "[DEBUG] base apunta a un objeto de tipo "
+                        << typeid(*base).name() << "\n";
+                    auto page = dynamic_cast<PageWithRecords*>(base);
+                    if (!page) {
+                        cout << "ERRDOR: Esta página no soporta ops de registro.\n";
+                        pBufPool->unpinPage(pid);
+                        break;
+                    }
+
+                    // Mini-menú de operaciones
+                    cout << "\n--- OPERACIONES EN PÁGINA " << pid << " ---\n";
+                    cout << "1) Insertar\n";
+                    cout << "2) Eliminar\n";
+                    cout << "3) Modificar\n";
                     cout << ">> ";
-                    int opc; cin >> opc; cin.ignore();
-                    if (opc == 11) break;
-                    switch (opc) {
-                    case 1: {
-                        int page_id; char op; bool pin;
-                        cout << "ID: "; cin >> page_id;
-                        cout << "R/W: "; cin >> op;
-                        cout << "Pin? "; cin >> pin;
-                        cout << "Mensaje Previo" << endl;
-                        auto p = pBufPool->getPage(page_id, op, pin);
-                        cout << (p ? "OK" : "Fallo") << "\n";
-                        cout << "Mensaje Siguiente" << endl;
-                        break;
+                    int op; cin >> op; cin.ignore();
+
+                    if (op == 1) {
+                        cout << "Registro (# separados, termina '\\n'): ";
+                        string reg = "1790000#4123#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
+                        if (page->insertFixed("housing", reg))
+                            cout << "Insertado OK en memoria.\n";
+                        else
+                            cout << "Fallo al insertar.\n";
                     }
-                    case 2: {
-                        int pid; cout << "ID: "; cin >> pid;
+                    else if (op == 2) {
+                        cout << "Posición global a eliminar: ";
+                        int pos; cin >> pos;
+                        if (page->deleteFixed("housing", pos))
+                            cout << "Eliminado OK en memoria.\n";
+                        else
+                            cout << "Fallo al eliminar.\n";
+                    }
+                    else if (op == 3) {
+                        cout << "Posición global a modificar: ";
+                        int pos; cin >> pos; cin.ignore();
+                        cout << "Nuevo registro (# separados, termina '\\n'): ";
+                        string reg = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished";
+                        if (page->modifyFixed("housing", pos, reg))
+                            cout << "Modificado OK en memoria.\n";
+                        else
+                            cout << "Fallo al modificar.\n";
+                    }
+                    else {
+                        cout << "Opción invaasdadslida\n";
+                    }
+
+                    // Despineamos; si quieres fludssh inmediato, úsalo tú mismo:
+                    pBufPool->unpinPage(pid);
+                    break;
+                }
+
+                case 7: {
+                    int pid; std::cout << "ID de la pagina: "; std::cin >> pid;
+                    Page* p = pBufPool->getPage(pid, 'L', false);
+                    if (p) {
+                        auto pr = static_cast<PageWithRecords*>(p);
+                        pr->viewContent();
                         pBufPool->unpinPage(pid);
-                        break;
                     }
-                    case 3: pBufPool->Status(); break;
-                    case 4:
+                    else {
+                        std::cout << "ERROR: falla al cargar pagina " << pid << std::endl;
+                    }
+                    break;
+                }
 
-                        flushBufferToDisk(miDisco);
-                        std::cout << "Todos los cambios del buffer han sido volcados a didasdsasco.\n";
-                        break;
+                case 9: {
+                    std::string base = bufferPagePath;
 
-                    case 5: pBufPool->printStats(); break;
-                    case 6: {
-                        int pid;
-                        cout << "ID de página para cambios: ";
-                        cin >> pid;
-                        // Cargamos en modo escritura (¿dirty?) y la mantenemos pineada
-                        Page* base = pBufPool->getPage(pid, 'W', true);
-                        if (!base) {
-                            cout << "Página " << pid << " no está en buffer.\n";
-                            break;
-                        }
+                    int numero;
+                    std::cout << "Ingrese el número de página: ";
+                    std::cin >> numero;
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-                        std::cout << "[DEBUG] base apunta a un objeto de tipo "
-                            << typeid(*base).name() << "\n";
-                        auto page = dynamic_cast<PageWithRecords*>(base);
-                        if (!page) {
-                            cout << "ERRDOR: Esta página no soporta ops de registro.\n";
-                            pBufPool->unpinPage(pid);
-                            break;
-                        }
+                    std::string ruta = base + "/Page" + std::to_string(numero) + ".txt";
 
-                        // Mini-menú de operaciones
-                        cout << "\n--- OPERACIONES EN PÁGINA " << pid << " ---\n";
-                        cout << "1) Insertar\n";
-                        cout << "2) Eliminar\n";
-                        cout << "3) Modificar\n";
-                        cout << ">> ";
-                        int op; cin >> op; cin.ignore();
+                    try {
+                        std::string contenido = leerArchivo(ruta);
+                        std::cout << "--- Contenido de " << ruta << " ---\n"
+                            << contenido << "\n";
+                    }
+                    catch (const std::exception& e) {
+                        std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
+                    }
+                }
 
-                        if (op == 1) {
-                            cout << "Registro (# separados, termina '\\n'): ";
-                            string reg = "1790000#4123#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
-                            if (page->insertFixed("housing", reg))
-                                cout << "Insertado OK en memoria.\n";
-                            else
-                                cout << "Fallo al insertar.\n";
-                        }
-                        else if (op == 2) {
-                            cout << "Posición global a eliminar: ";
-                            int pos; cin >> pos;
-                            if (page->deleteFixed("housing", pos))
-                                cout << "Eliminado OK en memoria.\n";
-                            else
-                                cout << "Fallo al eliminar.\n";
-                        }
-                        else if (op == 3) {
-                            cout << "Posición global a modificar: ";
-                            int pos; cin >> pos; cin.ignore();
-                            cout << "Nuevo registro (# separados, termina '\\n'): ";
-                            string reg = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished";
-                            if (page->modifyFixed("housing", pos, reg))
-                                cout << "Modificado OK en memoria.\n";
-                            else
-                                cout << "Fallo al modificar.\n";
-                        }
-                        else {
-                            cout << "Opción invaasdadslida\n";
-                        }
+                case 10: {
+                    std::string sel, from, where;
+                    std::cout << "SELECT "; std::getline(std::cin, sel);
+                    std::cout << "FROM ";   std::getline(std::cin, from);
+                    std::cout << "WHERE ";  std::getline(std::cin, where);
 
-                        // Despineamos; si quieres fludssh inmediato, úsalo tú mismo:
-                        pBufPool->unpinPage(pid);
-                        break;
+                    std::vector<int> bloques;
+
+                    if (where.empty()) {
+                        // no hay WHERE → tomo todos los bloques del catálogo
+                        bloques = getBlocksFromCatalog( //DEBUG
+                            discoPath + "catalogo.txt",
+                            from
+                        );
+                    }
+                    else {
+                        // hay WHERE → parsear "campo op valor"
+                        std::istringstream iss(where);
+                        std::string field, op, val;
+                        iss >> field >> op >> val;
+
+                        bloques = findBlocksWithCondition( //DEBug
+                            discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
+                            basePath + from + ".txt",      // p.ej. "…\\housing.txt"
+                            field,
+                            op,
+                            val
+                        );
                     }
 
-                    case 7: {
-                        int pid; std::cout << "ID de la pagina: "; std::cin >> pid;
-                        Page* p = pBufPool->getPage(pid, 'L', false);
-                        if (p) {
-                            auto pr = static_cast<PageWithRecords*>(p);
-                            pr->viewContent();
-                            pBufPool->unpinPage(pid);
-                        }
-                        else {
-                            std::cout << "ERROR: falla al cargar pagina " << pid << std::endl;
-                        }
-                        break;
+                    // mostrar bloques únicos
+                    std::cout << "Bloques que contienen datos para "
+                        << from << ":\n";
+                    for (int b : bloques) {
+                        std::cout << "  Bloque" << b << ".txt\n";
                     }
+                }
 
-                    case 9: {
-                        std::string base = bufferPagePath;
-
-                        int numero;
-                        std::cout << "Ingrese el número de página: ";
-                        std::cin >> numero;
-                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
-                        std::string ruta = base + "/Page" + std::to_string(numero) + ".txt";
-
-                        try {
-                            std::string contenido = leerArchivo(ruta);
-                            std::cout << "--- Contenido de " << ruta << " ---\n"
-                                << contenido << "\n";
-                        }
-                        catch (const std::exception& e) {
-                            std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
-                        }
-                    }
-
-                    case 10: {
-                        std::string sel, from, where;
-                        std::cout << "SELECT "; std::getline(std::cin, sel);
-                        std::cout << "FROM ";   std::getline(std::cin, from);
-                        std::cout << "WHERE ";  std::getline(std::cin, where);
-
-                        std::vector<int> bloques;
-
-                        if (where.empty()) {
-                            // no hay WHERE → tomo todos los bloques del catálogo
-                            bloques = getBlocksFromCatalog( //DEBUG
-                                discoPath + "catalogo.txt",
-                                from
-                            );
-                        }
-                        else {
-                            // hay WHERE → parsear "campo op valor"
-                            std::istringstream iss(where);
-                            std::string field, op, val;
-                            iss >> field >> op >> val;
-
-                            bloques = findBlocksWithCondition( //DEBug
-                                discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
-                                basePath + from + ".txt",      // p.ej. "…\\housing.txt"
-                                field,
-                                op,
-                                val
-                            );
-                        }
-
-                        // mostrar bloques únicos
-                        std::cout << "Bloques que contienen datos para "
-                            << from << ":\n";
-                        for (int b : bloques) {
-                            std::cout << "  Bloque" << b << ".txt\n";
-                        }
-                    }
-
-                    default: cout << "Inválida\n";
-                    }
+                default: cout << "Inválida\n";
                 }
             }
         }

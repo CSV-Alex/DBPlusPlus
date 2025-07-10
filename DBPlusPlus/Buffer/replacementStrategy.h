@@ -1,14 +1,19 @@
 #pragma once
 
+#include <vector>
+#include <queue>
+#include <unordered_map>
+#include <string>
+
 class ReplacementStrategy {
 public:
     virtual ~ReplacementStrategy() = default;
 
     // Called when a new page is added to the buffer pool.
-    virtual void newPage(int pageId, bool pinned) =0;
+    virtual void newPage(int pageId,char op, bool pinned) =0;
 
     // Called when a page is pinned (accessed).
-    virtual void pin(int pageId, bool pinned) =0;
+    virtual void pin(int pageId,char op, bool pinned) =0;
 
     // Called when a page is unpinned (no longer accessed).
     virtual void unpin(int pageId)=0 ;
@@ -20,4 +25,15 @@ public:
     virtual int victim() =0;
 
     virtual void touch(int pageId) = 0;
+
+    virtual void Status() = 0;
+    
+    string printQueue(int idx, queue<char> local_queue) {
+        std::string result;
+        while(!local_queue.empty()) {
+            result += local_queue.front();
+            local_queue.pop();
+        }
+        return result;
+    }
 };

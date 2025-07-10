@@ -2,6 +2,10 @@
 #include <list>
 #include <unordered_map>
 #include <queue>
+#include <iostream>
+#include <iomanip>
+#include <string>
+#include <vector>
 #include "replacementStrategy.h"
 
 struct frame{
@@ -14,20 +18,21 @@ struct frame{
 class LRU : public ReplacementStrategy {
 public:
     explicit LRU(int capacity);
-    void newPage(int pageId,bool) override;
+    void newPage(int pageId,char,bool) override;
     void touch(int pageId) override;
-    void pin(int pageId,bool) override;
+    void pin(int pageId,char op, bool) override;
     void unpin(int pageId) override;
     void deletePage(int pageId) override;
     int getpos(int pageId);
     int victim() override;
-
+    void Status() override;
+    
 private:
     int _capacity;
     vector<frame> frames_; // vector of frames
     std::list<int> lru; //tracks the order of pages in LRU fashion
     std::unordered_map<int, std::list<int>::iterator> pos; // maps pageId to its position in the LRU list
-    std::queue<int> local_queue;
+    std::vector<std::queue<char>> local_queues;
     int lru_tracker=0;
     bool full, locked;
 };
@@ -36,12 +41,12 @@ LRU::LRU(int capacity) {
     _capacity = capacity;
     frames_.resize(capacity, frame{ -1, 0, false }); // initialize frames with invalid pageId
     pos.reserve(capacity); // reserve space for pageId positions
-    local_queue = std::queue<int>(); // initialize the local queue
+    local_queues.resize(capacity); // initialize local queues for each frame
     full=false;
     locked=false;
 }
 
-void LRU::newPage(int pageId, bool pinned) {
+void LRU::newPage(int pageId,char op, bool pinned) {
     // 1) Find a free slot (pageId == -1) or pick a victim if full
     int idx = -1;
     for (int i = 0; i < _capacity; ++i) {
@@ -84,7 +89,7 @@ void LRU::touch(int pageId) { //similar to pin, thou it's operation independent
     pos[pageId] = std::prev(lru.end());
 }
 
-void LRU::pin(int pageId, bool pinned) {
+void LRU::pin(int pageId,char op, bool pinned) {
     int idx = getpos(pageId);
 
     if (idx < 0) return;
@@ -97,6 +102,8 @@ void LRU::pin(int pageId, bool pinned) {
     ++lru_tracker;
 
     f.lastAccess=lru_tracker;
+
+    local_queues[idx].push(op); // store operation in local queue
     
     // remove from LRU list if it’s there
     auto it = pos.find(pageId);
@@ -117,13 +124,20 @@ void LRU::unpin(int pageId) {
     f.pinCount =0;
     f.pinStatus = false;
 
-
+    while(!local_queues[idx].empty()) {
+        char op = local_queues[idx].front();
+        local_queues[idx].pop();
+    }
     locked=false;
 }
 
 void LRU::deletePage(int pageId) {
     int idx =getpos(pageId);
     frames_[idx] = frame{-1,0, false, lru_tracker };    
+
+    while(!local_queues[idx].empty()) {
+        local_queues[idx].pop(); // clear the local queue
+    }
 
     auto it = pos.find(pageId);
     if (it != pos.end()) {
@@ -145,6 +159,8 @@ int LRU::victim() {
         frame &f = frames_[victim_idx];
         f.pinCount--;
         f.lastAccess= ++lru_tracker;
+        local_queues[victim_idx].pop(); // remove the operation from the local queue
+
         // remove from LRU list if it’s there
         auto it = pos.find(f.pageId);
         if (it != pos.end()) {
@@ -207,4 +223,41 @@ int LRU::getpos(int pageId) {
         return std::distance(lru.begin(), it->second);
     }
     return -1;
+}
+
+
+void LRU::Status() {
+    std::cout << "|"<<std::setw(10)<<"Frame"
+              <<"|"<<std::setw(10)<<"PageID"
+              <<"|"<<std::setw(10)<<"OpType"
+              <<"|"<<std::setw(10)<<"Dirty"
+              <<"|"<<std::setw(10)<<"Pincount"
+              <<"|"<<std::setw(15)<<"Pin Status"
+              <<"|"<<std::setw(15)<<"Last Access"
+              <<"|"<<std::setw(15)<<"Queue"
+              <<"|"<<std::endl;
+    for (int idx=0;frames_.size(); ++idx) {
+        frame &f = frames_[idx];
+            std::cout << "| " << std::setw(5) << idx;
+            if(f.pageId != -1) {
+                std::cout<< " | " << std::setw(10) << f.pageId
+                << " | " << std::setw(10) << local_queues[idx].front() // Assuming the front of the local queue is the operation type
+                << " | " << std::setw(10) << (local_queues[idx].front()=='W' ? "1" : "0")               
+                << " | " << std::setw(10) << f.pinCount
+                << " | " << std::setw(15) << f.pinStatus
+                << " | " << std::setw(15) << f.lastAccess
+                << " | " << std::setw(15) << printQueue(idx, local_queues[idx])
+                << " |\n";
+            }
+            else {
+                std::cout<< " | " << std::setw(10) << "-1"
+                << " | " << std::setw(10) << "-"
+                << " | " << std::setw(10) << "-"            
+                << " | " << std::setw(10) << "-"
+                << " | " << std::setw(15) << "-"
+                << " | " << std::setw(10) << "-"
+                << " | " << std::setw(15) << "[Empty]"
+                << " |\n";
+            }
+        }
 }
