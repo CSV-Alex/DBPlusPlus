@@ -32,6 +32,7 @@ protected:
     std::vector<Frame>  frames_;
     std::unordered_map<int, int> idx_;
     int hand_; // index of actual page
+    bool full;
     int findEmptySlot() const;
     int findSlotByPage(int pageId) const;
     int victimSlot();  // elige un slot libre y lo libera
@@ -51,10 +52,11 @@ void Clock::newPage(int pageId, bool pinned) {
         slot = victimSlot();
     }
     */
-   int temp=hand_; //temp hand memory, so it updates itself on initial insertion.
-   int slot; // Usamos el puntero actual como slot inicial
-    while(hand_!= temp || frames_[hand_].pageId >= 0) { //si la pagina ha vuelto a su posicion original o si la pagina es -1 (default) 
+    int slot; 
+    if(!full){
+        slot=hand_;
         hand_=(++hand_)%frames_.size(); //avanzamos el puntero
+        if(hand_==0) full=true; // si llegamos al final, marcamos como lleno
     }
     // Colocar la nueva página
     frames_[slot].pageId = pageId;
