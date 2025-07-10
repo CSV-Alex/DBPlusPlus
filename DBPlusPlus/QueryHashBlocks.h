@@ -15,6 +15,15 @@ public:
     // Nombre del campo usado como índice
     const std::string& indexField() const { return _indexField; }
 
+    size_t bucketCount() const { return _N; }
+
+    const std::vector<std::vector<int>>& buckets() const { return _buckets; }
+
+    int fieldIndex()       const { return _fieldIndex; }
+
+    const std::string& tableFile() const { return _tableTxt; }
+    static std::vector<std::string> split(const std::string& s, char delim);
+
 private:
     std::string _catalogPath;
     std::string _blocksDir;
@@ -25,5 +34,15 @@ private:
     size_t      _N;                        // número de buckets
     std::vector<std::vector<int>> _buckets; // bucket -> lista de bloques
 
-    static std::vector<std::string> split(const std::string& s, char delim);
+
+
 };
+
+void printHashBuckets(
+    const std::string& relName,
+    const std::string& indexField,
+    const std::vector<std::vector<int>>& buckets
+);
+
+void printDetailedHashBuckets(const HashIndex& idx);
+    

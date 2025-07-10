@@ -1,5 +1,4 @@
-﻿// QueryHashBlocks.cpp
-#include "QueryHashBlocks.h"
+﻿#include "QueryHashBlocks.h"
 #include "QueryBlocks.h"   // contiene readBlockHeader, loadRelationHeader, split(data,'|')
 #include <fstream>
 #include <sstream>
@@ -9,6 +8,7 @@
 #include <unordered_set>
 #include <algorithm>
 #include <filesystem>
+#include <iostream>
 
 // Divide cadena por delimitador
 std::vector<std::string> HashIndex::split(const std::string& s, char delim) {
@@ -130,4 +130,84 @@ HashIndex::query(const std::string& whereVal) {
         }
     }
     return result;
+}
+
+// relName: nombre de la relación (p.ej. "housing")
+// indexField: nombre del campo indexado (p.ej. "area")
+// buckets:   vector de buckets, donde buckets[b] es la lista de bloques en el bucket b
+void printHashBuckets(
+    const std::string& relName,
+    const std::string& indexField,
+    const std::vector<std::vector<int>>& buckets
+) {
+    size_t N = buckets.size();
+    std::cout << "=== HashIndex sobre '" << relName
+        << "' (" << N << " buckets) campo índice: '"
+        << indexField << "' ===\n";
+    for (size_t b = 0; b < N; ++b) {
+        std::cout << "Bucket " << b << ": ";
+        if (buckets[b].empty()) {
+            std::cout << "<vacío>";
+        }
+        else {
+            for (int blk : buckets[b]) {
+                std::cout << blk << " ";
+            }
+        }
+        std::cout << "\n";
+    }
+    std::cout << std::endl;
+}
+
+void printDetailedHashBuckets(const HashIndex& idx) {
+    // 1) Leer todos los registros de la tabla
+    std::ifstream in(idx.tableFile());
+    if (!in) {
+        std::cerr << "No se pudo abrir " << idx.tableFile() << "\n";
+        return;
+    }
+    std::string line;
+    // saltar cabecera
+    std::getline(in, line);
+
+    // 2) Preparar contenedores por bucket
+    size_t N = idx.bucketCount();
+    std::vector<std::vector<std::pair<int, std::string>>> recsInBucket(N);
+    int recId = 0;
+
+    // 3) Para cada registro: calcular bucket y almacenar par<recId,valor>
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
+        ++recId;
+        // quitar padding '@' y partir por '|'
+        std::string clean;
+        clean.reserve(line.size());
+        for (char c : line) if (c != '@') clean.push_back(c);
+        auto fields = HashIndex::split(clean, '#');  // reutilizas tu split
+
+        int fIdx = idx.fieldIndex();
+        if (fIdx >= (int)fields.size()) continue;
+        const std::string& key = fields[fIdx];
+        size_t h = std::hash<std::string>{}(key);
+        size_t b = h % N;
+
+        recsInBucket[b].emplace_back(recId, key);
+    }
+    in.close();
+
+    // 4) Imprimir
+    std::cout << "=== Detalle de registros por bucket ===\n";
+    for (size_t b = 0; b < N; ++b) {
+        std::cout << "Bucket " << b << ":\n";
+        if (recsInBucket[b].empty()) {
+            std::cout << "  <vacío>\n";
+        }
+        else {
+            for (auto& p : recsInBucket[b]) {
+                // p.first = número de registro (línea), p.second = valor de campo
+                std::cout << "  Rec#" << p.first
+                    << " => " << p.second << "\n";
+            }
+        }
+    }
 }

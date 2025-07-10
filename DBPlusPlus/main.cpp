@@ -1204,6 +1204,9 @@ int main() {
                                             << (i + 1 < rec.size() ? " | " : "\n");
                                     }
                                 }
+
+                                printHashBuckets(from, idx.indexField(), idx.buckets());
+                                printDetailedHashBuckets(idx);
                             }
                             catch (const std::exception& e) {
                                 std::cerr << "ERROR hash: " << e.what() << "\n";
