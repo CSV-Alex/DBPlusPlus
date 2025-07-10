@@ -1,213 +1,261 @@
-﻿#include "QueryHashBlocks.h"
-#include "QueryBlocks.h"   // contiene readBlockHeader, loadRelationHeader, split(data,'|')
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <string>
-#include <stdexcept>
-#include <unordered_set>
-#include <algorithm>
-#include <filesystem>
+﻿// ===================== QueryHashBlocks.cpp =====================
+#include "QueryHashBlocks.h"
+#include "QueryBlocks.h"   // readBlockHeader, loadRelationHeader, getBlocksFromCatalog
 #include <iostream>
+#include <algorithm>
+#include <unordered_set>
 
-// Divide cadena por delimitador
+// Constructor
+HashIndex::HashIndex(const std::string& catalogPath,
+    const std::string& blocksDir,
+    const std::string& tableTxt,
+    const std::string& relName,
+    const std::string& indexField)
+    : _catalogPath(catalogPath)
+    , _blocksDir(blocksDir)
+    , _tableTxt(tableTxt)
+    , _relName(relName)
+    , _indexField(indexField)
+{
+    std::filesystem::create_directories(_blocksDir);
+
+    // Inicializo directorio mínimo
+    _globalDepth = 1;
+    _bucketSizeThreshold = 100; // ajusta a tu capacidad de bloque
+    auto b0 = new ExtBucket();
+    b0->localDepth = 1;
+    _directory.assign(2, b0);
+
+    // Construyo índice (detecta campo y llena buckets)
+    buildIndex();
+
+    // Preparo archivo de persistencia
+    _persistFile = _blocksDir + _relName + "_" + _indexField + "_ext_index.txt";
+    std::cout << "[DEBUG] Persist file path: " << _persistFile << "\n";
+    if (std::filesystem::exists(_persistFile)) {
+        loadPersistedIndex();
+    }
+    else {
+        writePersistedIndex();
+        std::cout << "[DEBUG] Persist file creado en: " << _persistFile << "\n";
+    }
+}
+
+// Separa por delimitador
 std::vector<std::string> HashIndex::split(const std::string& s, char delim) {
     std::vector<std::string> elems;
     std::stringstream ss(s);
     std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
+    while (std::getline(ss, item, delim)) elems.push_back(item);
     return elems;
 }
 
-// Constructor: detecta campo y construye buckets
-HashIndex::HashIndex(const std::string& catalogPath,
-    const std::string& blocksDir,
-    const std::string& tableTxt,
-    const std::string& relName)
-    : _catalogPath(catalogPath),
-    _blocksDir(blocksDir),
-    _tableTxt(tableTxt),
-    _relName(relName)
-{
-    // 1) Obtener lista de bloques de la relación
-    std::vector<int> blocks = getBlocksFromCatalog(_catalogPath, _relName);
-    if (blocks.empty())
-        throw std::runtime_error("No hay bloques para " + _relName);
-    _N = blocks.size();
-    _buckets.assign(_N, {});
+// Carga todos los bloques, extrae la columna y llama a insertKey()
+void HashIndex::buildIndex() {
+    auto blocks = getBlocksFromCatalog(_catalogPath, _relName);
+    auto hdr = loadRelationHeader(_tableTxt);
 
-    // 2) Leer cabecera y determinar campo índice
-    std::vector<std::string> hdr = loadRelationHeader(_tableTxt);
+    // Busco exactamente el campo indexField
     _fieldIndex = -1;
     for (int i = 0; i < (int)hdr.size(); ++i) {
-        const std::string& h = hdr[i];
-        if ((h.size() > 2 && (h == "Id" || h.substr(h.size() - 2) == "Id"))) {
+        if (hdr[i] == _indexField) {
             _fieldIndex = i;
-            _indexField = h;
             break;
         }
     }
-    // Regla especial: housing → area
-    if (_fieldIndex < 0 && _relName == "housing") {
-        for (int i = 0; i < (int)hdr.size(); ++i) {
-            if (hdr[i] == "area") {
-                _fieldIndex = i;
-                _indexField = hdr[i];
-                break;
-            }
-        }
-    }
     if (_fieldIndex < 0)
-        throw std::runtime_error("No se pudo determinar campo índice para " + _relName);
+        throw std::runtime_error("No se encontró campo índice: " + _indexField);
 
-    // 3) Repartir bloques en buckets
-    for (size_t bi = 0; bi < blocks.size(); ++bi) {
-        int blk = blocks[bi];
-        std::string path = blocksDir + "Bloque" + std::to_string(blk) + ".txt";
-        if (!std::filesystem::exists(path)) continue;
-
-        int numRec;
-        std::streampos off;
+    // Recorro cada bloque y cada registro
+    for (int blk : blocks) {
+        std::string path = getBlockPath(blk);
+        int numRec; std::streampos off;
         if (!readBlockHeader(path, numRec, off)) continue;
-
         std::ifstream in(path, std::ios::binary);
         in.seekg(off);
-        std::string data((std::istreambuf_iterator<char>(in)), {});
+        std::string data{ std::istreambuf_iterator<char>(in), {} };
         in.close();
 
-        std::vector<std::string> recs = split(data, '|');
-        for (auto& rec : recs) {
+        for (auto& rec : split(data, '|')) {
             if (rec.empty()) continue;
+            // Limpio el registro y lo separo en campos
             std::string clean;
-            clean.reserve(rec.size());
             for (char c : rec) if (c != '@') clean.push_back(c);
-
-            std::vector<std::string> fields = split(clean, '#');
+            auto fields = split(clean, '#');
             if (_fieldIndex < (int)fields.size()) {
-                const std::string& key = fields[_fieldIndex];
-                size_t h = std::hash<std::string>{}(key);
-                size_t b = h % _N;
-                auto& vec = _buckets[b];
-                if (vec.empty() || vec.back() != blk)
-                    vec.push_back(blk);
+                insertKey(blk, fields[_fieldIndex]);
             }
         }
     }
 }
 
-// Ejecuta la consulta equality usando el índice hash
-std::vector<std::vector<std::string>>
-HashIndex::query(const std::string& whereVal) {
-    std::vector<std::vector<std::string>> result;
+// MODIFICADO: inserta la pareja (key,blk) en el bucket adecuado
+void HashIndex::insertKey(int blk, const std::string& key) {
+    size_t h = std::hash<std::string>{}(key);
+    size_t dirIdx = h & ((1ULL << _globalDepth) - 1);
+    auto bucket = _directory[dirIdx];
+
+    // Nuevo: añado la entrada
+    bucket->entries.emplace_back(key, blk);
+
+    // Si supera threshold, partimos
+    if (bucket->entries.size() > _bucketSizeThreshold)
+        splitBucket(dirIdx);
+}
+
+// Duplica el directorio
+void HashIndex::doubleDirectory() {
+    size_t old = _directory.size();
+    _directory.resize(old * 2);
+    for (size_t i = 0; i < old; ++i)
+        _directory[i + old] = _directory[i];
+    _globalDepth++;
+}
+
+// MODIFICADO: reparto según bits de hash(key), no de blk
+void HashIndex::splitBucket(size_t dirIdx) {
+    auto bucket = _directory[dirIdx];
+    size_t oldDepth = bucket->localDepth;
+
+    if (oldDepth == _globalDepth) doubleDirectory();
+
+    auto newB = new ExtBucket();
+    newB->localDepth = oldDepth + 1;
+    bucket->localDepth++;
+
+    // Reasigno punteros Dir → buckets
+    for (size_t i = 0; i < _directory.size(); ++i) {
+        if (_directory[i] == bucket &&
+            (((i >> oldDepth) & 1) == 1))
+        {
+            _directory[i] = newB;
+        }
+    }
+
+    // Reparto las entradas
+    auto oldEntries = std::move(bucket->entries);
+    bucket->entries.clear();
+    for (auto& e : oldEntries) {
+        const auto& key = e.first;
+        int blk = e.second;
+        size_t h = std::hash<std::string>{}(key);
+        if (((h >> oldDepth) & 1) == 0)
+            bucket->entries.push_back(e);
+        else
+            newB->entries.push_back(e);
+    }
+}
+
+// Persistencia simplificada: sólo guardo globalDepth y por bucket los pares blk:key
+void HashIndex::writePersistedIndex() {
+    std::ofstream out(_persistFile);
+    out << _globalDepth << "\n";
+    for (size_t i = 0; i < _directory.size(); ++i) {
+        auto b = _directory[i];
+        out << i << " " << b->localDepth;
+        for (auto& e : b->entries)
+            out << " " << e.second << ":" << e.first;
+        out << "\n";
+    }
+}
+
+// Carga el mismo formato
+void HashIndex::loadPersistedIndex() {
+    std::ifstream in(_persistFile);
+    in >> _globalDepth;
+    size_t dirSz = 1ULL << _globalDepth;
+    _directory.clear();
+    _directory.resize(dirSz);
+    std::string line;
+    std::getline(in, line); // salta al siguiente
+    for (size_t i = 0; i < dirSz && std::getline(in, line); ++i) {
+        std::istringstream iss(line);
+        size_t idx, ld;
+        iss >> idx >> ld;
+        auto b = new ExtBucket();
+        b->localDepth = ld;
+        std::string token;
+        while (iss >> token) {
+            // token = "blk:key"
+            auto pos = token.find(':');
+            int blk = std::stoi(token.substr(0, pos));
+            std::string key = token.substr(pos + 1);
+            b->entries.emplace_back(key, blk);
+        }
+        _directory[idx] = b;
+    }
+}
+
+// Query original (lee sólo el bucket correspondiente)
+std::vector<std::vector<std::string>> HashIndex::query(const std::string& whereVal) {
+    std::vector<std::vector<std::string>> res;
     size_t h = std::hash<std::string>{}(whereVal);
-    size_t b = h % _N;
-    const auto& cands = _buckets[b];
-
-    for (int blk : cands) {
-        std::string path = _blocksDir + "Bloque" + std::to_string(blk) + ".txt";
-        int numRec;
-        std::streampos off;
+    size_t dirIdx = h & ((1ULL << _globalDepth) - 1);
+    for (auto& e : _directory[dirIdx]->entries) {
+        if (e.first != whereVal) continue;
+        // leo BloqueN.txt completo y filtro registros...
+        std::string path = getBlockPath(e.second);
+        int numRec; std::streampos off;
         if (!readBlockHeader(path, numRec, off)) continue;
-
         std::ifstream in(path, std::ios::binary);
         in.seekg(off);
-        std::string data((std::istreambuf_iterator<char>(in)), {});
+        std::string data{ std::istreambuf_iterator<char>(in), {} };
         in.close();
-
-        std::vector<std::string> recs = split(data, '|');
-        for (auto& rec : recs) {
+        for (auto& rec : split(data, '|')) {
             if (rec.empty()) continue;
             std::string clean;
-            clean.reserve(rec.size());
             for (char c : rec) if (c != '@') clean.push_back(c);
+            auto fields = split(clean, '#');
+            if (_fieldIndex < (int)fields.size() && fields[_fieldIndex] == whereVal)
+                res.push_back(fields);
+        }
+    }
+    return res;
+}
 
-            std::vector<std::string> fields = split(clean, '#');
-            if (_fieldIndex < (int)fields.size() && fields[_fieldIndex] == whereVal) {
-                result.push_back(std::move(fields));
-            }
+// Query con rutas de bloque
+std::vector<HashIndex::Hit> HashIndex::queryWithBlocks(const std::string& whereVal) {
+    std::vector<Hit> result;
+    size_t h = std::hash<std::string>{}(whereVal);
+    size_t dirIdx = h & ((1ULL << _globalDepth) - 1);
+    std::unordered_set<int> seen;
+    for (auto& e : _directory[dirIdx]->entries) {
+        if (e.first != whereVal) continue;
+        int blk = e.second;
+        if (!seen.insert(blk).second) continue;
+        std::string path = getBlockPath(blk);
+        // leo y filtro igual que en query()
+        int numRec; std::streampos off;
+        if (!readBlockHeader(path, numRec, off)) continue;
+        std::ifstream in(path, std::ios::binary);
+        in.seekg(off);
+        std::string data{ std::istreambuf_iterator<char>(in), {} };
+        in.close();
+        for (auto& rec : split(data, '|')) {
+            if (rec.empty()) continue;
+            std::string clean;
+            for (char c : rec) if (c != '@') clean.push_back(c);
+            auto fields = split(clean, '#');
+            if (_fieldIndex < (int)fields.size() && fields[_fieldIndex] == whereVal)
+                result.emplace_back(fields, path);
         }
     }
     return result;
 }
 
-// relName: nombre de la relación (p.ej. "housing")
-// indexField: nombre del campo indexado (p.ej. "area")
-// buckets:   vector de buckets, donde buckets[b] es la lista de bloques en el bucket b
-void printHashBuckets(
-    const std::string& relName,
-    const std::string& indexField,
-    const std::vector<std::vector<int>>& buckets
-) {
-    size_t N = buckets.size();
-    std::cout << "=== HashIndex sobre '" << relName
-        << "' (" << N << " buckets) campo índice: '"
-        << indexField << "' ===\n";
-    for (size_t b = 0; b < N; ++b) {
-        std::cout << "Bucket " << b << ": ";
-        if (buckets[b].empty()) {
-            std::cout << "<vacío>";
-        }
-        else {
-            for (int blk : buckets[b]) {
-                std::cout << blk << " ";
-            }
-        }
-        std::cout << "\n";
-    }
-    std::cout << std::endl;
+// Construye ruta del bloque
+std::string HashIndex::getBlockPath(int blk) const {
+    return _blocksDir + "Bloque" + std::to_string(blk) + ".txt";
 }
 
-void printDetailedHashBuckets(const HashIndex& idx) {
-    // 1) Leer todos los registros de la tabla
-    std::ifstream in(idx.tableFile());
-    if (!in) {
-        std::cerr << "No se pudo abrir " << idx.tableFile() << "\n";
-        return;
-    }
-    std::string line;
-    // saltar cabecera
-    std::getline(in, line);
-
-    // 2) Preparar contenedores por bucket
-    size_t N = idx.bucketCount();
-    std::vector<std::vector<std::pair<int, std::string>>> recsInBucket(N);
-    int recId = 0;
-
-    // 3) Para cada registro: calcular bucket y almacenar par<recId,valor>
-    while (std::getline(in, line)) {
-        if (line.empty()) continue;
-        ++recId;
-        // quitar padding '@' y partir por '|'
-        std::string clean;
-        clean.reserve(line.size());
-        for (char c : line) if (c != '@') clean.push_back(c);
-        auto fields = HashIndex::split(clean, '#');  // reutilizas tu split
-
-        int fIdx = idx.fieldIndex();
-        if (fIdx >= (int)fields.size()) continue;
-        const std::string& key = fields[fIdx];
-        size_t h = std::hash<std::string>{}(key);
-        size_t b = h % N;
-
-        recsInBucket[b].emplace_back(recId, key);
-    }
-    in.close();
-
-    // 4) Imprimir
-    std::cout << "=== Detalle de registros por bucket ===\n";
-    for (size_t b = 0; b < N; ++b) {
-        std::cout << "Bucket " << b << ":\n";
-        if (recsInBucket[b].empty()) {
-            std::cout << "  <vacío>\n";
-        }
-        else {
-            for (auto& p : recsInBucket[b]) {
-                // p.first = número de registro (línea), p.second = valor de campo
-                std::cout << "  Rec#" << p.first
-                    << " => " << p.second << "\n";
-            }
-        }
+// Imprime directorio y sus buckets
+void HashIndex::printHashBuckets() const {
+    std::cout << "=== Directorio (globalDepth=" << _globalDepth << ") ===\n";
+    for (size_t i = 0; i < _directory.size(); ++i) {
+        auto b = _directory[i];
+        std::cout << "Dir[" << i << "] (LD=" << b->localDepth << "): ";
+        for (auto& e : b->entries)
+            std::cout << "(" << e.first << "," << e.second << ") ";
+        std::cout << "\n";
     }
 }

@@ -18,6 +18,7 @@
 #include "QueryBlocks.h"
 #include "QueryHashBlocks.h"
 #include <sstream>
+#include <unordered_set>
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -1183,33 +1184,57 @@ int main() {
                                 std::cout << "  Bloque" << b << ".txt\n";
                         }
                         else if (method == 2) {
-                            // 2) Hash
                             try {
+                                // 1) Construcción del índice extendible
                                 HashIndex idx(
                                     catalogFile,
                                     blocksDir,
                                     tableFile,
-                                    from
+                                    from,
+                                    field
                                 );
-                                std::cout << "indice hash sobre campo: "
-                                    << idx.indexField() << "\n";
 
-                                // Solo soporta igualdad en el campo indexado
-                                auto rows = idx.query(val);
+                                // Podemos imprimir directamente el campo de índice que usamos:
+                                std::cout << "Indice hash extendido sobre campo: "
+                                    << field << "\n";
 
-                                std::cout << "Resultados (hash):\n";
-                                for (const auto& rec : rows) {
-                                    for (size_t i = 0; i < rec.size(); ++i) {
-                                        std::cout << rec[i]
-                                            << (i + 1 < rec.size() ? " | " : "\n");
+                                // 2) Lanzamos la consulta que nos devuelve pares (registro, rutaBloque)
+                                auto hits = idx.queryWithBlocks(val);
+
+                                // 3) Iteramos hits; imprimimos cada registro y recogemos bloques
+                                std::vector<std::string> bloquesEncontrados;
+                                std::unordered_set<std::string> seen;
+                                std::cout << "\nResultados (hash extendido):\n";
+                                for (auto& hit : hits) {
+                                    auto& registro = hit.first;       // vector<string> con los campos
+                                    auto& ruta = hit.second;      // ".../BLOQUES/BloqueN.txt"
+
+                                    // 3.a) Imprimir toda la línea/registo
+                                    for (size_t i = 0; i < registro.size(); ++i) {
+                                        std::cout << registro[i]
+                                            << (i + 1 < registro.size() ? " | " : "\n");
+                                    }
+
+                                    // 3.b) Acumular BLOQUE sin duplicados
+                                    if (seen.insert(ruta).second) {
+                                        bloquesEncontrados.push_back(ruta);
                                     }
                                 }
 
-                                printHashBuckets(from, idx.indexField(), idx.buckets());
-                                printDetailedHashBuckets(idx);
+                                // 4) Al final, imprimir la lista de bloques que contienen 
+                                std::cout << "\nBloques que contienen registros:\n";
+                                for (auto& b : bloquesEncontrados) {
+                                    std::cout << "  " << b << "\n";
+                                }
+
+                                // Ahora 'bloquesEncontrados' lo tienes listo para pasarlo al BufferPool
+                                // por ejemplo:
+                                // for (auto& path : bloquesEncontrados)
+                                //     bufferPool.loadPage(path);
+
                             }
                             catch (const std::exception& e) {
-                                std::cerr << "ERROR hash: " << e.what() << "\n";
+                                std::cerr << "ERROR hash extendido: " << e.what() << "\n";
                             }
                         }
                         else if (method == 3) {
