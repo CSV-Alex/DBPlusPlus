@@ -738,43 +738,14 @@ int main() {
                 calcularLongitudFija(titanicTXT.c_str());
                 calcularLongitudFija(housingTXT.c_str());
 
-                /*--------------------------Estatico----------------------------------*/
-                bool usarLRU = false;  // o trdsue, según quieras LRU por defecto
-                /*--------------------------------------------------------------------*/
-
-                // --- o bien pradsdseguntar en consola ---
-                //std::cout << "Usar LRU (1) o Clock (2)? ";
-                //int opc;
-                //std::cin >> opc;
-                //bool usarLRU = (opc == 1);
-
-                /*--------------------------------------------------------------------*/
-
-                // Inicializar BufferPool
-                if (pBufPool) delete pBufPool;
-                int n_frames = 5; // Númdsdasaero dde frames por defecto
-
-
-                // Creamos segun eleccion
-                std::unique_ptr<ReplacementStrategy> replacer;
-                if (usarLRU)
-                    replacer = std::make_unique<LRU>(n_frames);
-                else
-                    replacer = std::make_unique<Clock>(n_frames);
-
-                pBufPool = new BufferPool(n_frames,
-                    (size_t)miDisco.getTamBloque(),
-                    miDisco,
-                    std::move(replacer));
-
                 discoConfigDone = true;
             }
             else {
 
-                cout << "\n***** Bidasdsesadadsvenido a MEGATdasRON 3000 *****\n\n";
+                cout << "\n***** Bienvenido a MEGATdasRON 3000 *****\n\n";
 
                 while (true) {
-                    cout << "0) Mostrar Rutdsssa Bloque (Dinamico)\n"; ///
+                    cout << "0) Mostrar Ruta Bloque (Dinamico)\n"; ///
                     cout << "1) Mostrar caracteristicas del disco\n"; ///
                     cout << "2) Adicionar registro\n"; ///
                     cout << "3) Adicionar N registros desde CSV\n"; ///
@@ -991,6 +962,30 @@ int main() {
                 cout << "Configura primero el disco.\n";
             }
             else {
+                cout << "\n--- Configuración del Buffer ---\n";
+                cout << "1) Especifique numero de frames\n";
+                int n_frames; cin>> n_frames;
+                cout << "2) Seleccione la estrategia de reemplazo: (1:Lru,2:Clock )\n";
+                int replace_strategy;  cin>>replace_strategy;
+
+                // Inicializar BufferPool
+                if (pBufPool) delete pBufPool;
+
+
+                // Creamos segun eleccion
+                std::unique_ptr<ReplacementStrategy> replacer;
+                if (replace_strategy=='1')
+                    replacer = std::make_unique<LRU>(n_frames);
+                else if (replace_strategy=='2')
+                {
+                    replacer = std::make_unique<Clock>(n_frames);
+                }
+                else {
+                    continue;
+                }
+
+                pBufPool = new BufferPool(n_frames,(size_t)miDisco.getTamBloque(), miDisco, std::move(replacer)); //constructor de BufferPool
+
                 while (true) {
                     cout << "\n--- MENU BUFFER ---\n";
                     cout << "1) Pin pagina\n";
@@ -1009,12 +1004,12 @@ int main() {
                     if (opc == 11) break;
                     switch (opc) {
                     case 1: {
-                        int pid; char op; bool pin;
-                        cout << "ID: "; cin >> pid;
+                        int page_id; char op; bool pin;
+                        cout << "ID: "; cin >> page_id;
                         cout << "R/W: "; cin >> op;
                         cout << "Pin? "; cin >> pin;
                         cout << "Mensaje Previo" << endl;
-                        auto p = pBufPool->getPage(pid, op, pin);
+                        auto p = pBufPool->getPage(page_id, op, pin);
                         cout << (p ? "OK" : "Fallo") << "\n";
                         cout << "Mensaje Siguiente" << endl;
                         break;
