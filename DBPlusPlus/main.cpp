@@ -16,7 +16,10 @@
 #include "Buffer/clock.h"
 #include "Buffer/replacementStrategy.h"
 #include "QueryBlocks.h"
+#include "QueryHashBlocks.h"
 #include <sstream>
+#include <unordered_set>
+#include "QueryTreeBlocks.h"
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -650,7 +653,7 @@ void ejecutar_query(const char* selectField,
 std::string leerArchivo(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open()) {
-        throw std::runtime_error("No se pudo abrir el archivo: " + path);
+        throw std::runtime_error("No se pudo abrir el archadsivo: " + path);
     }
     std::ostringstream buffer;
     buffer << file.rdbuf();
@@ -659,7 +662,8 @@ std::string leerArchivo(const std::string& path) {
 
 
 int main() {
-    // Variables para configuración de disco
+
+    // Variables para configuracion de disco
     bool discoConfigDone = false;
     BufferPool* pBufPool = nullptr;
 
@@ -679,10 +683,14 @@ int main() {
     const int def_tamBloque = 6400;
     Disco miDisco(def_platos, def_pistas, def_sectores, def_tamSector, def_tamBloque);
 
+    std::cout << "[DEBUG] BufferPool arranca en: " << std::filesystem::current_path() << "\n";
+    std::cout << "[DEBUG] Abriedxfxcghndo esquema: " << schemaPath << "\n";
+    // Borra el log de sesiones anteriores
+    std::ofstream clean("events.log", std::ios::trunc);
 
     while (true) {
-        // Menú principal
-        cout << "\n=== MEGATRON 3000 - MENU PRINCIPAL ===\n";
+        // Menu principal
+        cout << "\n=== MEGRONadsadsads 3000 - MENU PRINCIPAL ===\n";
         cout << "1) Menu Disco" << (discoConfigDone ? " (ya configurado)" : "") << "\n";
         cout << "2) Menu Buffer" << (discoConfigDone ? "" : " (requiere config de disco)") << "\n";
         cout << "3) Salir\n";
@@ -692,11 +700,11 @@ int main() {
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         if (choice == 1) {
-            // Menú Disco
+            // Menu Disco
             if (!discoConfigDone) {
-                cout << "\n--- Configuración del Disco ---\n";
-                cout << "1) Usar configuración por defecto\n";
-                cout << "2) Ingresar configuración personalizada\n";
+                cout << "\n--- Configuracion del Disco ---\n";
+                cout << "1) Usaadsr configuracion por defecto\n";
+                cout << "2) Ingresar configuracion personalizada\n";
                 cout << "3) Usar disco ya existente\n";
                 cout << ">> ";
                 int modo;
@@ -754,7 +762,7 @@ int main() {
                     cout << "4) Adicionar todo CSV\n"; ///
                     cout << "5) Eliminar registro\n"; ///
                     cout << "6) Modificar registro\n"; ///
-                    cout << "7) Inserción de longitud variabl (Demo)\n"; ///
+                    cout << "7) Insercion de longitud variabl (Demo)\n"; ///
                     cout << "8) Ejecutar consulta SQL\n"; ///
                     cout << "9) Adicionar/Volcar relacion a Sectores\n"; ///
                     cout << "10) Salir\n"; ///
@@ -796,7 +804,7 @@ int main() {
                         if (input.back() != '\n')
                             input.push_back('\n');
 
-                        cout << "¿Tipo de inserción?\n";
+                        cout << "¿Tipo de insercion?\n";
                         cout << "1) Longitud variable\n";
                         cout << "2) Longitud fija (bitmap)\n";
                         cout << ">> ";
@@ -826,7 +834,7 @@ int main() {
                         cin >> n;
                         cin.ignore(1, '\n');
 
-                        cout << "¿Tipo de inserción?\n";
+                        cout << "¿Tipo de insercion?\n";
                         cout << "1) Longitud variable\n";
                         cout << "2) Longitud fija (bitmap)\n";
                         cout << ">> ";
@@ -934,7 +942,7 @@ int main() {
                     else if (opt == "11") {
 
                         int numero;
-                        std::cout << "Ingrese el número de página: ";
+                        std::cout << "Ingrese el numero de pagina: ";
                         std::cin >> numero;
                         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
@@ -959,7 +967,7 @@ int main() {
             }
         }
         else if (choice == 2) {
-            // Menú Buffer
+            // Menu Buffer
             if (!discoConfigDone) {
                 cout << "Configura primero el disco.\n";
             }
@@ -1108,51 +1116,68 @@ int main() {
                 case 9: {
                     std::string base = bufferPagePath;
 
-                    int numero;
-                    std::cout << "Ingrese el número de página: ";
-                    std::cin >> numero;
-                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                    case 5: pBufPool->printStats(); break;
+                    case 6: {
+                        int pid;
+                        cout << "ID de pagina para cambios: ";
+                        cin >> pid;
+                        // Cargamos en modo escritura (¿dirty?) y la mantenemos pineada
+                        Page* base = pBufPool->getPage(pid, 'W', true);
+                        if (!base) {
+                            cout << "Pagina " << pid << " no esta en buffer.\n";
+                            break;
+                        }
 
-                    std::string ruta = base + "/Page" + std::to_string(numero) + ".txt";
+                        std::cout << "[DEBUG] base apunta a un objeto de tipo "
+                            << typeid(*base).name() << "\n";
+                        auto page = dynamic_cast<PageWithRecords*>(base);
+                        if (!page) {
+                            cout << "ERRDOR: Esta pagina no soporta ops de registro.\n";
+                            pBufPool->unpinPage(pid);
+                            break;
+                        }
 
-                    try {
-                        std::string contenido = leerArchivo(ruta);
-                        std::cout << "--- Contenido de " << ruta << " ---\n"
-                            << contenido << "\n";
-                    }
-                    catch (const std::exception& e) {
-                        std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
-                    }
-                }
+                        // Mini-menu de operaciones
+                        cout << "\n--- OPERACIONES EN PaGINA " << pid << " ---\n";
+                        cout << "1) Insertar\n";
+                        cout << "2) Eliminar\n";
+                        cout << "3) Modificar\n";
+                        cout << ">> ";
+                        int op; cin >> op; cin.ignore();
 
-                case 10: {
-                    std::string sel, from, where;
-                    std::cout << "SELECT "; std::getline(std::cin, sel);
-                    std::cout << "FROM ";   std::getline(std::cin, from);
-                    std::cout << "WHERE ";  std::getline(std::cin, where);
+                        if (op == 1) {
+                            cout << "Registro (# separados, termina '\\n'): ";
+                            string reg = "1790000#4123#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
+                            if (page->insertFixed("housing", reg))
+                                cout << "Insertado OK en memoria.\n";
+                            else
+                                cout << "Fallo al insertar.\n";
+                        }
+                        else if (op == 2) {
+                            cout << "Posicion global a eliminar: ";
+                            int pos; cin >> pos;
+                            if (page->deleteFixed("housing", pos))
+                                cout << "Eliminado OK en memoria.\n";
+                            else
+                                cout << "Fallo al eliminar.\n";
+                        }
+                        else if (op == 3) {
+                            cout << "Posicion global a modificar: ";
+                            int pos; cin >> pos; cin.ignore();
+                            cout << "Nuevo registro (# separados, termina '\\n'): ";
+                            string reg = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished";
+                            if (page->modifyFixed("housing", pos, reg))
+                                cout << "Modificado OK en memoria.\n";
+                            else
+                                cout << "Fallo al modificar.\n";
+                        }
+                        else {
+                            cout << "Opcion invaasdadslida\n";
+                        }
 
-                    std::vector<int> bloques;
-
-                    if (where.empty()) {
-                        // no hay WHERE → tomo todos los bloques del catálogo
-                        bloques = getBlocksFromCatalog( //DEBUG
-                            discoPath + "catalogo.txt",
-                            from
-                        );
-                    }
-                    else {
-                        // hay WHERE → parsear "campo op valor"
-                        std::istringstream iss(where);
-                        std::string field, op, val;
-                        iss >> field >> op >> val;
-
-                        bloques = findBlocksWithCondition( //DEBug
-                            discoPath + "BLOQUES\\",       // p.ej. "DISCO\\BLOQUES\\"
-                            basePath + from + ".txt",      // p.ej. "…\\housing.txt"
-                            field,
-                            op,
-                            val
-                        );
+                        // Despineamos; si quieres fludssh inmediato, usalo tu mismo:
+                        pBufPool->unpinPage(pid);
+                        break;
                     }
 
                     // mostrar bloques únicos
@@ -1163,7 +1188,258 @@ int main() {
                     }
                 }
 
-                default: cout << "Inválida\n";
+                    case 9: {
+                        std::string base = bufferPagePath;
+
+                        int numero;
+                        std::cout << "Ingrese el numero de pagina: ";
+                        std::cin >> numero;
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+                        std::string ruta = base + "/Page" + std::to_string(numero) + ".txt";
+
+                        try {
+                            std::string contenido = leerArchivo(ruta);
+                            std::cout << "--- Contenido de " << ruta << " ---\n"
+                                << contenido << "\n";
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "Error al abrir " << ruta << ": " << e.what() << "\n";
+                        }
+
+                        break;
+                    }
+
+                    case 10: {
+                        int method;
+                        std::cout << "\n--- CONSULTA SQL ---\n"
+                            << "1) Secuencial\n"
+                            << "2) Hash\n"
+                            << "3) B-Tree (simulado aun)\n"
+                            << ">> Elige metodo: ";
+                        std::cin >> method;
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+                        std::string sel, from, where;
+                        std::cout << "SELECT "; std::getline(std::cin, sel);
+                        std::cout << "FROM   "; std::getline(std::cin, from);
+                        std::cout << "WHERE  "; std::getline(std::cin, where);
+
+                        std::string field, op, val;
+                        if (!where.empty()) {
+                            std::istringstream iss(where);
+                            iss >> field >> op >> val;
+                        }
+
+                        std::string catalogFile = discoPath + "catalogo.txt";
+                        std::string blocksDir = discoPath + "BLOQUES\\";
+                        std::string tableFile = basePath + from + ".txt";
+
+                        if (method == 1) {
+                            // 1) Secuencial
+                            std::vector<int> bloques;
+                            if (where.empty()) {
+                                bloques = getBlocksFromCatalog(catalogFile, from);
+                            }
+                            else {
+                                bloques = findBlocksWithCondition(
+                                    catalogFile,
+                                    blocksDir,
+                                    tableFile,
+                                    from, field, op, val
+                                );
+                            }
+                            std::cout << "Bloques (secuencial):\n";
+                            for (int b : bloques)
+                                std::cout << "  Bloque" << b << ".txt\n";
+                        }
+                        else if (method == 2) {
+                            try {
+                                // 1) Construcción del índice extendible
+                                HashIndex idx(
+                                    catalogFile,
+                                    blocksDir,
+                                    tableFile,
+                                    from,
+                                    field
+                                );
+
+                                // Podemos imprimir directamente el campo de índice que usamos:
+                                std::cout << "Indice hash extendido sobre campo: "
+                                    << field << "\n";
+
+                                // 2) Lanzamos la consulta que nos devuelve pares (registro, rutaBloque)
+                                auto hits = idx.queryWithBlocks(val);
+
+                                // 3) Iteramos hits; imprimimos cada registro y recogemos bloques
+                                std::vector<std::string> bloquesEncontrados;
+                                std::unordered_set<std::string> seen;
+                                std::cout << "\nResultados (hash extendido):\n";
+                                for (auto& hit : hits) {
+                                    auto& registro = hit.first;       // vector<string> con los campos
+                                    auto& ruta = hit.second;      // ".../BLOQUES/BloqueN.txt"
+
+                                    // 3.a) Imprimir toda la línea/registo
+                                    for (size_t i = 0; i < registro.size(); ++i) {
+                                        std::cout << registro[i]
+                                            << (i + 1 < registro.size() ? " | " : "\n");
+                                    }
+
+                                    // 3.b) Acumular BLOQUE sin duplicados
+                                    if (seen.insert(ruta).second) {
+                                        bloquesEncontrados.push_back(ruta);
+                                    }
+                                }
+
+                                // 4) Al final, imprimir la lista de bloques que contienen 
+                                std::cout << "\nBloques que contienen registros:\n";
+                                for (auto& b : bloquesEncontrados) {
+                                    std::cout << "  " << b << "\n";
+                                }
+
+                                // Ahora 'bloquesEncontrados' lo tienes listo para pasarlo al BufferPool
+                                // por ejemplo:
+                                // for (auto& path : bloquesEncontrados)
+                                //     bufferPool.loadPage(path);
+
+                            }
+                            catch (const std::exception& e) {
+                                std::cerr << "ERROR hash extendido: " << e.what() << "\n";
+                            }
+                        }
+                        else if (method == 3) {
+                            try {
+                                // 1) Construcción del índice B+ Tree
+                                BPlusTreeIndex idx(
+                                    catalogFile,
+                                    blocksDir,
+                                    tableFile,
+                                    from,
+                                    field,     // Search Key
+                                    2          // orden d
+                                );
+                                std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
+
+                                // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL ---
+                                std::cout << "[Estructura del B+ Tree]\n";
+                                idx.printTree();   // <-- aquí
+
+                                // 2) Ejecutamos la consulta equality
+                                auto hits = idx.queryWithBlocks(val);
+
+                                // 3) … resto de impresión de registros y bloques …
+                            }
+                            catch (const std::exception& e) {
+                                std::cerr << "ERROR B+ Tree: " << e.what() << "\n";
+                            }
+                        }
+                        else {
+                            std::cout << "Opcion de metodo invalida.\n";
+                        }
+                        break;
+                    }
+
+                    case 11: {
+                        int method;
+                        std::cout << "\n--- CONSULTA SQL (con BufferPool) ---\n"
+                                  << "1) Secuencial\n"
+                                  << "2) Hash\n"
+                                  << "3) B-Tree (simulado aun)\n"
+                                  << ">> Elige metodo: ";
+                        std::cin >> method;
+                        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+                        std::string sel, from, where;
+                        std::cout << "SELECT "; std::getline(std::cin, sel);
+                        std::cout << "FROM   "; std::getline(std::cin, from);
+                        std::cout << "WHERE  "; std::getline(std::cin, where);
+
+                        std::string field, op, val;
+                        if (!where.empty()) {
+                            std::istringstream iss(where);
+                            iss >> field >> op >> val;
+                        }
+
+                        std::string catalogFile = discoPath + "catalogo.txt";
+                        std::string blocksDir   = discoPath + "BLOQUES\\";
+                        std::string tableFile   = basePath + from + ".txt";
+
+                        // Aquí acumularemos los IDs de bloque que contienen la condición
+                        std::vector<int> bloquesEncontrados;
+
+                        if (method == 1) {
+                            // 1) Secuencial
+                            if (where.empty()) {
+                                bloquesEncontrados = getBlocksFromCatalog(catalogFile, from);
+                            } else {
+                                bloquesEncontrados = findBlocksWithCondition(
+                                    catalogFile, blocksDir, tableFile,
+                                    from, field, op, val
+                                );
+                            }
+                        }
+                        else if (method == 2) {
+                            // 2) Hash extendible
+                            HashIndex idx(
+                                catalogFile,
+                                blocksDir,
+                                tableFile,
+                                from,
+                                field
+                            );
+                            std::cout << "Índice hash extendido sobre campo: " << field << "\n";
+
+                            auto hits = idx.queryWithBlocks(val);
+
+                            std::unordered_set<int> seen;
+                            std::cout << "\nResultados (hash extendido):\n";
+                            for (auto& hit : hits) {
+                                // Imprimo cada registro completo
+                                const auto& registro = hit.first;
+                                for (size_t i = 0; i < registro.size(); ++i) {
+                                    std::cout << registro[i]
+                                              << (i + 1 < registro.size() ? " | " : "\n");
+                                }
+                                // Extraigo ID de bloque de la ruta "…/BloqueN.txt"
+                                const std::string& path = hit.second;
+                                auto pos1 = path.rfind("Bloque");
+                                auto pos2 = path.rfind(".txt");
+                                int blk = std::stoi(path.substr(pos1 + 6, pos2 - (pos1 + 6)));
+                                if (seen.insert(blk).second)
+                                    bloquesEncontrados.push_back(blk);
+                            }
+                        }
+                        else if (method == 3) {
+                            // 3) B-Tree (simulado)
+                            std::cout << "[Simulación B-Tree] Aun no implementado.\n"
+                                      << "índice B+Tree sobre campo: " << field << "\n";
+                        }
+                        else {
+                            std::cout << "Opción de método inválida.\n";
+                            break;
+                        }
+
+                        // 4) Pinear en el buffer pool todos los bloques hallados
+                        std::cout << "\nPineando páginas en buffer pool:\n";
+                        for (int blk : bloquesEncontrados) {
+                            pBufPool->pinPage(blk, 'R', false);
+                            std::cout << "  Página " << blk << " pineada\n";
+                        }
+
+                        // 5) Mostrar lista de bloques
+                        std::cout << "\nBloques que contienen registros:\n";
+                        for (int blk : bloquesEncontrados) {
+                            std::cout << "  Bloque" << blk << ".txt\n";
+                        }
+
+                        break;
+                    }
+
+
+
+
+                    default: cout << "Invalida\n";
+                    }
                 }
             }
         }
@@ -1171,7 +1447,7 @@ int main() {
             break;
         }
         else {
-            cout << "Opción inválida\n";
+            cout << "Opcion invalida\n";
         }
     }
 
@@ -1179,4 +1455,3 @@ int main() {
     delete pBufPool;
     return 0;
 }
-

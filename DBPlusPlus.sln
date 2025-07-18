@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35825.156 d17.13
+VisualStudioVersion = 17.13.35825.156
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DBPlusPlus", "DBPlusPlus\DBPlusPlus.vcxproj", "{F2AE2F64-C0EF-4BCF-ABA2-3DE67EBEBA02}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BufferPoolVisualizer", "BufferPoolVisualizer\BufferPoolVisualizer.vcxproj", "{6C752896-13AB-4B36-9C5F-14EB62007474}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,14 @@ Global
 		{F2AE2F64-C0EF-4BCF-ABA2-3DE67EBEBA02}.Release|x64.Build.0 = Release|x64
 		{F2AE2F64-C0EF-4BCF-ABA2-3DE67EBEBA02}.Release|x86.ActiveCfg = Release|Win32
 		{F2AE2F64-C0EF-4BCF-ABA2-3DE67EBEBA02}.Release|x86.Build.0 = Release|Win32
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Debug|x64.ActiveCfg = Debug|x64
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Debug|x64.Build.0 = Debug|x64
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Debug|x86.ActiveCfg = Debug|x64
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Debug|x86.Build.0 = Debug|x64
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Release|x64.ActiveCfg = Release|x64
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Release|x64.Build.0 = Release|x64
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Release|x86.ActiveCfg = Release|x64
+		{6C752896-13AB-4B36-9C5F-14EB62007474}.Release|x86.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
