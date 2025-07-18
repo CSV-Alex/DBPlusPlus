@@ -7,6 +7,17 @@
 
 class BPlusTree {
 public:
+    struct Node {
+        bool isLeaf;
+        std::vector<int> keys;
+        std::vector<Node*> children;
+        Node* parent;
+        Node* next; // hojas
+        Node(bool leaf)
+            : isLeaf(leaf), parent(nullptr), next(nullptr) {
+        }
+    };
+
     explicit BPlusTree(int m);
     ~BPlusTree();
 
@@ -18,16 +29,6 @@ public:
     void exportDot(const std::string& filename) const;
 
 private:
-    struct Node {
-        bool isLeaf;
-        std::vector<int> keys;
-        std::vector<Node*> children;
-        Node* parent;
-        Node* next; // hojas
-        Node(bool leaf)
-            : isLeaf(leaf), parent(nullptr), next(nullptr) {
-        }
-    };
 
     Node* root;
     int m;

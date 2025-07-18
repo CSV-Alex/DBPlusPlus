@@ -1,4 +1,4 @@
-#include "BPlusTreeStatic.h"
+﻿#include "BPlusTreeStatic.h"
 #include <algorithm>
 #include <queue>
 #include <unordered_set>
@@ -38,18 +38,48 @@ bool BPlusTree::insert(int key) {
 }
 
 bool BPlusTree::remove(int key) {
-    Node* leaf = findLeaf(key);
+    std::vector<Node*> path;
+    std::vector<int>   idxs;
+    Node* cur = root;
+    path.push_back(cur);
+    while (!cur->isLeaf) {
+        int i = 0;
+        while (i < (int)cur->keys.size() && key >= cur->keys[i]) ++i;
+        idxs.push_back(i);
+        cur = cur->children[i];
+        path.push_back(cur);
+    }
+    Node* leaf = cur;
+
+    // 2) Borramos la llave
     auto it = std::lower_bound(leaf->keys.begin(), leaf->keys.end(), key);
     if (it == leaf->keys.end() || *it != key) return false;
     leaf->keys.erase(it);
+
+    // 3) Rebalance si underflow
     if (leaf != root && leaf->keys.size() < size_t(minKeys))
         rebalance(leaf);
+
+    // 4) Colapso de raiz
     if (!root->isLeaf && root->keys.empty()) {
         Node* child = root->children.front();
         child->parent = nullptr;
         delete root;
         root = child;
+        path[0] = root;
     }
+
+    // 5) **SIEMPRE** actualizamos los separadores a lo largo de path
+    for (int level = (int)idxs.size() - 1; level >= 0; --level) {
+        Node* parent = path[level];
+        Node* child = path[level + 1];
+        int   idx = idxs[level];
+
+        if (idx > 0) {
+            parent->keys[idx - 1] = child->keys.front();
+        }
+    }
+
     return true;
 }
 
@@ -121,7 +151,7 @@ void BPlusTree::splitLeaf(Node* leaf) {
     Node* bro = new Node(true);
     bro->parent = leaf->parent;
     size_t total = leaf->keys.size();
-    size_t mid = (total + 1) / 2;
+    size_t mid = total / 2;
     bro->keys.assign(leaf->keys.begin() + mid, leaf->keys.end());
     leaf->keys.resize(mid);
 
