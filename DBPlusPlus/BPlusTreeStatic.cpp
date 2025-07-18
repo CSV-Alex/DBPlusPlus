@@ -428,6 +428,19 @@ int main() {
     std::cout << "Numero maximo de llaves por nodo: ";
     std::cin >> m;
     BPlusTree tree(m);
+
+    // ————— Valores preiniciales —————
+    std::vector<int> initial = { 10, 27, 29, 17, 25, 21, 15, 31, 13, 51, 20,
+                                 24, 48, 19, 60, 35, 66 };
+    std::cout << "Insertando valores iniciales: ";
+    for (int v : initial) {
+        std::cout << v << " ";
+        tree.insert(v);
+    }
+    std::cout << "\nArbol tras la insercion inicial:\n";
+    tree.print();
+    // ————————————————————————————
+
     std::cout << "Comandos disponibles:\n"
         " insert <key>\n"
         " delete <key>\n"
@@ -450,3 +463,4 @@ int main() {
     }
     return 0;
 }
+
