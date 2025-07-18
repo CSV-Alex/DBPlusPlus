@@ -747,7 +747,7 @@ int main() {
                 calcularLongitudFija(housingTXT.c_str());
 
                 /*--------------------------Estatico----------------------------------*/
-                bool usarLRU = false;  // o trdsue, segun quieras LRU por defecto
+                bool usarLRU = true;  // o trdsue, segun quieras LRU por defecto
                 /*--------------------------------------------------------------------*/
 
                 // --- o bien pradsdseguntar en consola ---
@@ -766,7 +766,7 @@ int main() {
                 // Creamos segun eleccion
                 std::unique_ptr<ReplacementStrategy> replacer;
                 if (usarLRU)
-                    replacer = std::make_unique<LRU>();
+                    replacer = std::make_unique<LRU>(n_frames);
                 else
                     replacer = std::make_unique<Clock>(n_frames);
 
