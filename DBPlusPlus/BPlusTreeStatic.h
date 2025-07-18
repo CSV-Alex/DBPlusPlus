@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <iostream>
+#include <string>
 
 // Insercion, eliminacion, modificacion y busqueda de llaves
 
@@ -14,6 +15,7 @@ public:
     bool modify(int oldKey, int newKey);
     bool search(int key) const;
     void print() const;
+    void exportDot(const std::string& filename) const;
 
 private:
     struct Node {

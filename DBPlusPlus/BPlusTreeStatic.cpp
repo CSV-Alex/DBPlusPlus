@@ -1,6 +1,8 @@
 #include "BPlusTreeStatic.h"
 #include <algorithm>
 #include <queue>
+#include <unordered_set>
+#include <fstream>
 
 BPlusTree::BPlusTree(int m) : m(m) {
     minKeys = (m + 1) / 2; // teoria B+Trees
@@ -74,6 +76,35 @@ void BPlusTree::print() const {
         }
         std::cout << "\n";
     }
+}
+
+void BPlusTree::exportDot(const std::string& filename) const {
+    std::ofstream out(filename);
+    out << "digraph BPlusTree {\n";
+    out << "  node [shape=record];\n";
+    std::queue<Node*> q;
+    std::unordered_set<Node*> seen;
+    q.push(root);
+    seen.insert(root);
+    while (!q.empty()) {
+        Node* n = q.front(); q.pop();
+        std::string id = "node" + std::to_string(reinterpret_cast<uintptr_t>(n));
+        out << "  " << id << " [label=\"";
+        for (size_t i = 0; i < n->keys.size(); ++i) {
+            out << n->keys[i];
+            if (i + 1 < n->keys.size()) out << "|";
+        }
+        out << "\"];\n";
+        if (!n->isLeaf) {
+            for (Node* c : n->children) {
+                std::string cid = "node" + std::to_string(reinterpret_cast<uintptr_t>(c));
+                out << "  " << id << " -> " << cid << ";\n";
+                if (seen.insert(c).second) q.push(c);
+            }
+        }
+    }
+    out << "}\n";
+    out.close();
 }
 
 BPlusTree::Node* BPlusTree::findLeaf(int key) const {
@@ -220,6 +251,7 @@ int main() {
         else if (cmd == "modify") { int o, n; std::cin >> o >> n; if (!tree.modify(o, n)) std::cout << "Llave no existe.\n"; }
         else if (cmd == "search") { int k; std::cin >> k; std::cout << (tree.search(k) ? "Encontrado\n" : "No encontrado\n"); }
         else if (cmd == "print") { tree.print(); }
+        else if (cmd == "dot") { std::string file; std::cin >> file; tree.exportDot(file); std::cout << "Guardado en " << file << "\n"; }
         else std::cout << "Comando invalido\n";
     }
     return 0;
