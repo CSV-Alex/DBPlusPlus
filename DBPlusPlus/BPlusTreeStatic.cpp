@@ -38,6 +38,7 @@ bool BPlusTree::insert(int key) {
 }
 
 bool BPlusTree::remove(int key) {
+    // 1) Bajamos hasta la hoja, guardando el path y los indices
     std::vector<Node*> path;
     std::vector<int>   idxs;
     Node* cur = root;
@@ -51,35 +52,46 @@ bool BPlusTree::remove(int key) {
     }
     Node* leaf = cur;
 
-    // 2) Borramos la llave
     auto it = std::lower_bound(leaf->keys.begin(), leaf->keys.end(), key);
-    if (it == leaf->keys.end() || *it != key) return false;
+    if (it == leaf->keys.end() || *it != key)
+        return false;
+
+    // Era la primera clave de la hoja?
+    bool wasFirst = (it == leaf->keys.begin());
+    int  oldFirst = *it;
+
     leaf->keys.erase(it);
 
     // 3) Rebalance si underflow
-    if (leaf != root && leaf->keys.size() < size_t(minKeys))
+    if (leaf != root && leaf->keys.size() < size_t(minKeys)) {
         rebalance(leaf);
-
-    // 4) Colapso de raiz
-    if (!root->isLeaf && root->keys.empty()) {
-        Node* child = root->children.front();
-        child->parent = nullptr;
-        delete root;
-        root = child;
-        path[0] = root;
     }
 
-    // 5) **SIEMPRE** actualizamos los separadores a lo largo de path
-    for (int level = (int)idxs.size() - 1; level >= 0; --level) {
-        Node* parent = path[level];
-        Node* child = path[level + 1];
-        int   idx = idxs[level];
+    // 4) Colapsar raiz si quedo vacia
+    if (!root->isLeaf && root->keys.empty()) {
+        Node* only = root->children.front();
+        only->parent = nullptr;
+        delete root;
+        root = only;
+    }
 
-        if (idx > 0) {
-            parent->keys[idx - 1] = child->keys.front();
+    // 5) Actualizar separadores a lo largo del path si la primera clave cambio
+    if (wasFirst && leaf != root) {
+        int newFirst = leaf->keys.front();
+        for (int level = (int)idxs.size() - 1; level >= 0; --level) {
+            Node* parent = path[level];
+            int   idx = idxs[level];
+            if (idx > 0) {
+                if (parent->keys[idx - 1] == oldFirst) {
+                    parent->keys[idx - 1] = newFirst;
+                    oldFirst = newFirst;
+                }
+                else {
+                    break;
+                }
+            }
         }
     }
-
     return true;
 }
 
@@ -209,44 +221,196 @@ void BPlusTree::splitInternal(Node* node) {
     }
 }
 
+void BPlusTree::updateSeparators(Node* parent) {
+    for (size_t i = 0; i + 1 < parent->children.size(); ++i) {
+        parent->keys[i] = parent->children[i + 1]->keys.front();
+    }
+}
+
 void BPlusTree::rebalance(Node* node) {
-    int idx;
-    Node* sib = getSibling(node, idx, true);
-    if (sib && sib->keys.size() > size_t(minKeys)) {
-        node->keys.insert(node->keys.begin(), sib->keys.back());
-        sib->keys.pop_back();
-        node->parent->keys[idx] = node->keys.front();
-        return;
+    Node* parent = node->parent;
+    // 1) indice de node en el padre
+    auto it = std::find(parent->children.begin(),
+        parent->children.end(),
+        node);
+    int idx = int(it - parent->children.begin());
+
+    // 2) determina hermanos
+    Node* left = (idx > 0
+        ? parent->children[idx - 1]
+        : nullptr);
+    Node* right = (idx + 1 < (int)parent->children.size()
+        ? parent->children[idx + 1]
+        : nullptr);
+
+    auto recalcKeys = [&](Node* p) {
+        p->keys.resize(p->children.size() - 1);
+        for (size_t i = 0; i + 1 < p->children.size(); ++i) {
+            p->keys[i] = p->children[i + 1]->keys.front();
+        }
+        };
+
+    // CASO A: nodo hoja
+    if (node->isLeaf) {
+        // A.1) hoja quedo vacia -> fusion forzada
+        if (node->keys.empty()) {
+            if (left) {
+                // fusiona node en left 
+                left->keys.insert(
+                    left->keys.end(),
+                    node->keys.begin(),
+                    node->keys.end()
+                );
+                left->next = node->next;
+                parent->children.erase(parent->children.begin() + idx);
+                parent->keys.erase(parent->keys.begin() + (idx - 1));
+                delete node;
+            }
+            else {
+                // solo hay hermano derecho
+                parent->children.erase(parent->children.begin() + idx);
+                parent->keys.erase(parent->keys.begin() + idx);
+                delete node;
+            }
+            recalcKeys(parent);
+            // caer al final para colapsar raiz o propagar hacia arriba
+        }
+        // A.2) underflow “normal” (pero no vacia)
+        else if (node->keys.size() < size_t(minKeys)) {
+            // prestamo desde left
+            if (left && left->keys.size() > size_t(minKeys)) {
+                node->keys.insert(node->keys.begin(),
+                    left->keys.back());
+                left->keys.pop_back();
+                recalcKeys(parent);
+                return;
+            }
+            // prestamo desde right
+            if (right && right->keys.size() > size_t(minKeys)) {
+                node->keys.push_back(right->keys.front());
+                right->keys.erase(right->keys.begin());
+                recalcKeys(parent);
+                return;
+            }
+            // fusion con left o right
+            if (left) {
+                left->keys.insert(
+                    left->keys.end(),
+                    node->keys.begin(),
+                    node->keys.end()
+                );
+                left->next = node->next;
+                parent->children.erase(parent->children.begin() + idx);
+                parent->keys.erase(parent->keys.begin() + (idx - 1));
+                delete node;
+            }
+            else {
+                right->keys.insert(
+                    right->keys.begin(),
+                    node->keys.begin(),
+                    node->keys.end()
+                );
+                parent->children.erase(parent->children.begin() + idx);
+                parent->keys.erase(parent->keys.begin() + idx);
+                delete node;
+            }
+            recalcKeys(parent);
+            // caer al final para colapsar raiz o propagar hacia arriba
+        }
+        else {
+            // sin underflow
+            return;
+        }
     }
-    sib = getSibling(node, idx, false);
-    if (sib && sib->keys.size() > size_t(minKeys)) {
-        node->keys.push_back(sib->keys.front());
-        sib->keys.erase(sib->keys.begin());
-        node->parent->keys[idx] = sib->keys.front();
-        return;
-    }
-    if ((sib = getSibling(node, idx, true))) {
-        // Fusion con hermano izquierdo
-        sib->keys.insert(sib->keys.end(), node->keys.begin(), node->keys.end());
-        sib->next = node->next;
-        Node* p = node->parent;
-        p->keys.erase(p->keys.begin() + idx);
-        p->children.erase(std::find(p->children.begin(), p->children.end(), node));
-        delete node;
-        if (p != root && p->keys.size() < size_t(minKeys))
-            rebalance(p);
-    }
+
+    // CASO B: nodo interno
     else {
-        // Fusion con hermano derecho
-        sib = getSibling(node, idx, false);
-        node->keys.insert(node->keys.end(), sib->keys.begin(), sib->keys.end());
-        node->next = sib->next;
-        Node* p = node->parent;
-        p->keys.erase(p->keys.begin() + idx);
-        p->children.erase(std::find(p->children.begin(), p->children.end(), sib));
-        delete sib;
-        if (p != root && p->keys.size() < size_t(minKeys))
-            rebalance(p);
+        if (node->keys.size() < size_t(minKeys)) {
+            // prestamo desde left
+            if (left && left->keys.size() > size_t(minKeys)) {
+                node->keys.insert(node->keys.begin(),
+                    parent->keys[idx - 1]);
+                parent->keys[idx - 1] = left->keys.back();
+                left->keys.pop_back();
+                node->children.insert(node->children.begin(),
+                    left->children.back());
+                node->children.front()->parent = node;
+                left->children.pop_back();
+                recalcKeys(parent);
+                return;
+            }
+            // prestamo desde right
+            if (right && right->keys.size() > size_t(minKeys)) {
+                node->keys.push_back(parent->keys[idx]);
+                parent->keys[idx] = right->keys.front();
+                right->keys.erase(right->keys.begin());
+                node->children.push_back(right->children.front());
+                node->children.back()->parent = node;
+                right->children.erase(right->children.begin());
+                recalcKeys(parent);
+                return;
+            }
+            // fusion con left o right
+            if (left) {
+                int sep = parent->keys[idx - 1];
+                left->keys.push_back(sep);
+                left->keys.insert(
+                    left->keys.end(),
+                    node->keys.begin(),
+                    node->keys.end()
+                );
+                left->children.insert(
+                    left->children.end(),
+                    node->children.begin(),
+                    node->children.end()
+                );
+                for (Node* c : node->children)
+                    c->parent = left;
+                parent->children.erase(parent->children.begin() + idx);
+                parent->keys.erase(parent->keys.begin() + (idx - 1));
+                delete node;
+            }
+            else {
+                int sep = parent->keys[idx];
+                node->keys.push_back(sep);
+                node->keys.insert(
+                    node->keys.end(),
+                    right->keys.begin(),
+                    right->keys.end()
+                );
+                node->children.insert(
+                    node->children.end(),
+                    right->children.begin(),
+                    right->children.end()
+                );
+                for (Node* c : right->children)
+                    c->parent = node;
+                parent->children.erase(parent->children.begin() + (idx + 1));
+                parent->keys.erase(parent->keys.begin() + idx);
+                delete right;
+            }
+            recalcKeys(parent);
+            // caer al final para colapsar raiz o propagar hacia arriba
+        }
+        else {
+            // sin underflow
+            return;
+        }
+    }
+
+    // 3) colapsar raiz o propagar
+    if (parent == root) {
+        if (root->keys.empty()) {
+            Node* only = root->children.front();
+            only->parent = nullptr;
+            delete root;
+            root = only;
+            if (!root->isLeaf)
+                recalcKeys(root);
+        }
+    }
+    else if (parent->keys.size() < size_t(minKeys)) {
+        rebalance(parent);
     }
 }
 

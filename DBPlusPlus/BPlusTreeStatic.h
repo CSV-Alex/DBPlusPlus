@@ -22,6 +22,7 @@ public:
     ~BPlusTree();
 
     bool insert(int key);
+    void updateSeparators(Node* parent);
     bool remove(int key);
     bool modify(int oldKey, int newKey);
     bool search(int key) const;
