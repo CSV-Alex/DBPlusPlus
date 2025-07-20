@@ -277,7 +277,7 @@ void BPlusTree::rebalance(Node* node) {
         }
         // A.2) underflow “normal” (pero no vacia)
         else if (node->keys.size() < size_t(minKeys)) {
-            // prestamo desde left
+            // prestamo desde LEFT
             if (left && left->keys.size() > size_t(minKeys)) {
                 node->keys.insert(node->keys.begin(),
                     left->keys.back());
@@ -285,7 +285,7 @@ void BPlusTree::rebalance(Node* node) {
                 recalcKeys(parent);
                 return;
             }
-            // prestamo desde right
+            // prestamo desde RIGHT
             if (right && right->keys.size() > size_t(minKeys)) {
                 node->keys.push_back(right->keys.front());
                 right->keys.erase(right->keys.begin());
@@ -430,8 +430,7 @@ int main() {
     BPlusTree tree(m);
 
     // ————— Valores preiniciales —————
-    std::vector<int> initial = { 10, 27, 29, 17, 25, 21, 15, 31, 13, 51, 20,
-                                 24, 48, 19, 60, 35, 66 };
+    std::vector<int> initial = { };
     std::cout << "Insertando valores iniciales: ";
     for (int v : initial) {
         std::cout << v << " ";
