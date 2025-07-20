@@ -143,6 +143,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BPlusTreeStatic.cpp" />
     <ClCompile Include="Catalogo.cpp" />
     <ClCompile Include="Disco.cpp" />
     <ClCompile Include="DiscoPath.cpp" />
@@ -167,6 +168,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <Text Include="IdHighFemale.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BPlusTreeStatic.h" />
     <ClInclude Include="BufferPool.h" />
     <ClInclude Include="Buffer\BufferManager.h" />
     <ClInclude Include="Buffer\BufferPool.h" />
