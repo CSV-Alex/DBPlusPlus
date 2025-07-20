@@ -5,7 +5,7 @@
 #include <fstream>
 
 BPlusTree::BPlusTree(int m) : m(m) {
-    minKeys = (m + 1) / 2; // teoria B+Trees
+    minKeys = (m + 1) / 2; // teoria B+Trees prueba
     root = new Node(true);
 }
 
