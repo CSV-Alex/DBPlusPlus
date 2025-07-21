@@ -61,7 +61,7 @@ void convertCsvToTxt(const string& csvFile, const string& txtFile) {
     char c;
 
     while (in.get(c)) {
-        out.put(c == ',' ? '#' : c);
+        out.put(c == ';' ? '#' : c);
     }
 
     in.close();
@@ -668,17 +668,17 @@ int main() {
     const string basePath = "data\\usr\\db\\";
     const string discoPath = "DISCO\\";
     const string schemaPath = basePath + "esquema.txt";
-    const string titanicCSV = basePath + "titanicG.csv";
+    const string titanicCSV = basePath + "peajesG.csv"; // CAMBIAMOS A peajes.csv en ves de titanicG.csv
     const string housingCSV = basePath + "Housing.csv";
-    const string titanicTXT = basePath + "titanic.txt";
+    const string titanicTXT = basePath + "peajes.txt";
     const string housingTXT = basePath + "housing.txt";
 
     // Valores por defecto
     const int def_platos = 4;
-    const int def_pistas = 5;
-    const int def_sectores = 10;
-    const int def_tamSector = 800;
-    const int def_tamBloque = 6400;
+    const int def_pistas = 8;
+    const int def_sectores = 50;
+    const int def_tamSector = 8192;
+    const int def_tamBloque = 65536;
     Disco miDisco(def_platos, def_pistas, def_sectores, def_tamSector, def_tamBloque);
 
     std::cout << "[DEBUG] BufferPool arranca en: " << std::filesystem::current_path() << "\n";
@@ -688,7 +688,7 @@ int main() {
 
     while (true) {
         // Menu principal
-        cout << "\n=== MEGRONadsadsads 3000 - MENU PRINCIPAL ===\n";
+        cout << "\n=== MEGATRON 3000 - MENU PRINCIPAL ===\n";
         cout << "1) Menu Disco" << (discoConfigDone ? " (ya configurado)" : "") << "\n";
         cout << "2) Menu Buffer" << (discoConfigDone ? "" : " (requiere config de disco)") << "\n";
         cout << "3) Salir\n";
@@ -738,7 +738,7 @@ int main() {
                 miDisco = Disco(platos, pistas, sectores, tamSector, tamBloque);
 
                 miDisco.printDisco();
-                miDisco.mostrarArbolDisco();
+                //miDisco.mostrarArbolDisco();
                 convertCsvToTxt(titanicCSV, titanicTXT);
                 convertCsvToTxt(housingCSV, housingTXT);
                 relationFormatMin(titanicTXT.c_str(), schemaPath.c_str());
@@ -820,7 +820,7 @@ int main() {
                     else if (opt == "1") {
                         miDisco.printDisco();
                         miDisco.printCapacidadesDetalle();
-                        miDisco.mostrarArbolDisco();
+                        //miDisco.mostrarArbolDisco();
                     }
                     // Supongamos tabla="titanic"
                     else if (opt == "2") {
@@ -869,7 +869,7 @@ int main() {
                         cin >> opcion;
                         cin.ignore(1, '\n');
 
-                        if (adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco)) {
+                        if (adicionarNRegistros(n, "D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\peajesG.csv", "peajes", opcion, miDisco)) {
                             cout << "HRegdsadsaistros agregados correctamente.\n";
                             //
                         }
@@ -886,7 +886,7 @@ int main() {
                         cin >> opcion;
                         cin.ignore(1, '\n');
 
-                        if (adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\Housing.csv", "housing", opcion, miDisco))
+                        if (adicionarTodoCSV("D:\\DBPlusPlus\\DBPlusPlus\\data\\usr\\db\\peajesG.csv", "peajes", opcion, miDisco))
                             cout << "Todos los registros del CSV agregados correctamente.\n";
                         else
                             cout << "No se pudieron agregar todos los registros.\n";

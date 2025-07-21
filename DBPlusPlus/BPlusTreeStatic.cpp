@@ -423,7 +423,7 @@ BPlusTree::Node* BPlusTree::getSibling(Node* node, int& idx, bool left) const {
     return i + 1 < (int)p->children.size() ? p->children[i + 1] : nullptr;
 }
 
-int main() {
+int fuctionMain() {
     int m;
     std::cout << "Numero maximo de llaves por nodo: ";
     std::cin >> m;

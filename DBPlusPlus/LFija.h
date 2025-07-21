@@ -7,6 +7,7 @@
 #include <direct.h>     // tambien para _mkdir
 #include <iostream>
 #include <fstream>
+#include <unordered_map>
 #include "Disco.h"
 #include "DiscoPaths.h"
 #include "Catalogo.cpp"
@@ -679,16 +680,16 @@ static void mostrarSectoresDeBloque(int bloqueN, int opcion, Disco disco) {
 static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
     int numFields = 0;
     int maxLen[MAX_FIELDS] = { 0 };
-    printf("DEBUG: Llamando a crearRLF para relación '%s' con registroTxt: '%s'\n", relacion, registroTxt);
+    //printf("DEBUG: Llamando a crearRLF para relación '%s' con registroTxt: '%s'\n", relacion, registroTxt);
 
     if (!obtenerLongitudesPorCampo(relacion, &numFields, maxLen)) {
-        printf("DEBUG: obtenerLongitudesPorCampo falló para '%s'\n", relacion);
+        //printf("DEBUG: obtenerLongitudesPorCampo falló para '%s'\n", relacion);
         return false;
     }
     //printf("DEBUG: Longitudes por campo para '%s': ", relacion);
-    for (int i = 0; i < numFields; ++i) {
-        //printf("%d ", maxLen[i]);
-    }
+    //for (int i = 0; i < numFields; ++i) {
+    //    printf("%d ", maxLen[i]);
+    //}
     //printf("\n");
 
     char copy[MAX_BUF];
@@ -700,8 +701,8 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
     for (int i = 0; i < numFields; i++) {
         if (!tok) {
-            printf("DEBUG: Faltan campos en registroTxt para el campo %d\n", i);
-            return false;
+            printf("DEBUG: Campo %d vacío, continúo como \"\"\n", i);
+            tok = (char*)"";
         }
 
         int lenVal = (int)strlen(tok);
@@ -720,10 +721,10 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
         // Debug: mostramos cómo queda el campo antes del '#'
         //printf("DEBUG: Campo %d (fijo): '", i);
-        for (int k = 0; k < fieldLen; ++k) {
-            if (k < toCopy) putchar(tok[k]);
-            else putchar('@');
-        }
+        //for (int k = 0; k < fieldLen; ++k) {
+        //    if (k < toCopy) putchar(tok[k]);
+        //    else putchar('@');
+        //}
         //printf("'\n");
 
         ofs += fieldLen;
@@ -743,10 +744,10 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
     // Mostrar el registro fijo completo (con '#' tras cada campo)
     //printf("DEBUG: Registro fijo generado (longitud %d): [", *outLen);
-    for (int i = 0; i < *outLen; ++i) {
-        putchar(outBuffer[i]);
-    }
-    printf("]\n");
+    //for (int i = 0; i < *outLen; ++i) {
+    //    putchar(outBuffer[i]);
+    //}
+    //printf("]\n");
 
     return true;
 }
@@ -891,7 +892,7 @@ static bool eliminarRegistro(const char* relacion, int posicionGlobal, Disco dis
         if ((int)bmpLen > numMaxAnt) bmpLen = numMaxAnt;
         strncpy(bitmap, p4, bmpLen);
         bitmap[bmpLen] = '\0';
-        printf("DEBUG: bitmap resultante: '%s'\n", bitmap);
+        //printf("DEBUG: bitmap resultante: '%s'\n", bitmap);
     }
 
     // 2.2) Verificar que el slot idxLocal esté ocupado
@@ -1455,17 +1456,17 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     // 0.4) Mostrar contenido de longitudFija.txt (solo debug)
     //printf(">>> Debug: Leyendo %s para ver su contenido:\n", rutaLongitudFija);
-    FILE* ftmp = fopen(rutaLongitudFija, "r");
-    if (ftmp) {
-        char buf[MAX_BUF];
-        while (fgets(buf, MAX_BUF, ftmp)) {
-            printf("   %s", buf);
-        }
-        fclose(ftmp);
-    }
-    else {
-        printf("   ¡ERROR: no se pudo abrir %s!\n", rutaLongitudFija);
-    }
+    //FILE* ftmp = fopen(rutaLongitudFija, "r");
+    //if (ftmp) {
+    //    char buf[MAX_BUF];
+    //    while (fgets(buf, MAX_BUF, ftmp)) {
+    //        printf("   %s", buf);
+    //    }
+    //    fclose(ftmp);
+    //}
+    //else {
+    //    printf("   ¡ERROR: no se pudo abrir %s!\n", rutaLongitudFija);
+    //}
 
     // 0.5) Obtener registroSize
     obtenerRegistroSize(relacion, &registroSize);
@@ -1492,9 +1493,9 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
     }
     //printf("DEBUG: dirBloques.txt abierto con éxito.\n");
 
-    printf("DEBUG: Buscando bloque para '%s' en %s\n",
-        relacion,
-        esPagina ? "BUFFERPOOL" : "DISCO");
+    //printf("DEBUG: Buscando bloque para '%s' en %s\n",
+    //    relacion,
+    //    esPagina ? "BUFFERPOOL" : "DISCO");
 
     char lineaBloque[MAX_BUF];
     int nroBloque = 0;
@@ -1509,7 +1510,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     char savedSectores[MAX_BUF] = { 0 }; // Para guardar sectores del bloque elegido
 
-    printf("DEBUG: Entrando al bucle de búsqueda de bloque para relacion='%s'\n", relacion);
+    //printf("DEBUG: Entrando al bucle de búsqueda de bloque para relacion='%s'\n", relacion);
     // 2) Buscar bloque y sector libres (cada bloque ocupa fixedLen bytes total)
     //printf("DEBUG: Buscando bloque libre para tamaño de registro = %d\n", tamRegistro);
     while (true) {
@@ -1523,12 +1524,12 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
         // 3) Avanzamos el contador de bloques
         nroBloque++;
-        printf("DEBUG: Procesando Bloque #%d\n", nroBloque);
+        //printf("DEBUG: Procesando Bloque #%d\n", nroBloque);
 
         // 4) SALTO: si ya está asignado a otra relación, lo omitimos
         const char* relAsig = obtenerRelacionDeBloque(rutaCatalogo, nroBloque);
-        printf("DEBUG: Bloque#%d asignado a '%s' (o NULL si no existe)\n",
-            nroBloque, relAsig ? relAsig : "NULL");
+        //printf("DEBUG: Bloque#%d asignado a '%s' (o NULL si no existe)\n",
+        //    nroBloque, relAsig ? relAsig : "NULL");
         if (relAsig && strcmp(relAsig, relacion) != 0) {
             printf("DEBUG: Bloque#%d NO es de '%s', salto al siguiente\n", nroBloque, relacion);
             continue;
@@ -1539,7 +1540,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             continue;
         }
 
-        printf("DEBUG: Leyendo Bloque #%d (lenBloque = %d bytes)\n", nroBloque, lenBloque);
+        //printf("DEBUG: Leyendo Bloque #%d (lenBloque = %d bytes)\n", nroBloque, lenBloque);
 
         // 2.1) Extraer espacioLibreBloque sin strtok:
         char tempEspacio[MAX_BUF];
@@ -1737,7 +1738,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             bufferPagePath, nroBloque);
     }
 
-    printf("DEBUG: Ruta BloqueN.txt = '%s'\n", rutaBloque);
+    //printf("DEBUG: Ruta BloqueN.txt = '%s'\n", rutaBloque);
 
     FILE* fbloc = fopen(rutaBloque, esPagina ? "r+b" : "r+b");
     size_t raw_header_len = 0;
@@ -1747,7 +1748,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
 
     if (!fbloc) {
         // Bloque no existe: crearlo con calcularCabeceraBloque(...)
-        printf("DEBUG: BloqueN.txt NO existe. Se intentará crearlo.\n");
+        //printf("DEBUG: BloqueN.txt NO existe. Se intentará crearlo.\n");
         char headerBuf[MAX_BUF];
         size_t headerLen;
         int numMax;
@@ -1816,12 +1817,12 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             perror("ERROR: No se pudo abrir catalogo.txt para escritura");
         }
 
-        printf("DEBUG: adicionarRegistroUnico (nuevo bloque) finalizado para Bloque #%d\n", nroBloque);
+        //printf("DEBUG: adicionarRegistroUnico (nuevo bloque) finalizado para Bloque #%d\n", nroBloque);
         return true;
     }
     else {
         // Bloque existe: leer cabecera hasta '/'
-        printf("DEBUG: BloqueN.txt ya existe. Releyendo cabecera...\n");
+        //printf("DEBUG: BloqueN.txt ya existe. Releyendo cabecera...\n");
         size_t pos = 0;
         int c;
         rewind(fbloc);
@@ -1831,7 +1832,7 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             if (pos >= MAX_BUF - 1) break;
         }
         raw_header_len = pos;
-        printf("DEBUG: raw_header_len detectado = %zu\n", raw_header_len);
+        //printf("DEBUG: raw_header_len detectado = %zu\n", raw_header_len);
 
         rewind(fbloc);
         char cabTmp3[MAX_BUF];
@@ -1913,29 +1914,29 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             fputc('|', fbloc);
             fflush(fbloc);
             if (escritosReuse != (size_t)regLen) {
-                printf("ERROR: Se escribieron %zu bytes de RLF reusado, esperados %d\n", escritosReuse, regLen);
+                //printf("ERROR: Se escribieron %zu bytes de RLF reusado, esperados %d\n", escritosReuse, regLen);
             }
             else {
-                printf("DEBUG: Registro de %d bytes reusado en posición %d (+ '|').\n", regLen, idxLibre);
+                //printf("DEBUG: Registro de %d bytes reusado en posición %d (+ '|').\n", regLen, idxLibre);
             }
 
             fclose(fbloc);
             // 12) Volcar bloque reasignado a sectores
-            printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (reuso)\n", nroBloque);
+            //printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (reuso)\n", nroBloque); //IMPORTANTE
 
             if (!esPagina) {
                 disco.volcarBloqueASectores(nroBloque);
             }
 
-            printf("DEBUG: adicionarRegistroUnico (reuso) finalizado para Bloque #%d\n", nroBloque);
+            //printf("DEBUG: adicionarRegistroUnico (reuso) finalizado para Bloque #%d\n", nroBloque);
             return true;
         }
 
         // 13) No hay hueco: anexar al final
-        printf("DEBUG: Bloque #%d sin espacio libre, se agregará al final.\n", nroBloque);
+        //printf("DEBUG: Bloque #%d sin espacio libre, se agregará al final.\n", nroBloque);
         // Calcular offsetAppend = raw_header_len + numRegAnt_old * (registroSize+1)
         long offsetAppend = (long)raw_header_len + (long)(numRegAnt) * (registroSize + 1);
-        printf("DEBUG: offsetAppend en Bloque%d = %ld\n", nroBloque, offsetAppend);
+        //printf("DEBUG: offsetAppend en Bloque%d = %ld\n", nroBloque, offsetAppend);
 
         // Actualizar cabecera (numRegAnt+1, marcar nuevo bitmap)
         numRegAnt++;
@@ -1973,23 +1974,585 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
         fputc('|', fbloc);
         fflush(fbloc);
         if (escritosAppend != (size_t)regLen) {
-            printf("ERROR: Se escribieron %zu bytes de RLF anexado, esperados %d\n", escritosAppend, regLen);
+            //printf("ERROR: Se escribieron %zu bytes de RLF anexado, esperados %d\n", escritosAppend, regLen);
         }
         else {
-            printf("DEBUG: Registro de %d bytes anexado correctamente (+ '|').\n", regLen);
+            //printf("DEBUG: Registro de %d bytes anexado correctamente (+ '|').\n", regLen);
         }
 
         fclose(fbloc);
         // 14) Volcar bloque anexado a sectores
-        printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (anexar)\n", nroBloque);
+        //printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (anexar)\n", nroBloque); // IMPORTANTE
         if (!esPagina) {
             disco.volcarBloqueASectores(nroBloque);
         }
 
-        printf("DEBUG: adicionarRegistroUnico (anexar) finalizado para Bloque #%d\n", nroBloque);
+        //printf("DEBUG: adicionarRegistroUnico (anexar) finalizado para Bloque #%d\n", nroBloque);
         return true;
     }
 }
+
+
+static bool adicionarRegistroUnicoViejo(const char* registroTxt, const char* relacion, Disco& disco, bool esPagina = false) {
+    // Cache disk properties to avoid repeated calls
+    static int cached_tam_bloque = -1;
+    if (cached_tam_bloque == -1) {
+        cached_tam_bloque = getTamBloqueFromDisco(disco);
+    }
+    const int tam_bloque = cached_tam_bloque;
+
+    // Keep track of blocks belonging to specific relations
+    static std::unordered_map<std::string, std::vector<int>> relation_blocks;
+    std::string rel_key(relacion);
+
+    const char* discoNuevoPath = esPagina ? bufferPoolPath : discoPath;
+
+    // --- 0) Prepare data and calculate fixed block length ---
+    int registroSize;
+    static char regBuf[MAX_BUF]; // Buffer for RLF
+    static int regLen;           // Length of regBuf
+
+    // 0.2) Safe copy of registroTxt without CR/LF
+    char registroSinLF[MAX_BUF];
+    strncpy(registroSinLF, registroTxt, MAX_BUF - 1);
+    registroSinLF[MAX_BUF - 1] = '\0';
+    size_t l = strlen(registroSinLF);
+    while (l > 0 && (registroSinLF[l - 1] == '\n' || registroSinLF[l - 1] == '\r')) {
+        registroSinLF[--l] = '\0';
+    }
+
+    // 0.3) Generate RLF (fixed length record)
+    if (!crearRLF(registroSinLF, relacion, regBuf, &regLen)) {
+        return false;
+    }
+
+    for (int i = 0; i < regLen; ++i) {
+        if (regBuf[i] == '\n' || regBuf[i] == '\r') {
+            printf("ERROR: detected line break in regBuf at position %d\n", i);
+        }
+    }
+
+    // 0.5) Get registroSize
+    obtenerRegistroSize(relacion, &registroSize);
+    if (registroSize <= 0) {
+        fprintf(stderr, "ERROR: No se encontró longitud fija para %s\n", relacion);
+        return false;
+    }
+
+    // 0.6) Calculate fixed max length of "block" in dirBloques.txt
+    static int cached_fixed_len = -1;
+    if (cached_fixed_len == -1) {
+        cached_fixed_len = disco.obtenerLongitudMaximaBloque1();
+    }
+    const int fixedLen = cached_fixed_len;
+
+    if (fixedLen <= 0) {
+        printf("ERROR: No se pudo obtener longitud fija máxima de bloque.\n");
+        return false;
+    }
+
+    // 1) Open dirBloques.txt in read/write mode - always open fresh to avoid issues
+    FILE* fdir = fopen(rutaDirBloques, "r+");
+    if (!fdir) {
+        perror("ERROR: No se puede abrir dirBloques.txt");
+        return false;
+    }
+
+    char lineaBloque[MAX_BUF];
+    int nroBloque = 0;
+    bool foundBlock = false;
+    char codSectorLibre[MAX_STR_LEN] = { 0 };
+    long posLineaBloque = 0;
+
+    int tamRegistro = registroSize;
+    int espacioLibreBloque = 0;
+    int tamUtilAntes = 0;
+    int espacioLibreSectorAntes = 0;
+
+    char savedSectores[MAX_BUF] = { 0 }; // Para guardar sectores del bloque elegido
+
+    // Check cached blocks for this relation first
+    if (relation_blocks.find(rel_key) != relation_blocks.end()) {
+        const auto& blocks = relation_blocks[rel_key];
+        for (int block_num : blocks) {
+            // Verify the block still belongs to this relation
+            const char* relAsig = obtenerRelacionDeBloque(rutaCatalogo, block_num);
+            if (relAsig && strcmp(relAsig, relacion) == 0) {
+                // Read the block to check if it has space
+                char rutaBloqueTest[MAX_PATH_LEN];
+                snprintf(rutaBloqueTest, sizeof(rutaBloqueTest),
+                    "%sBLOQUES\\Bloque%d.txt",
+                    discoPath, block_num);
+
+                FILE* ftest = fopen(rutaBloqueTest, "rb");
+                if (!ftest) continue;
+
+                // Seek to beginning of block in dirBloques.txt
+                rewind(fdir);
+                int current_line = 0;
+                while (current_line < block_num) {
+                    if (!fgets(lineaBloque, MAX_BUF, fdir)) break;
+                    current_line++;
+                }
+
+                // If we found the block, check if it has space
+                if (current_line == block_num) {
+                    posLineaBloque = ftell(fdir) - strlen(lineaBloque);
+
+                    // Extract free space from block info
+                    char tempEspacio[MAX_BUF];
+                    strncpy(tempEspacio, lineaBloque + 1, MAX_BUF - 1);
+                    tempEspacio[MAX_BUF - 1] = '\0';
+
+                    char* posHash = strchr(tempEspacio, '#');
+                    if (posHash) {
+                        *posHash = '\0';
+                        espacioLibreBloque = safe_atoi(tempEspacio);
+                        *posHash = '#';
+
+                        if (espacioLibreBloque >= tamRegistro) {
+                            // We found a block with enough space
+                            nroBloque = block_num;
+                            foundBlock = true;
+
+                            // Get sector info
+                            strncpy(savedSectores, tempEspacio, MAX_BUF - 1);
+                            savedSectores[MAX_BUF - 1] = '\0';
+
+                            char* p = strstr(savedSectores, "#_");
+                            if (p) {
+                                p += 2;
+
+                                // Find first sector with enough space
+                                while (*p) {
+                                    char* inicioEspacioSector = p;
+                                    while (*p && *p != '#') p++;
+                                    if (*p != '#') break;
+                                    *p = '\0';
+                                    int espacioLibreSector = atoi(inicioEspacioSector);
+                                    *p = '#';
+                                    p++;
+
+                                    char* inicioCodSector = p;
+                                    while (*p && *p != '#') p++;
+                                    if (*p != '#') break;
+                                    *p = '\0';
+                                    strncpy(codSectorLibre, inicioCodSector, MAX_STR_LEN - 1);
+                                    *p = '#';
+
+                                    if (espacioLibreSector >= tamRegistro) {
+                                        // Valid sector found
+                                        espacioLibreSectorAntes = espacioLibreSector;
+                                        fclose(ftest);
+                                        tamUtilAntes = tam_bloque - espacioLibreBloque;
+                                        break;
+                                    }
+
+                                    char* nextPair = strstr(p, "#_");
+                                    if (!nextPair) break;
+                                    p = nextPair + 2;
+                                }
+                            }
+
+                            fclose(ftest);
+                            break;
+                        }
+                    }
+                }
+
+                fclose(ftest);
+            }
+        }
+    }
+
+    // If we haven't found a suitable block in our cache, search through all blocks
+    if (!foundBlock) {
+        rewind(fdir);
+        // 2) Buscar bloque y sector libres (cada bloque ocupa fixedLen bytes total)
+        while (true) {
+            posLineaBloque = ftell(fdir);
+
+            int lenBloque = disco.leerBloqueConSeparador(fdir, lineaBloque, MAX_BUF);
+            if (lenBloque <= 0) {
+                break;
+            }
+
+            // 3) Avanzamos el contador de bloques
+            nroBloque++;
+
+            // 4) SALTO: si ya está asignado a otra relación, lo omitimos
+            const char* relAsig = obtenerRelacionDeBloque(rutaCatalogo, nroBloque);
+            if (relAsig && strcmp(relAsig, relacion) != 0) {
+                continue;
+            }
+
+            // Saltar bloques vacíos generados por "||"
+            if (lenBloque == 2 && lineaBloque[0] == '|' && lineaBloque[1] == '|') {
+                continue;
+            }
+
+            // 2.1) Extraer espacioLibreBloque sin strtok:
+            char tempEspacio[MAX_BUF];
+            strncpy(tempEspacio, lineaBloque + 1, MAX_BUF - 1);
+            tempEspacio[MAX_BUF - 1] = '\0';
+
+            char* posHash = strchr(tempEspacio, '#');
+            if (!posHash) {
+                continue;
+            }
+            *posHash = '\0';
+            espacioLibreBloque = safe_atoi(tempEspacio);
+            *posHash = '#';
+
+            tamUtilAntes = tam_bloque - espacioLibreBloque;
+            if (espacioLibreBloque < tamRegistro) {
+                continue;
+            }
+
+            // 2.2) Extraer la lista de sectores en copiaSectores
+            char copiaSectores[MAX_BUF];
+            strncpy(copiaSectores, lineaBloque + 1, MAX_BUF - 1);
+            copiaSectores[MAX_BUF - 1] = '\0';
+
+            char* p = strstr(copiaSectores, "#_");
+            if (!p) {
+                continue;
+            }
+            p += 2;
+
+            // 2.3) Iterar cada par "<espLibreSector>#<codSector>#_"
+            while (*p) {
+                char* inicioEspacioSector = p;
+                while (*p && *p != '#') p++;
+                if (*p != '#') break;
+                *p = '\0';
+                int espacioLibreSector = atoi(inicioEspacioSector);
+                *p = '#';
+                p++;
+
+                char* inicioCodSector = p;
+                while (*p && *p != '#') p++;
+                if (*p != '#') break;
+                *p = '\0';
+                char sectorCode[MAX_STR_LEN];
+                strncpy(sectorCode, inicioCodSector, MAX_STR_LEN - 1);
+                sectorCode[MAX_STR_LEN - 1] = '\0';
+                *p = '#';
+
+                char* nextPair = strstr(p, "#_");
+                if (espacioLibreSector < tamRegistro) {
+                    if (!nextPair) break;
+                    p = nextPair + 2;
+                    continue;
+                }
+
+                // Sector válido encontrado
+                strncpy(codSectorLibre, sectorCode, MAX_STR_LEN - 1);
+                espacioLibreSectorAntes = espacioLibreSector;
+                // Guardar la lista completa de "sectores" para usarla después
+                strncpy(savedSectores, copiaSectores, MAX_BUF - 1);
+                savedSectores[MAX_BUF - 1] = '\0';
+                foundBlock = true;
+                break;
+            }
+            if (foundBlock) break;
+        }
+    }
+
+    if (!foundBlock) {
+        fclose(fdir);
+        return false;
+    }
+
+    // Update our relation_blocks cache
+    if (std::find(relation_blocks[rel_key].begin(), relation_blocks[rel_key].end(), nroBloque) == relation_blocks[rel_key].end()) {
+        relation_blocks[rel_key].push_back(nroBloque);
+    }
+
+    // 2.4) Calcular nuevo espacio de bloque
+    int espacioLibreBloqueAntes = espacioLibreBloque;
+    int tamUtilNuevo = tamUtilAntes + tamRegistro;
+    int espacioBloqueNuevo = tam_bloque - tamUtilNuevo;
+
+    if (espacioBloqueNuevo < 0 || espacioBloqueNuevo > tam_bloque) {
+        printf("ERROR: valores fuera de rango en Bloque #%d: espacioBloqueNuevo = %d\n",
+            nroBloque, espacioBloqueNuevo);
+    }
+
+    // 4) Reconstruir el bloque completo de exactly fixedLen bytes
+    char bufferNueva[MAX_BUF] = { 0 };
+    int ofsN = 0;
+
+    // 4.1) Escribir el '|' inicial
+    bufferNueva[ofsN++] = '|';
+
+    // 4.2) Prefijo actualizado "<espBloqueNuevo>#2#BLOQUE#<nroBloque>#<tamBloque>#_"
+    ofsN += snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
+        "%d#2#BLOQUE#%d#%d#_",
+        espacioBloqueNuevo,
+        nroBloque,
+        tam_bloque);
+
+    // 4.3) Copiar cada par "<esp>#<cod>#_", ajustando el sector elegido
+    {
+        char* p2 = strstr(savedSectores, "#_");
+        if (p2) {
+            p2 += 2; // al inicio del primer "<espLibreSector>"
+            while (*p2) {
+                int espSec = atoi(p2);
+                while (*p2 && *p2 != '#') ++p2;
+                if (!*p2) break;
+                ++p2;
+                char sectorCode2[MAX_STR_LEN] = { 0 };
+                int pos2 = 0;
+                while (*p2 && *p2 != '#') {
+                    sectorCode2[pos2++] = *p2++;
+                }
+                sectorCode2[pos2] = '\0';
+
+                int nuevoEsp = espSec;
+                if (strcmp(sectorCode2, codSectorLibre) == 0) {
+                    nuevoEsp = espSec - tamRegistro;
+                }
+                int n = snprintf(bufferNueva + ofsN, MAX_BUF - ofsN,
+                    "%d#%s#_", nuevoEsp, sectorCode2);
+                ofsN += n;
+
+                char* next2 = strstr(p2, "#_");
+                if (!next2) break;
+                p2 = next2 + 2;
+            }
+        }
+    }
+
+    // 4.4) Poner padding '@' hasta fixedLen-1, y cerrar con '|'
+    if (ofsN < fixedLen - 1) {
+        memset(bufferNueva + ofsN, '@', fixedLen - 1 - ofsN);
+        bufferNueva[fixedLen - 1] = '|';
+    }
+    else {
+        // Si por alguna razón se pasó, truncar y forzar '|' al final
+        bufferNueva[fixedLen - 1] = '|';
+    }
+
+    // 4.5) Sobreescribir exactamente fixedLen bytes en dirBloques.txt
+    fseek(fdir, posLineaBloque, SEEK_SET);
+    if (!esPagina) {
+        fwrite(bufferNueva, 1, fixedLen, fdir);
+        fflush(fdir);
+    }
+    else {
+        disco.registrarCambioDirBloques(posLineaBloque, bufferNueva, fixedLen);
+        registrarPaginaModificada(nroBloque);
+    }
+    fclose(fdir);
+
+    // -------------------------------------------------------------
+    // 5) Now create/open BloqueN.txt and use free space (bitmap)
+    // -------------------------------------------------------------
+    char rutaBloque[MAX_PATH_LEN];
+    if (!esPagina) {
+        // modo DISCO
+        snprintf(rutaBloque, sizeof(rutaBloque),
+            "%sBLOQUES\\Bloque%d.txt",
+            discoPath, nroBloque);
+    }
+    else {
+        // modo PÁGINA (buffer)
+        snprintf(rutaBloque, sizeof(rutaBloque),
+            "%sPage%d.txt",
+            bufferPagePath, nroBloque);
+    }
+
+    FILE* fbloc = fopen(rutaBloque, esPagina ? "r+b" : "r+b");
+    size_t raw_header_len = 0;
+    int numRegAnt = 0;
+    int numMaxAnt = 0;
+    static char bitmapAnt[MAX_BUF];
+
+    if (!fbloc) {
+        // Bloque no existe: crearlo con calcularCabeceraBloque(...)
+        char headerBuf[MAX_BUF];
+        size_t headerLen;
+        int numMax;
+        calcularCabeceraBloque(tam_bloque, registroSize,
+            headerBuf, &headerLen, &numMax);
+
+        fbloc = fopen(rutaBloque, "wb");
+        if (!fbloc) {
+            perror("ERROR: No se pudo crear BloqueN.txt");
+            return false;
+        }
+
+        size_t escritosHeader = fwrite(headerBuf, 1, headerLen, fbloc);
+        fflush(fbloc);
+
+        // Mover cursor justo después de la cabecera
+        long offsetInicial = headerLen;
+        fseek(fbloc, offsetInicial, SEEK_SET);
+        fwrite(regBuf, 1, regLen, fbloc);
+        fputc('|', fbloc);
+        fflush(fbloc);
+        fclose(fbloc);
+
+        // Dump to sectors - CRITICAL for resolving the "No se encontraron sectores" error
+        if (!esPagina) {
+            disco.volcarBloqueASectores(nroBloque);
+        }
+
+        // Update catalogo.txt
+        char rutaCatalogo2[MAX_PATH_LEN];
+        snprintf(rutaCatalogo2, sizeof(rutaCatalogo2),
+            "%s%s", discoNuevoPath, "catalogo.txt");
+        FILE* fcat2 = fopen(rutaCatalogo2, "a");
+        if (fcat2) {
+            char rutaBloqueCat[MAX_PATH_LEN];
+            snprintf(rutaBloqueCat, sizeof(rutaBloqueCat),
+                "%sBLOQUES\\Bloque%d.txt", discoNuevoPath, nroBloque);
+            fprintf(fcat2, "%s|%s\n", relacion, rutaBloqueCat);
+            fclose(fcat2);
+        }
+
+        return true;
+    }
+    else {
+        // Bloque existe: leer cabecera hasta '/'
+        size_t pos = 0;
+        int c;
+        rewind(fbloc);
+        while ((c = fgetc(fbloc)) != EOF) {
+            pos++;
+            if (c == '/') break;
+            if (pos >= MAX_BUF - 1) break;
+        }
+        raw_header_len = pos;
+
+        rewind(fbloc);
+        char cabTmp3[MAX_BUF];
+        if (raw_header_len > MAX_BUF - 1) raw_header_len = MAX_BUF - 1;
+        size_t leidosCab3 = fread(cabTmp3, 1, raw_header_len, fbloc);
+        cabTmp3[leidosCab3] = '\0';
+
+        // Parsear numRegAnt#numMaxAnt#bitmapAnt/
+        char* q1 = strchr(cabTmp3, '#');
+        *q1 = '\0';
+        numRegAnt = safe_atoi(cabTmp3);
+        *q1 = '#';
+        char* q2 = q1 + 1;
+        char* q3 = strchr(q2, '#');
+        *q3 = '\0';
+        numMaxAnt = safe_atoi(q2);
+        *q3 = '#';
+        char* q4 = q3 + 1;
+        char* slash3 = strchr(q4, '/');
+        size_t bmpLen3 = (size_t)(slash3 - q4);
+        if (bmpLen3 >= MAX_BUF) bmpLen3 = MAX_BUF - 1;
+        strncpy(bitmapAnt, q4, bmpLen3);
+        bitmapAnt[bmpLen3] = '\0';
+
+        // 6) Buscar slot libre en bitmapAnt[] para reuso
+        int idxLibre = -1;
+        for (int i = 0; i < numMaxAnt; i++) {
+            if (bitmapAnt[i] == '0') {
+                idxLibre = i;
+                break;
+            }
+        }
+
+        if (idxLibre >= 0) {
+            // Reutilizar hueco: idxLibre
+            numRegAnt++;
+            bitmapAnt[idxLibre] = '1';
+
+            // Reconstruir cabecera EXACTA: poner espacios hasta raw_header_len-1, luego '/'
+            rewind(fbloc);
+            char newHeader2[MAX_BUF];
+            int ofh2 = 0;
+            ofh2 += snprintf(newHeader2 + ofh2, MAX_BUF - ofh2, "%d#%d#", numRegAnt, numMaxAnt);
+            for (int i = 0; i < numMaxAnt && ofh2 < (int)(raw_header_len - 1); i++) {
+                newHeader2[ofh2++] = bitmapAnt[i];
+            }
+            // Llenar con espacios hasta la posición raw_header_len-1
+            while (ofh2 < (int)(raw_header_len - 1)) {
+                newHeader2[ofh2++] = ' ';
+            }
+            // Poner '/' en la última posición de cabecera
+            newHeader2[raw_header_len - 1] = '/';
+            newHeader2[raw_header_len] = '\0';
+
+            // Sobrescribir cabecera en BloqueN.txt
+            fwrite(newHeader2, 1, raw_header_len, fbloc);
+            fflush(fbloc);
+
+            // Calcular offset para insertar el registro reusado
+            long offsetRegistroReuse = (long)raw_header_len + (long)idxLibre * (registroSize + 1);
+
+            // Reemplazar '@' con regBuf en esa posición
+            if (fseek(fbloc, offsetRegistroReuse, SEEK_SET) != 0) {
+                fprintf(stderr, "ERROR: fseek falló al offsetRegistroReuse\n");
+                fclose(fbloc);
+                return false;
+            }
+            fwrite(regBuf, 1, regLen, fbloc);
+            fputc('|', fbloc);
+            fflush(fbloc);
+            fclose(fbloc);
+
+            // Volcar bloque reasignado a sectores
+            if (!esPagina) {
+                disco.volcarBloqueASectores(nroBloque);
+            }
+
+            return true;
+        }
+
+        // 13) No hay hueco: anexar al final
+        // Calcular offsetAppend = raw_header_len + numRegAnt_old * (registroSize+1)
+        long offsetAppend = (long)raw_header_len + (long)(numRegAnt) * (registroSize + 1);
+
+        // Actualizar cabecera (numRegAnt+1, marcar nuevo bitmap)
+        numRegAnt++;
+        if (numRegAnt <= numMaxAnt) {
+            bitmapAnt[numRegAnt - 1] = '1';
+        }
+
+        // Reconstruir cabecera EXACTA: espacios hasta raw_header_len-1, luego '/'
+        rewind(fbloc);
+        char newHeader3[MAX_BUF];
+        int ofh3 = 0;
+        ofh3 += snprintf(newHeader3 + ofh3, MAX_BUF - ofh3, "%d#%d#", numRegAnt, numMaxAnt);
+        for (int i = 0; i < numMaxAnt && ofh3 < (int)(raw_header_len - 1); i++) {
+            newHeader3[ofh3++] = bitmapAnt[i];
+        }
+        while (ofh3 < (int)(raw_header_len - 1)) {
+            newHeader3[ofh3++] = ' ';
+        }
+        newHeader3[raw_header_len - 1] = '/';
+        newHeader3[raw_header_len] = '\0';
+
+        fwrite(newHeader3, 1, raw_header_len, fbloc);
+        fflush(fbloc);
+
+        // Insertar regBuf + '|' en offsetAppend
+        if (fseek(fbloc, offsetAppend, SEEK_SET) != 0) {
+            fprintf(stderr, "ERROR: fseek falló al offsetAppend\n");
+            fclose(fbloc);
+            return false;
+        }
+        fwrite(regBuf, 1, regLen, fbloc);
+        fputc('|', fbloc);
+        fflush(fbloc);
+        fclose(fbloc);
+
+        // Volcar bloque anexado a sectores
+        if (!esPagina) {
+            disco.volcarBloqueASectores(nroBloque);
+        }
+
+        return true;
+    }
+}
+
 
 // -----------------------------------------------------------------------------
 // Función: adicionarNRegistros
@@ -2029,7 +2592,7 @@ static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, i
         int len = (int)strlen(linea);
         int pos = 0;
         for (int j = 0; j < len && pos + 1 < MAX_BUF; ++j) {
-            if (linea[j] == ',') registroTxt[pos++] = '#';
+            if (linea[j] == ';') registroTxt[pos++] = '#';
             else                  registroTxt[pos++] = linea[j];
         }
         // Asegurar que termine en '\n'
@@ -2071,49 +2634,172 @@ static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, i
 //     bool  – true si todas las inserciones fueron exitosas; false si falla alguna.
 // Autor: Alex Cañapataña
 // -----------------------------------------------------------------------------
-static bool adicionarTodoCSV(const char* csvPath, const char* tabla, int opcion, Disco& disco) {
-    FILE* fcsv = fopen(csvPath, "r");
+static bool adicionarTodoCSV(const char* csvPath, const char* tabla, int opcion, Disco& disco)
+{
+    constexpr size_t BATCH_SIZE = 100;
+    FILE* fcsv = std::fopen(csvPath, "r");
     if (!fcsv) {
-        perror("No se puede abrir CSV para lectura");
-        return false;
-    }
-    char linea[MAX_BUF];
-
-    // 1) Saltar encabezado
-    if (!fgets(linea, MAX_BUF, fcsv)) {
-        fclose(fcsv);
+        std::perror("No se puede abrir CSV para lectura");
         return false;
     }
 
-    // 2) Para cada linea restante, convertir comas→# y llamar a adicionarRegistroUnico
-    char registroTxt[MAX_BUF];
-    while (fgets(linea, MAX_BUF, fcsv)) {
-        int len = (int)strlen(linea);
-        int pos = 0;
-        for (int j = 0; j < len && pos + 1 < MAX_BUF; ++j) {
-            if (linea[j] == ',') registroTxt[pos++] = '#';
-            else                  registroTxt[pos++] = linea[j];
-        }
-        // Asegurar que termine en '\n'
-        if (pos == 0 || registroTxt[pos - 1] != '\n') {
-            if (pos + 1 < MAX_BUF) registroTxt[pos++] = '\n';
-        }
-        registroTxt[pos] = '\0';
+    std::string line;
+    line.reserve(MAX_BUF);
+    std::vector<std::string> batch;
+    batch.reserve(BATCH_SIZE);
 
-        bool ok = false;
+    // Buffer temporal para leer líneas
+    char buffer[MAX_BUF];
+
+    // Saltar encabezado
+    if (!std::fgets(buffer, sizeof(buffer), fcsv)) {
+        std::fclose(fcsv);
+        return false;
+    }
+
+    int totalProcesados = 0;
+    bool ok = true;
+
+    // Función auxiliar para procesar un lote
+    auto procesarLote = [&]() {
+        for (const auto& rec : batch) {
+            bool resultado = (opcion == 1)
+                ? adicionarRegistroUnicoBitmap(tabla, rec.c_str())
+                : adicionarRegistroUnico(rec.c_str(), tabla, disco);
+
+            if (!resultado) {
+                ok = false;
+                break;
+            }
+            ++totalProcesados;
+        }
+        batch.clear();
+        std::cout << "Procesados: " << totalProcesados << " registros\r" << std::flush;
+        };
+
+    // Leer líneas y procesarlas en lotes
+    while (ok && std::fgets(buffer, sizeof(buffer), fcsv)) {
+        // Eliminar saltos de línea de forma segura
+        size_t len = std::strlen(buffer);
+        while (len > 0 && (buffer[len - 1] == '\n' || buffer[len - 1] == '\r')) {
+            buffer[--len] = '\0';
+        }
+
+        // Convertir ; en #
+        for (size_t i = 0; i < len; ++i) {
+            if (buffer[i] == ';') buffer[i] = '#';
+        }
+
+        // Asegurar que termina en \n como en la versión original
+        line = buffer;
+        line += '\n';
+
+        batch.push_back(line);
+
+        // Si llenamos el lote, procesarlo
+        if (batch.size() >= BATCH_SIZE) {
+            procesarLote();
+            if (!ok) break;
+        }
+    }
+
+    // Procesar el último lote parcial
+    if (ok && !batch.empty()) {
+        procesarLote();
+    }
+
+    std::fclose(fcsv);
+    return ok;
+}
+
+
+
+
+static bool adicionarTodoCSVAntiguo(const char* csvPath, const char* tabla, int opcion, Disco& disco)
+{
+    constexpr size_t BATCH_SIZE = 500;  // Aumento el tamaño para mayor eficiencia
+    FILE* fcsv = std::fopen(csvPath, "r");
+    if (!fcsv) {
+        std::perror("No se puede abrir CSV para lectura");
+        return false;
+    }
+
+    // Saltar encabezado
+    char buffer[MAX_BUF];
+    if (!std::fgets(buffer, sizeof(buffer), fcsv)) {
+        std::fclose(fcsv);
+        return false;
+    }
+
+    int totalProcesados = 0;
+    bool ok = true;
+    std::vector<std::string> batch;
+    batch.reserve(BATCH_SIZE);
+
+    // Procesar en lotes grandes para mejor rendimiento
+    while (ok && std::fgets(buffer, sizeof(buffer), fcsv)) {
+        // Eliminar saltos de línea
+        size_t len = std::strlen(buffer);
+        while (len > 0 && (buffer[len - 1] == '\n' || buffer[len - 1] == '\r')) {
+            buffer[--len] = '\0';
+        }
+
+        // Convertir ; en #
+        for (size_t i = 0; i < len; ++i) {
+            if (buffer[i] == ';') buffer[i] = '#';
+        }
+
+        // Añadir al lote
+        batch.emplace_back(std::string(buffer) + "\n");
+
+        // Procesar cuando el lote está lleno
+        if (batch.size() >= BATCH_SIZE) {
+            if (opcion == 1) {
+                // Procesamiento individual para bitmap (no optimizado)
+                for (const auto& rec : batch) {
+                    if (!adicionarRegistroUnicoBitmap(tabla, rec.c_str())) {
+                        ok = false;
+                        break;
+                    }
+                    totalProcesados++;
+                }
+            }
+            else {
+                // Procesamiento por lotes optimizado
+                //int insertados = adicionarRegistroUnicoViejo(batch, tabla, disco);
+                //if (insertados < 0) {
+                //    ok = false;
+                //}
+                //else {
+                //    totalProcesados += insertados;
+                //}
+            }
+
+            batch.clear();
+            std::cout << "Procesados: " << totalProcesados << " registros\r" << std::flush;
+        }
+    }
+
+    // Procesar último lote
+    if (ok && !batch.empty()) {
         if (opcion == 1) {
-            ok = adicionarRegistroUnicoBitmap(tabla, registroTxt);
+            for (const auto& rec : batch) {
+                if (!adicionarRegistroUnicoBitmap(tabla, rec.c_str())) {
+                    ok = false;
+                    break;
+                }
+                totalProcesados++;
+            }
         }
         else {
-            ok = adicionarRegistroUnico(registroTxt, tabla, disco);
+            //int insertados = adicionarRegistroUnicoViejo(batch, tabla, disco);
+            //if (insertados >= 0) {
+            //    totalProcesados += insertados;
+            //}
         }
-        if (!ok) {
-            fclose(fcsv);
-            return false;
-        }
-        // — Cada insercion imprime ubicacion y validaciones
     }
 
-    fclose(fcsv);
-    return true;
+    std::cout << "Procesados: " << totalProcesados << " registros (total)" << std::endl;
+    std::fclose(fcsv);
+    return ok;
 }
