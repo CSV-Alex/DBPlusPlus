@@ -234,9 +234,8 @@ void LRU::Status() {
               <<"|"<<std::setw(10)<<"Pincount"
               <<"|"<<std::setw(15)<<"Pin Status"
               <<"|"<<std::setw(15)<<"Last Access"
-              <<"|"<<std::setw(15)<<"Queue"
               <<"|"<<std::endl;
-    for (int idx=0;frames_.size(); ++idx) {
+    for (int idx=0;idx<frames_.size(); ++idx) {
         frame &f = frames_[idx];
             std::cout << "| " << std::setw(5) << idx;
             if(f.pageId != -1) {
@@ -246,7 +245,6 @@ void LRU::Status() {
                 << " | " << std::setw(10) << f.pinCount
                 << " | " << std::setw(15) << f.pinStatus
                 << " | " << std::setw(15) << f.lastAccess
-                << " | " << std::setw(15) << printQueue(idx, local_queues[idx])
                 << " |\n";
             }
             else {
@@ -256,7 +254,6 @@ void LRU::Status() {
                 << " | " << std::setw(10) << "-"
                 << " | " << std::setw(15) << "-"
                 << " | " << std::setw(10) << "-"
-                << " | " << std::setw(15) << "[Empty]"
                 << " |\n";
             }
         }

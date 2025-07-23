@@ -338,7 +338,7 @@ bool BufferPool::pinPermanent(int pageId) {
     auto it = _pageTable.find(pageId);
     if (it == _pageTable.end()) return false;
     _frames[it->second].page->setPinnedPermanent(true);           // NUEVO: marcamos internamente
-    _replacer->pin(pageId);                              // NUEVO: avisamos a Clock
+    _replacer->pin(pageId,'R', true);                              // NUEVO: avisamos a Clock
     return true;
 }
 
@@ -426,9 +426,9 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
                 f.page.reset(new PageWithRecords(pageId, _disk, op, pinned)); // se pasa 'op'
                 f.page->pin(op, pinned);
                 _pageTable[pageId] = f.id;
-                _replacer->newPage(pageId);
+                _replacer->newPage(pageId,op, pinned);
                 if (pinned) {
-                    _replacer->pin(pageId);
+                    _replacer->pin(pageId,op, pinned);
                 }
 
                 publishEvent("pageLoaded", pageId);
@@ -491,8 +491,7 @@ Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
             }
         }
         pg->pin(op, pinned);
-        _replacer->pin(pageId);
-        _replacer->touch(pageId);
+        _replacer->pin(pageId,op, pinned);
 
         // NUEVO: evento de pin
         publishEvent("pagePinned", pageId);
@@ -592,38 +591,7 @@ void BufferPool::printEventsStatus()
 
 //CLOCK
 void BufferPool::Status() {
-    // Cabecera con la nueva columna "Clock"
-    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | PinStat | Clock |\n";
-
-    // Intentamos convertir la estrategia a Clock
-    Clock* clk = dynamic_cast<Clock*>(_replacer.get());
-
-    for (auto& f : _frames) {
-        if (f.page) {
-            int pid = f.page->getId();
-            int dirty = f.page->isDirty() ? 1 : 0;
-            int pincnt = f.page->getPinCount();
-            char optype = f.page->getOp();
-            int pinstat = f.page->getPinStatus();
-            int clockBit = (clk ? clk->getClockBit(pid) : 0);
-
-            std::cout
-                << "| " << std::setw(5) << f.id
-                << " | " << std::setw(6) << pid
-                << " | " << std::setw(5) << dirty
-                << " | " << std::setw(6) << pincnt
-                << " | " << std::setw(6) << optype
-                << " | " << std::setw(7) << pinstat
-                << " | " << std::setw(5) << clockBit
-                << " |\n";
-        }
-        else {
-            // Slot vacío
-            std::cout
-                << "| " << std::setw(5) << f.id
-                << " |   -    |   0   |   0    |   -    |    0    |     0 |\n";
-        }
-    }
+    _replacer->Status();
 }
 
 

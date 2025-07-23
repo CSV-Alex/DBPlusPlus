@@ -28,7 +28,7 @@ public:
 
     virtual void Status() = 0;
     
-    string printQueue(int idx, queue<char> local_queue) {
+    std::string printQueue(int idx, std::queue<char> local_queue) {
         std::string result;
         while(!local_queue.empty()) {
             result += local_queue.front();

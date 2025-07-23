@@ -748,6 +748,35 @@ int main() {
                 calcularLongitudFija(titanicTXT.c_str());
                 calcularLongitudFija(housingTXT.c_str());
 
+                /*--------------------------Estatico----------------------------------*/
+                bool usarLRU = true;  // o trdsue, segun quieras LRU por defecto
+                /*--------------------------------------------------------------------*/
+
+                // --- o bien pradsdseguntar en consola ---
+                //std::cout << "Usar LRU (1) o Clock (2)? ";
+                //int opc;
+                //std::cin >> opc;
+                //bool usarLRU = (opc == 1);
+
+                /*--------------------------------------------------------------------*/
+
+                // Inicializar BufferPool
+                if (pBufPool) delete pBufPool;
+                int n_frames = 5; // Numdsdasaero dde frames por defecto
+
+
+                // Creamos segun eleccion
+                std::unique_ptr<ReplacementStrategy> replacer;
+                if (usarLRU)
+                    replacer = std::make_unique<LRU>(n_frames);
+                else
+                    replacer = std::make_unique<Clock>(n_frames);
+
+                pBufPool = new BufferPool(n_frames,
+                    (size_t)miDisco.getTamBloque(),
+                    miDisco,
+                    std::move(replacer));
+
                 discoConfigDone = true;
             }
             else {

@@ -233,9 +233,8 @@ void Clock::Status() {
               <<"|"<<std::setw(10)<<"Pincount"
               <<"|"<<std::setw(15)<<"Pin Status"
               <<"|"<<std::setw(10)<<"Clock"
-              <<"|"<<std::setw(15)<<"Queue"
               <<"|"<<std::endl;
-    for (int idx=0;frames_.size(); ++idx) {
+    for (int idx=0;idx<frames_.size(); ++idx) {
         Frame &f = frames_[idx];
             std::cout << "| " << std::setw(5) << idx;
             if(f.pageId != -1) {
@@ -245,7 +244,6 @@ void Clock::Status() {
                 << " | " << std::setw(10) << f.pinCount
                 << " | " << std::setw(15) << f.pin_status
                 << " | " << std::setw(10) << f.REF_bit
-                << " | " << std::setw(15) << printQueue(idx, local_queues[idx])
                 << " |\n";
             }
             else {
@@ -255,7 +253,6 @@ void Clock::Status() {
                 << " | " << std::setw(10) << "-"
                 << " | " << std::setw(15) << "-"
                 << " | " << std::setw(10) << "0"
-                << " | " << std::setw(15) << "[Empty]"
                 << " |\n";
             }
         }
