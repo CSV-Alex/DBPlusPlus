@@ -230,13 +230,14 @@ int LRU::getpos(int pageId) {
 
 
 void LRU::Status() {
-    std::cout << "|"<<std::setw(10)<<"Frame"
+    std::cout << "|"<<std::setw(5)<<"Frame"
               <<"|"<<std::setw(10)<<"PageID"
               <<"|"<<std::setw(10)<<"OpType"
               <<"|"<<std::setw(10)<<"Dirty"
               <<"|"<<std::setw(10)<<"Pincount"
               <<"|"<<std::setw(15)<<"Pin Status"
               <<"|"<<std::setw(15)<<"Last Access"
+              <<"|"<< std::setw(10) << "Queue"
               <<"|"<<std::endl;
     for (int idx=0;idx<frames_.size(); ++idx) {
         frame &f = frames_[idx];
@@ -248,6 +249,7 @@ void LRU::Status() {
                 << " | " << std::setw(10) << f.pinCount
                 << " | " << std::setw(15) << f.pinStatus
                 << " | " << std::setw(15) << f.lastAccess
+                << " | " << std::setw(10) << printQueue(idx,local_queues[idx])
                 << " |\n";
             }
             else {
@@ -256,7 +258,8 @@ void LRU::Status() {
                 << " | " << std::setw(10) << "-"            
                 << " | " << std::setw(10) << "-"
                 << " | " << std::setw(15) << "-"
-                << " | " << std::setw(10) << "-"
+                << " | " << std::setw(15) << "-"
+                << " | " << std::setw(10) << "[EMPTY]"
                 << " |\n";
             }
         }
