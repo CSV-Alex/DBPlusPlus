@@ -143,7 +143,6 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="BPlusTreeStatic.cpp" />
     <ClCompile Include="Catalogo.cpp" />
     <ClCompile Include="Disco.cpp" />
     <ClCompile Include="DiscoPath.cpp" />
@@ -153,7 +152,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClCompile Include="NonSense.cpp" />
     <ClCompile Include="QueryBlocks.cpp" />
     <ClCompile Include="QueryHashBlocks.cpp" />
-    <ClCompile Include="QueryTreeBlocks.cpp" />
+    <ClCompile Include="QueryTreeIndexing.cpp" />
     <ClCompile Include="Titanic.cpp" />
     <ClCompile Include="TitanicData.cpp" />
     <ClCompile Include="Utils.cpp" />
@@ -168,7 +167,6 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <Text Include="IdHighFemale.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="BPlusTreeStatic.h" />
     <ClInclude Include="BufferPool.h" />
     <ClInclude Include="Buffer\BufferManager.h" />
     <ClInclude Include="Buffer\BufferPool.h" />
@@ -180,7 +178,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClInclude Include="LVariable.h" />
     <ClInclude Include="QueryBlocks.h" />
     <ClInclude Include="QueryHashBlocks.h" />
-    <ClInclude Include="QueryTreeBlocks.h" />
+    <ClInclude Include="QueryTreeIndexing.h" />
     <ClInclude Include="Titanic.h" />
     <ClInclude Include="TitanicData.h" />
     <ClInclude Include="Utils.h" />

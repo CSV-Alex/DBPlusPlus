@@ -1,8 +1,12 @@
-﻿#include "BPlusTreeStatic.h"
+
+#include "QueryTreeIndexing.h"
 #include <algorithm>
 #include <queue>
 #include <unordered_set>
+#include <unordered_map>
 #include <fstream>
+#include <filesystem>
+#include "QueryBlocks.h"   // readBlockHeader, loadRelationHeader, getBlocksFromCatalog
 
 BPlusTree::BPlusTree(int m) : m(m) {
     minKeys = (m + 1) / 2; // teoria B+Trees prueba
@@ -27,17 +31,30 @@ bool BPlusTree::search(int key) const {
     return (it != leaf->keys.end() && *it == key);
 }
 
-bool BPlusTree::insert(int key) {
+bool BPlusTree::insertKey(int key, int blk) {
     Node* leaf = findLeaf(key);
     auto it = std::lower_bound(leaf->keys.begin(), leaf->keys.end(), key);
-    if (it != leaf->keys.end() && *it == key) return false;
-    leaf->keys.insert(it, key);
-    if (leaf->keys.size() > size_t(m))
-        splitLeaf(leaf);
-    return true;
+    size_t pos = it - leaf->keys.begin();
+
+    if (it != leaf->keys.end() && *it == key) {
+        // La clave ya existe, agregamos el bloque si no est� repetido
+        auto& lista = leaf->blocks[pos];
+        auto itBlk = std::lower_bound(lista.begin(), lista.end(), blk);
+        if (itBlk == lista.end() || *itBlk != blk)
+            lista.insert(itBlk, blk); // Inserta el bloque en orden
+        return true;
+    }
+    else {
+        // La clave no existe, la agregamos junto con el bloque
+        leaf->keys.insert(it, key);
+        leaf->blocks.insert(leaf->blocks.begin() + pos, std::vector<int>{blk});
+        if (leaf->keys.size() > size_t(m))
+            splitLeaf(leaf);
+        return true;
+    }
 }
 
-bool BPlusTree::remove(int key) {
+bool BPlusTree::removeKey(int key) {
     // 1) Bajamos hasta la hoja, guardando el path y los indices
     std::vector<Node*> path;
     std::vector<int>   idxs;
@@ -60,7 +77,11 @@ bool BPlusTree::remove(int key) {
     bool wasFirst = (it == leaf->keys.begin());
     int  oldFirst = *it;
 
+    size_t pos = it - leaf->keys.begin();
+
+    // Remove key and corresponding block
     leaf->keys.erase(it);
+    leaf->blocks.erase(leaf->blocks.begin() + pos);
 
     // 3) Rebalance si underflow
     if (leaf != root && leaf->keys.size() < size_t(minKeys)) {
@@ -95,58 +116,9 @@ bool BPlusTree::remove(int key) {
     return true;
 }
 
-bool BPlusTree::modify(int oldKey, int newKey) {
-    if (!remove(oldKey)) return false;
-    return insert(newKey);
-}
-
-void BPlusTree::print() const {
-    std::queue<Node*> q;
-    q.push(root);
-    int lvl = 0;
-    while (!q.empty()) {
-        std::cout << "Nivel " << lvl++ << ": ";
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            Node* n = q.front(); q.pop();
-            std::cout << "[";
-            for (int k : n->keys) std::cout << k << " ";
-            std::cout << "] ";
-            if (!n->isLeaf)
-                for (auto c : n->children)
-                    q.push(c);
-        }
-        std::cout << "\n";
-    }
-}
-
-void BPlusTree::exportDot(const std::string& filename) const {
-    std::ofstream out(filename);
-    out << "digraph BPlusTree {\n";
-    out << "  node [shape=record];\n";
-    std::queue<Node*> q;
-    std::unordered_set<Node*> seen;
-    q.push(root);
-    seen.insert(root);
-    while (!q.empty()) {
-        Node* n = q.front(); q.pop();
-        std::string id = "node" + std::to_string(reinterpret_cast<uintptr_t>(n));
-        out << "  " << id << " [label=\"";
-        for (size_t i = 0; i < n->keys.size(); ++i) {
-            out << n->keys[i];
-            if (i + 1 < n->keys.size()) out << "|";
-        }
-        out << "\"];\n";
-        if (!n->isLeaf) {
-            for (Node* c : n->children) {
-                std::string cid = "node" + std::to_string(reinterpret_cast<uintptr_t>(c));
-                out << "  " << id << " -> " << cid << ";\n";
-                if (seen.insert(c).second) q.push(c);
-            }
-        }
-    }
-    out << "}\n";
-    out.close();
+bool BPlusTree::modifyKey(int oldKey, int newKey) {
+    if (!removeKey(oldKey)) return false;
+    return insertKey(newKey, 0);
 }
 
 BPlusTree::Node* BPlusTree::findLeaf(int key) const {
@@ -164,8 +136,13 @@ void BPlusTree::splitLeaf(Node* leaf) {
     bro->parent = leaf->parent;
     size_t total = leaf->keys.size();
     size_t mid = total / 2;
+
     bro->keys.assign(leaf->keys.begin() + mid, leaf->keys.end());
     leaf->keys.resize(mid);
+
+    // Split blocks
+    bro->blocks.assign(leaf->blocks.begin() + mid, leaf->blocks.end());
+    leaf->blocks.resize(mid);
 
     bro->next = leaf->next;
     leaf->next = bro;
@@ -261,6 +238,12 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.begin(),
                     node->keys.end()
                 );
+                // Also merge blocks
+                left->blocks.insert(
+                    left->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
+                );
                 left->next = node->next;
                 parent->children.erase(parent->children.begin() + idx);
                 parent->keys.erase(parent->keys.begin() + (idx - 1));
@@ -275,7 +258,7 @@ void BPlusTree::rebalance(Node* node) {
             recalcKeys(parent);
             // caer al final para colapsar raiz o propagar hacia arriba
         }
-        // A.2) underflow “normal” (pero no vacia)
+        // A.2) underflow �normal� (pero no vacia)
         else if (node->keys.size() < size_t(minKeys)) {
             // prestamo desde LEFT
             if (left && left->keys.size() > size_t(minKeys)) {
@@ -299,6 +282,11 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.begin(),
                     node->keys.end()
                 );
+                left->blocks.insert(
+                    left->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
+                );
                 left->next = node->next;
                 parent->children.erase(parent->children.begin() + idx);
                 parent->keys.erase(parent->keys.begin() + (idx - 1));
@@ -309,6 +297,11 @@ void BPlusTree::rebalance(Node* node) {
                     right->keys.begin(),
                     node->keys.begin(),
                     node->keys.end()
+                );
+                right->blocks.insert(
+                    right->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
                 );
                 parent->children.erase(parent->children.begin() + idx);
                 parent->keys.erase(parent->keys.begin() + idx);
@@ -359,6 +352,11 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.begin(),
                     node->keys.end()
                 );
+                left->blocks.insert(
+                    left->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
+                );
                 left->children.insert(
                     left->children.end(),
                     node->children.begin(),
@@ -377,6 +375,11 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.end(),
                     right->keys.begin(),
                     right->keys.end()
+                );
+                right->blocks.insert(
+                    right->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
                 );
                 node->children.insert(
                     node->children.end(),
@@ -423,43 +426,220 @@ BPlusTree::Node* BPlusTree::getSibling(Node* node, int& idx, bool left) const {
     return i + 1 < (int)p->children.size() ? p->children[i + 1] : nullptr;
 }
 
-int mainAntiguo() {
-    int m;
-    std::cout << "Numero maximo de llaves por nodo: ";
-    std::cin >> m;
-    BPlusTree tree(m);
 
-    // ————— Valores preiniciales —————
-    std::vector<int> initial = { };
-    std::cout << "Insertando valores iniciales: ";
-    for (int v : initial) {
-        std::cout << v << " ";
-        tree.insert(v);
-    }
-    std::cout << "\nArbol tras la insercion inicial:\n";
-    tree.print();
-    // ————————————————————————————
+// ---------------- Constructor & buildIndex ----------------
 
-    std::cout << "Comandos disponibles:\n"
-        " insert <key>\n"
-        " delete <key>\n"
-        " modify <old> <new>\n"
-        " search <key>\n"
-        " print\n"
-        " fin\n";
-    while (true) {
-        std::cout << "> ";
-        std::string cmd;
-        std::cin >> cmd;
-        if (cmd == "fin") break;
-        if (cmd == "insert") { int k; std::cin >> k; tree.insert(k); }
-        else if (cmd == "delete") { int k; std::cin >> k; tree.remove(k); }
-        else if (cmd == "modify") { int o, n; std::cin >> o >> n; if (!tree.modify(o, n)) std::cout << "Llave no existe.\n"; }
-        else if (cmd == "search") { int k; std::cin >> k; std::cout << (tree.search(k) ? "Encontrado\n" : "No encontrado\n"); }
-        else if (cmd == "print") { tree.print(); }
-        else if (cmd == "dot") { std::string file; std::cin >> file; tree.exportDot(file); std::cout << "Guardado en " << file << "\n"; }
-        else std::cout << "Comando invalido\n";
-    }
-    return 0;
+BPlusTreeIndex::BPlusTreeIndex(const std::string& catalogPath,
+    const std::string& blocksDir,
+    const std::string& tableTxt,
+    const std::string& relName,
+    const std::string& indexField,
+    int degree)
+    : BPlusTree(degree),
+    _catalogPath(catalogPath),
+    _blocksDir(blocksDir),
+    _tableTxt(tableTxt),
+    _relName(relName),
+    _indexField(indexField),
+    _fieldIndex(-1)
+{
+    // 1) Creamos la carpeta de bloques si no existe
+    std::filesystem::create_directories(_blocksDir);
+
+    // 2) Construimos el �ndice leyendo todos los bloques
+    buildIndex();
 }
 
+// Lee cada bloque y cada registro, llama insertEntry(key, blk)
+void BPlusTreeIndex::buildIndex() {
+    // 1) Obtener lista de bloques para la relaci�n
+    auto blocks = getBlocksFromCatalog(_catalogPath, _relName);
+
+    // 2) Cargar header para hallar la posici�n de indexField
+    auto hdr = loadRelationHeader(_tableTxt);
+    _fieldIndex = -1;
+    for (int i = 0; i < (int)hdr.size(); ++i) {
+        if (hdr[i] == _indexField) {
+            _fieldIndex = i;
+            break;
+        }
+    }
+    if (_fieldIndex < 0)
+        throw std::runtime_error("No se encontro campo �ndice: " + _indexField);
+
+    // 3) Recorremos cada bloque
+    for (int blk : blocks) {
+        std::string path = getBlockPath(blk);
+        int numRec; std::streampos off;
+        if (!readBlockHeader(path, numRec, off)) continue;
+
+        // Leemos datos del bloque
+        std::ifstream in(path, std::ios::binary);
+        in.seekg(off);
+        std::string data((std::istreambuf_iterator<char>(in)), {});
+        in.close();
+
+        // Separamos registros por '|'
+        std::stringstream ss(data);
+        std::string rec;
+        while (std::getline(ss, rec, '|')) {
+            if (rec.empty()) continue;
+            // Limpieza y split por '#'
+            std::string clean;
+            for (char c : rec) if (c != '@') clean.push_back(c);
+            auto fields = split(clean, '#');
+            if (_fieldIndex < (int)fields.size()) {
+                // Convertir a entero y luego insertar
+                try {
+                    int keyValue = std::stoi(fields[_fieldIndex]);
+                    insertKey(keyValue, blk);
+                }
+                catch (const std::exception& e) {
+                    // Si no se puede convertir a entero, seguimos
+                    std::cerr << "Error al convertir clave: " << e.what() << std::endl;
+                }
+            }
+        }
+    }
+}
+
+// Construye ruta del bloque
+std::string BPlusTreeIndex::getBlockPath(int blk) const {
+    return _blocksDir + "Bloque" + std::to_string(blk) + ".txt";
+}
+
+std::vector<std::string> BPlusTreeIndex::split(const std::string& s, char delim) {
+    std::vector<std::string> elems;
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) elems.push_back(item);
+    return elems;
+}
+
+void BPlusTree::dumpToTxt(const std::string& filename) const {
+
+    std::string dir = "DISCO\\";
+    std::filesystem::create_directories(dir);
+    std::string fullpath = dir + "\\" + filename;
+    std::ofstream out(fullpath);
+
+    out << "ORDER=" << m << "\n";
+    out << "ROOT=0\n\n";
+
+    // Asignar IDs a cada nodo (BFS)
+    std::unordered_map<const Node*, int> idMap;
+    std::vector<const Node*> nodes;
+    std::queue<const Node*> q;
+    q.push(root);
+    idMap[root] = 0;
+    nodes.push_back(root);
+    int nextId = 1;
+    while (!q.empty()) {
+        const Node* n = q.front(); q.pop();
+        if (!n->isLeaf) {
+            for (const Node* c : n->children) {
+                if (!idMap.count(c)) {
+                    idMap[c] = nextId++;
+                    nodes.push_back(c);
+                    q.push(c);
+                }
+            }
+        }
+    }
+
+    // volcar cada p�gina en orden de PAGE_ID
+    for (int pid = 0; pid < (int)nodes.size(); ++pid) {
+        const Node* n = nodes[pid];
+        out << "PAGE_ID=" << pid << "\n";
+        out << "IS_LEAF=" << (n->isLeaf ? 1 : 0) << "\n";
+        out << "NUM_KEYS=" << n->keys.size() << "\n";
+
+        // KEYS
+        out << "KEYS=";
+        for (size_t i = 0; i < n->keys.size(); ++i) {
+            out << n->keys[i] << (i + 1 < n->keys.size() ? "," : "");
+        }
+        out << "\n";
+
+        // PTRS
+        out << "PTRS=";
+        if (n->isLeaf) {
+            // imprime bloques de datos asociados a cada clave
+            for (size_t i = 0; i < n->blocks.size(); ++i) {
+                out << '[';
+                for (size_t j = 0; j < n->blocks[i].size(); ++j) {
+                    out << n->blocks[i][j] << (j + 1 < n->blocks[i].size() ? "," : "");
+                }
+                out << ']';
+                if (i + 1 < n->blocks.size()) out << " ";
+            }
+        }
+        else {
+            // imprime IDs de p�ginas hijas
+            for (size_t i = 0; i < n->children.size(); ++i) {
+                out << idMap.at(n->children[i])
+                    << (i + 1 < n->children.size() ? "," : "");
+            }
+        }
+        out << "\n";
+
+        // NEXT_LEAF
+        out << "NEXT_LEAF=";
+        if (n->isLeaf && n->next)
+            out << idMap.at(n->next);
+        else
+            out << -1;
+        out << "\n\n";
+    }
+
+    out.close();
+}
+
+void BPlusTree::printTree() const {
+    std::queue<Node*> q;
+    q.push(root);
+    int lvl = 0;
+    while (!q.empty()) {
+        std::cout << "Nivel " << lvl++ << ": ";
+        int sz = q.size();
+        for (int i = 0; i < sz; ++i) {
+            Node* n = q.front(); q.pop();
+            std::cout << "[";
+            for (int k : n->keys) std::cout << k << " ";
+            std::cout << "] ";
+            if (!n->isLeaf)
+                for (auto c : n->children)
+                    q.push(c);
+        }
+        std::cout << "\n";
+    }
+}
+
+void BPlusTree::exportDot(const std::string& filename) const {
+    std::ofstream out(filename);
+    out << "digraph BPlusTree {\n";
+    out << "  node [shape=record];\n";
+    std::queue<Node*> q;
+    std::unordered_set<Node*> seen;
+    q.push(root);
+    seen.insert(root);
+    while (!q.empty()) {
+        Node* n = q.front(); q.pop();
+        std::string id = "node" + std::to_string(reinterpret_cast<uintptr_t>(n));
+        out << "  " << id << " [label=\"";
+        for (size_t i = 0; i < n->keys.size(); ++i) {
+            out << n->keys[i];
+            if (i + 1 < n->keys.size()) out << "|";
+        }
+        out << "\"];\n";
+        if (!n->isLeaf) {
+            for (Node* c : n->children) {
+                std::string cid = "node" + std::to_string(reinterpret_cast<uintptr_t>(c));
+                out << "  " << id << " -> " << cid << ";\n";
+                if (seen.insert(c).second) q.push(c);
+            }
+        }
+    }
+    out << "}\n";
+    out.close();
+}

@@ -66,10 +66,7 @@
     <ClCompile Include="QueryHashBlocks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="QueryTreeBlocks.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="BPlusTreeStatic.cpp">
+    <ClCompile Include="QueryTreeIndexing.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -135,10 +132,7 @@
     <ClInclude Include="QueryHashBlocks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="QueryTreeBlocks.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="BPlusTreeStatic.h">
+    <ClInclude Include="QueryTreeIndexing.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

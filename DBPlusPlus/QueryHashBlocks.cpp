@@ -4,6 +4,7 @@
 #include <iostream>
 #include <algorithm>
 #include <unordered_set>
+#include <filesystem>
 
 // Constructor
 HashIndex::HashIndex(const std::string& catalogPath,

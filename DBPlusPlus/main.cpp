@@ -19,7 +19,7 @@
 #include "QueryHashBlocks.h"
 #include <sstream>
 #include <unordered_set>
-#include "QueryTreeBlocks.h"
+#include "QueryTreeIndexing.h"
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -1034,9 +1034,9 @@ int main() {
                         pBufPool->unpinPage(pid);
                         break;
                     }
-                    case 3: pBufPool->Status(); 
-                            pBufPool->printEventsStatus();
-                            break;
+                    case 3: pBufPool->Status();
+                        pBufPool->printEventsStatus();
+                        break;
                     case 4:
 
                         flushBufferToDisk(miDisco);
@@ -1253,14 +1253,18 @@ int main() {
                                 );
                                 std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
 
-                                // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL ---
+                                // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL por consola ---
                                 std::cout << "[Estructura del B+ Tree]\n";
-                                idx.printTree();   // <-- aquí
+                                idx.printTree();
 
-                                // 2) Ejecutamos la consulta equality
-                                auto hits = idx.queryWithBlocks(val);
+                                // --- VUELCO LA ESTRUCTURA AL TXT ---
+                                {
+                                    std::string outName = "miTabla_" + field + "_bptree.txt";
+                                    idx.dumpToTxt(outName);
+                                    std::cout << "Estructura volcada en: " << outName << "\n";
+                                }
 
-                                // 3) … resto de impresión de registros y bloques …
+                                // Ya hemos construido y guardado el árbol, no hace falta más.
                             }
                             catch (const std::exception& e) {
                                 std::cerr << "ERROR B+ Tree: " << e.what() << "\n";
@@ -1275,10 +1279,10 @@ int main() {
                     case 11: {
                         int method;
                         std::cout << "\n--- CONSULTA SQL (con BufferPool) ---\n"
-                                  << "1) Secuencial\n"
-                                  << "2) Hash\n"
-                                  << "3) B-Tree (simulado aun)\n"
-                                  << ">> Elige metodo: ";
+                            << "1) Secuencial\n"
+                            << "2) Hash\n"
+                            << "3) B-Tree (simulado aun)\n"
+                            << ">> Elige metodo: ";
                         std::cin >> method;
                         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
@@ -1294,8 +1298,8 @@ int main() {
                         }
 
                         std::string catalogFile = discoPath + "catalogo.txt";
-                        std::string blocksDir   = discoPath + "BLOQUES\\";
-                        std::string tableFile   = basePath + from + ".txt";
+                        std::string blocksDir = discoPath + "BLOQUES\\";
+                        std::string tableFile = basePath + from + ".txt";
 
                         // Aquí acumularemos los IDs de bloque que contienen la condición
                         std::vector<int> bloquesEncontrados;
@@ -1304,7 +1308,8 @@ int main() {
                             // 1) Secuencial
                             if (where.empty()) {
                                 bloquesEncontrados = getBlocksFromCatalog(catalogFile, from);
-                            } else {
+                            }
+                            else {
                                 bloquesEncontrados = findBlocksWithCondition(
                                     catalogFile, blocksDir, tableFile,
                                     from, field, op, val
@@ -1331,7 +1336,7 @@ int main() {
                                 const auto& registro = hit.first;
                                 for (size_t i = 0; i < registro.size(); ++i) {
                                     std::cout << registro[i]
-                                              << (i + 1 < registro.size() ? " | " : "\n");
+                                        << (i + 1 < registro.size() ? " | " : "\n");
                                 }
                                 // Extraigo ID de bloque de la ruta "…/BloqueN.txt"
                                 const std::string& path = hit.second;
@@ -1345,7 +1350,7 @@ int main() {
                         else if (method == 3) {
                             // 3) B-Tree (simulado)
                             std::cout << "[Simulación B-Tree] Aun no implementado.\n"
-                                      << "índice B+Tree sobre campo: " << field << "\n";
+                                << "índice B+Tree sobre campo: " << field << "\n";
                         }
                         else {
                             std::cout << "Opción de método inválida.\n";
