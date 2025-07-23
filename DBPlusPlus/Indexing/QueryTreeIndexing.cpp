@@ -1,5 +1,5 @@
 
-#include "BPlusTreeStatic.h"
+#include "../BPlusTreeStatic.h"
 #include "QueryBlocks.h"   // readBlockHeader, loadRelationHeader, getBlocksFromCatalog
 #include <algorithm>
 #include <queue>
@@ -29,18 +29,30 @@ bool BPlusTree::search(int key) const {
     return (it != leaf->keys.end() && *it == key);
 }
 
-bool BPlusTree::insert(int key, int blk) {
+bool BPlusTree::insertKey(int key, int blk) {
     Node* leaf = findLeaf(key);
     auto it = std::lower_bound(leaf->keys.begin(), leaf->keys.end(), key);
-    if (it != leaf->keys.end() && *it == key) return false;
-    leaf->keys.insert(it, key);
-    leaf->blocks.insert(leaf->blocks.begin() + pos, blk);
-    if (leaf->keys.size() > size_t(m))
-        splitLeaf(leaf);
-    return true;
+    size_t pos = it - leaf->keys.begin();
+
+    if (it != leaf->keys.end() && *it == key) {
+        // La clave ya existe, agregamos el bloque si no está repetido
+        auto& lista = leaf->blocks[pos];
+        auto itBlk = std::lower_bound(lista.begin(), lista.end(), blk);
+        if (itBlk == lista.end() || *itBlk != blk)
+            lista.insert(itBlk, blk); // Inserta el bloque en orden
+        return true;
+    }
+    else {
+        // La clave no existe, la agregamos junto con el bloque
+        leaf->keys.insert(it, key);
+        leaf->blocks.insert(leaf->blocks.begin() + pos, std::vector<int>{blk});
+        if (leaf->keys.size() > size_t(m))
+            splitLeaf(leaf);
+        return true;
+    }
 }
 
-bool BPlusTree::remove(int key) {
+bool BPlusTree::removeKey(int key) {
     // 1) Bajamos hasta la hoja, guardando el path y los indices
     std::vector<Node*> path;
     std::vector<int>   idxs;
@@ -63,7 +75,11 @@ bool BPlusTree::remove(int key) {
     bool wasFirst = (it == leaf->keys.begin());
     int  oldFirst = *it;
 
+    size_t pos = it - leaf->keys.begin();
+
+    // Remove key and corresponding block
     leaf->keys.erase(it);
+    leaf->blocks.erase(leaf->blocks.begin() + pos);
 
     // 3) Rebalance si underflow
     if (leaf != root && leaf->keys.size() < size_t(minKeys)) {
@@ -98,9 +114,9 @@ bool BPlusTree::remove(int key) {
     return true;
 }
 
-bool BPlusTree::modify(int oldKey, int newKey) {
-    if (!remove(oldKey)) return false;
-    return insert(newKey);
+bool BPlusTree::modifyKey(int oldKey, int newKey) {
+    if (!removeKey(oldKey)) return false;
+    return insertKey(newKey);
 }
 
 void BPlusTree::print() const {
@@ -167,8 +183,13 @@ void BPlusTree::splitLeaf(Node* leaf) {
     bro->parent = leaf->parent;
     size_t total = leaf->keys.size();
     size_t mid = total / 2;
+
     bro->keys.assign(leaf->keys.begin() + mid, leaf->keys.end());
     leaf->keys.resize(mid);
+
+    // Split blocks
+    bro->blocks.assign(leaf->blocks.begin() + mid, leaf->blocks.end());
+    leaf->blocks.resize(mid);
 
     bro->next = leaf->next;
     leaf->next = bro;
@@ -264,6 +285,12 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.begin(),
                     node->keys.end()
                 );
+                // Also merge blocks
+                left->blocks.insert(
+                    left->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
+                );
                 left->next = node->next;
                 parent->children.erase(parent->children.begin() + idx);
                 parent->keys.erase(parent->keys.begin() + (idx - 1));
@@ -302,6 +329,11 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.begin(),
                     node->keys.end()
                 );
+                left->blocks.insert(
+                    left->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
+                );
                 left->next = node->next;
                 parent->children.erase(parent->children.begin() + idx);
                 parent->keys.erase(parent->keys.begin() + (idx - 1));
@@ -312,6 +344,11 @@ void BPlusTree::rebalance(Node* node) {
                     right->keys.begin(),
                     node->keys.begin(),
                     node->keys.end()
+                );
+                right->blocks.insert(
+                    right->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
                 );
                 parent->children.erase(parent->children.begin() + idx);
                 parent->keys.erase(parent->keys.begin() + idx);
@@ -362,6 +399,11 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.begin(),
                     node->keys.end()
                 );
+                left->blocks.insert(
+                    left->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
+                );
                 left->children.insert(
                     left->children.end(),
                     node->children.begin(),
@@ -380,6 +422,11 @@ void BPlusTree::rebalance(Node* node) {
                     node->keys.end(),
                     right->keys.begin(),
                     right->keys.end()
+                );
+                right->blocks.insert(
+                    right->blocks.end(),
+                    node->blocks.begin(),
+                    node->blocks.end()
                 );
                 node->children.insert(
                     node->children.end(),
@@ -468,7 +515,7 @@ void BPlusTreeIndex::buildIndex() {
         }
     }
     if (_fieldIndex < 0)
-        throw std::runtime_error("No se encontró campo índice: " + _indexField);
+        throw std::runtime_error("No se encontro campo índice: " + _indexField);
 
     // 3) Recorremos cada bloque
     for (int blk : blocks) {
@@ -492,7 +539,7 @@ void BPlusTreeIndex::buildIndex() {
             for (char c : rec) if (c != '@') clean.push_back(c);
             auto fields = split(clean, '#');
             if (_fieldIndex < (int)fields.size()) {
-                insert(fields[_fieldIndex], blk);
+                insertKey(fields[_fieldIndex], blk);
             }
         }
     }

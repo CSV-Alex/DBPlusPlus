@@ -11,7 +11,7 @@ public:
     struct Node {
         bool isLeaf;
         std::vector<Key> keys;
-        std::vector<int> blocks;
+        std::vector<std::vector<int>> blocksPorKey;
         std::vector<Node*> children;
         Node* parent;
         Node* next;
@@ -23,9 +23,9 @@ public:
     explicit BPlusTree(size_t degree);
     ~BPlusTree();
 
-    bool insert(const Key& key);
-    bool remove(const Key& key);
-    bool modify(const Key& oldKey, const Key& newKey);
+    bool insertKey(const Key& key);
+    bool removeKey(const Key& key);
+    bool modifyKey(const Key& oldKey, const Key& newKey);
     bool search(const Key& key) const;
     void print() const;
     void exportDot(const std::string& filename) const;
