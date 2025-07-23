@@ -167,12 +167,9 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <Text Include="IdHighFemale.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="BufferPool.h" />
     <ClInclude Include="Buffer\BufferManager.h" />
     <ClInclude Include="Buffer\BufferPool.h" />
     <ClInclude Include="Buffer\LRU.h" />
-    <ClInclude Include="Buffer\u_LRU.h" />
-    <ClInclude Include="Buffer\u_ReplacementStrategy.h" />
     <ClInclude Include="Disco.h" />
     <ClInclude Include="DiscoPaths.h" />
     <ClInclude Include="LVariable.h" />

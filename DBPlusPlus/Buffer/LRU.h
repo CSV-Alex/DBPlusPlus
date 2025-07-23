@@ -64,6 +64,9 @@ void LRU::newPage(int pageId,char op, bool pinned) {
     ++lru_tracker;
     f.lastAccess = lru_tracker;
 
+    local_queues[idx].push(op); // almacenar la operación en la cola local
+    std::cout << idx << local_queues[idx].front() << "\n";
+
     // 4) lru insert
     lru.push_back(pageId);
     pos[pageId] = std::prev(lru.end());

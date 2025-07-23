@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/DBPlusPlus/DISCO
+/DBPlusPlus/data/usr/db
