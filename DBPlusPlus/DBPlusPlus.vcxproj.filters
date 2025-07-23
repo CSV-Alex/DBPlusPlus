@@ -69,6 +69,9 @@
     <ClCompile Include="QueryTreeBlocks.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="BPlusTreeStatic.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="data\usr\db\titanic.tsv">
@@ -133,6 +136,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="QueryTreeBlocks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BPlusTreeStatic.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
