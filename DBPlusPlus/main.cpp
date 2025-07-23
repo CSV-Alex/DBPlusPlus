@@ -1186,7 +1186,7 @@ int main() {
                             for (int b : bloques)
                                 std::cout << "  Bloque" << b << ".txt\n";
                         }
-                        else if (method == 2) {
+                        else if (method == 2) {//DEBUG-LOGIC
                             try {
                                 // 1) Construcción del índice extendible
                                 HashIndex idx(

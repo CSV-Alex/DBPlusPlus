@@ -9,7 +9,7 @@
 #include "replacementStrategy.h"
 
 struct frame{
-    int pageId; // ID of the page
+    int pageId=-1; // ID of the page
     int pinCount = 0; // number of pins on the page
     bool pinStatus = false; // true if the page is pinned, false otherwise
     int lastAccess = 0; // last access time for LRU tracking
@@ -26,6 +26,8 @@ public:
     int getpos(int pageId);
     int victim() override;
     void Status() override;
+
+    void printEventsStatus() override;
     
 private:
     int _capacity;
@@ -58,10 +60,11 @@ void LRU::newPage(int pageId,char op, bool pinned) {
 
     frame &f = frames_[idx];
     f.pageId    = pageId;
-    f.pinStatus = 1;
-    f.pinCount  = (pinned ? 1 : 0);
+    f.pinStatus = pinned;
+    f.pinCount = 1;
 
     ++lru_tracker;
+    local_queues[idx].push(op);
     f.lastAccess = lru_tracker;
 
     // 4) lru insert
@@ -104,6 +107,7 @@ void LRU::pin(int pageId,char op, bool pinned) {
     f.lastAccess=lru_tracker;
 
     local_queues[idx].push(op); // store operation in local queue
+    std::cout << ReplacementStrategy::printQueue(0, local_queues.front());
     
     // remove from LRU list if it’s there
     auto it = pos.find(pageId);
@@ -180,39 +184,6 @@ int LRU::victim() {
         }
         
     }
-
-    /*
-    while (!local_queue.empty()) {
-        int pid = local_queue.front();
-        local_queue.pop();
-        auto itCount = pinCount.find(pid);
-        if (itCount == pinCount.end()) continue;
-        int pc = itCount->second;
-        if (pc > 1) {
-            itCount->second = pc - 1;
-            auto it = pos.find(pid);
-            if (it != pos.end()) {
-                lru.erase(it->second);
-                pos.erase(it);
-            }
-            lru.push_back(pid);
-            pos[pid] = std::prev(lru.end());
-        } else {
-            bool ps = pinStatus[pid];
-            if (pc <= 1 && ps == false) {
-                auto it = pos.find(pid);
-                if (it != pos.end()) {
-                    lru.erase(it->second);
-                    pos.erase(it);
-                }
-                pinCount.erase(pid);
-                pinStatus.erase(pid);
-                return pid;
-            }
-        }
-    }
-    return -1;
-    */
     std::cerr << "[ERROR] no hay frame elegible\n";
     return -1;
 }
@@ -237,24 +208,52 @@ void LRU::Status() {
               <<"|"<<std::endl;
     for (int idx=0;idx<frames_.size(); ++idx) {
         frame &f = frames_[idx];
-            std::cout << "| " << std::setw(5) << idx;
-            if(f.pageId != -1) {
-                std::cout<< " | " << std::setw(10) << f.pageId
-                << " | " << std::setw(10) << local_queues[idx].front() // Assuming the front of the local queue is the operation type
-                << " | " << std::setw(10) << (local_queues[idx].front()=='W' ? "1" : "0")               
-                << " | " << std::setw(10) << f.pinCount
-                << " | " << std::setw(15) << f.pinStatus
-                << " | " << std::setw(15) << f.lastAccess
-                << " |\n";
-            }
-            else {
-                std::cout<< " | " << std::setw(10) << "-1"
-                << " | " << std::setw(10) << "-"
-                << " | " << std::setw(10) << "-"            
-                << " | " << std::setw(10) << "-"
-                << " | " << std::setw(15) << "-"
-                << " | " << std::setw(10) << "-"
-                << " |\n";
-            }
+        std::cout << "| " << std::setw(5) << idx;
+        if(f.pageId != -1) {
+            std::cout<< " | " << std::setw(10) << f.pageId
+            << " | " << std::setw(10) << local_queues[idx].front() // Assuming the front of the local queue is the operation type
+            << " | " << std::setw(10) << (local_queues[idx].front()=='W' ? "1" : "0")               
+            << " | " << std::setw(10) << f.pinCount
+            << " | " << std::setw(15) << f.pinStatus
+            << " | " << std::setw(15) << f.lastAccess
+            << " |\n";
         }
+        else {
+            std::cout<< " | " << std::setw(10) << "-1"
+            << " | " << std::setw(10) << "-"
+            << " | " << std::setw(10) << "-"            
+            << " | " << std::setw(10) << "-"
+            << " | " << std::setw(15) << "-"
+            << " | " << std::setw(10) << "-"
+            << " |\n";
+        }
+    }
+}
+
+void LRU::printEventsStatus(){
+    std::ofstream f("events.log", std::ios::trunc);
+    if (!f.is_open())
+        return;
+
+    // Cabecera para que el watcher (o tú) reconozca bloque de estado
+    f << "#STATUS\n";
+
+    for (int idx = 0; idx < static_cast<int>(frames_.size()); ++idx) {
+        frame& fr = frames_[idx];
+        if (fr.pageId != -1) {
+            f
+                << idx << ' '                             // Frame
+                << fr.pageId << ' '                   // PageID
+                << (local_queues[idx].front() == 'W' ? 1 : 0) << ' '                 // Dirty
+                << fr.pinCount << ' '             // PinCnt
+                << local_queues[idx].front() << ' '                   // OpType
+                << fr.lastAccess << ' '           // Clock
+                << fr.pinStatus                  // PinStat
+                << "\n";
+        }
+        else {
+            // frame vacío: PageID=-1
+            f << idx << " -1 0 0 - 0 0\n";
+        }
+    }
 }

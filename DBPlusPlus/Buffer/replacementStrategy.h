@@ -27,6 +27,8 @@ public:
     virtual void touch(int pageId) = 0;
 
     virtual void Status() = 0;
+
+    virtual void printEventsStatus() = 0;
     
     std::string printQueue(int idx, std::queue<char> local_queue) {
         std::string result;

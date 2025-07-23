@@ -19,6 +19,7 @@ public:
     void setPermanentPin(int pageId, bool value);
 
     void Status() override;
+    void printEventsStatus() override;
 
     int getClockBit(int pageId) const {
         auto it = idx_.find(pageId);
@@ -256,4 +257,32 @@ void Clock::Status() {
                 << " |\n";
             }
         }
+}
+
+void LRU::printEventsStatus(){
+    std::ofstream f("events.log", std::ios::trunc);
+    if (!f.is_open())
+        return;
+
+    // Cabecera para que el watcher (o tú) reconozca bloque de estado
+    f << "#STATUS\n";
+
+    for (int idx = 0; idx < static_cast<int>(frames_.size()); ++idx) {
+        frame& fr = frames_[idx];
+        if (fr.pageId != -1) {
+            f
+                << idx << ' '                             // Frame
+                << fr.pageId << ' '                   // PageID
+                << (local_queues[idx].front() == 'W' ? 1 : 0) << ' '                 // Dirty
+                << fr.pinCount << ' '             // PinCnt
+                << local_queues[idx].front() << ' '                   // OpType
+                << fr.lastAccess << ' '           // Clock
+                << fr.pinStatus                  // PinStat
+                << "\n";
+        }
+        else {
+            // frame vacío: PageID=-1
+            f << idx << " -1 0 0 - 0 0\n";
+        }
+    }
 }
