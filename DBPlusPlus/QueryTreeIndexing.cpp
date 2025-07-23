@@ -1,10 +1,12 @@
 
-#include "../BPlusTreeStatic.h"
-#include "QueryBlocks.h"   // readBlockHeader, loadRelationHeader, getBlocksFromCatalog
+#include "QueryTreeIndexing.h"
 #include <algorithm>
 #include <queue>
 #include <unordered_set>
+#include <unordered_map>
 #include <fstream>
+#include <filesystem>
+#include "QueryBlocks.h"   // readBlockHeader, loadRelationHeader, getBlocksFromCatalog
 
 BPlusTree::BPlusTree(int m) : m(m) {
     minKeys = (m + 1) / 2; // teoria B+Trees prueba
@@ -116,56 +118,7 @@ bool BPlusTree::removeKey(int key) {
 
 bool BPlusTree::modifyKey(int oldKey, int newKey) {
     if (!removeKey(oldKey)) return false;
-    return insertKey(newKey);
-}
-
-void BPlusTree::print() const {
-    std::queue<Node*> q;
-    q.push(root);
-    int lvl = 0;
-    while (!q.empty()) {
-        std::cout << "Nivel " << lvl++ << ": ";
-        int sz = q.size();
-        for (int i = 0; i < sz; ++i) {
-            Node* n = q.front(); q.pop();
-            std::cout << "[";
-            for (int k : n->keys) std::cout << k << " ";
-            std::cout << "] ";
-            if (!n->isLeaf)
-                for (auto c : n->children)
-                    q.push(c);
-        }
-        std::cout << "\n";
-    }
-}
-
-void BPlusTree::exportDot(const std::string& filename) const {
-    std::ofstream out(filename);
-    out << "digraph BPlusTree {\n";
-    out << "  node [shape=record];\n";
-    std::queue<Node*> q;
-    std::unordered_set<Node*> seen;
-    q.push(root);
-    seen.insert(root);
-    while (!q.empty()) {
-        Node* n = q.front(); q.pop();
-        std::string id = "node" + std::to_string(reinterpret_cast<uintptr_t>(n));
-        out << "  " << id << " [label=\"";
-        for (size_t i = 0; i < n->keys.size(); ++i) {
-            out << n->keys[i];
-            if (i + 1 < n->keys.size()) out << "|";
-        }
-        out << "\"];\n";
-        if (!n->isLeaf) {
-            for (Node* c : n->children) {
-                std::string cid = "node" + std::to_string(reinterpret_cast<uintptr_t>(c));
-                out << "  " << id << " -> " << cid << ";\n";
-                if (seen.insert(c).second) q.push(c);
-            }
-        }
-    }
-    out << "}\n";
-    out.close();
+    return insertKey(newKey, 0);
 }
 
 BPlusTree::Node* BPlusTree::findLeaf(int key) const {
@@ -481,22 +434,19 @@ BPlusTreeIndex::BPlusTreeIndex(const std::string& catalogPath,
     const std::string& tableTxt,
     const std::string& relName,
     const std::string& indexField,
-    size_t degree)
-    : _degree(degree),
+    int degree)
+    : BPlusTree(degree),
     _catalogPath(catalogPath),
     _blocksDir(blocksDir),
     _tableTxt(tableTxt),
     _relName(relName),
     _indexField(indexField),
-    _root(nullptr)
+    _fieldIndex(-1)
 {
     // 1) Creamos la carpeta de bloques si no existe
     std::filesystem::create_directories(_blocksDir);
 
-    // 2) Inicializamos un solo nodo hoja vacío como root
-    _root = new Node(true);
-
-    // 3) Construimos el índice leyendo todos los bloques
+    // 2) Construimos el índice leyendo todos los bloques
     buildIndex();
 }
 
@@ -539,8 +489,157 @@ void BPlusTreeIndex::buildIndex() {
             for (char c : rec) if (c != '@') clean.push_back(c);
             auto fields = split(clean, '#');
             if (_fieldIndex < (int)fields.size()) {
-                insertKey(fields[_fieldIndex], blk);
+                // Convertir a entero y luego insertar
+                try {
+                    int keyValue = std::stoi(fields[_fieldIndex]);
+                    insertKey(keyValue, blk);
+                }
+                catch (const std::exception& e) {
+                    // Si no se puede convertir a entero, seguimos
+                    std::cerr << "Error al convertir clave: " << e.what() << std::endl;
+                }
             }
         }
     }
+}
+
+// Construye ruta del bloque
+std::string BPlusTreeIndex::getBlockPath(int blk) const {
+    return _blocksDir + "Bloque" + std::to_string(blk) + ".txt";
+}
+
+std::vector<std::string> BPlusTreeIndex::split(const std::string& s, char delim) {
+    std::vector<std::string> elems;
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) elems.push_back(item);
+    return elems;
+}
+
+void BPlusTree::dumpToTxt(const std::string& filename) const {
+
+    std::string dir = "DISCO\\";
+    std::filesystem::create_directories(dir);
+    std::string fullpath = dir + "\\" + filename;
+    std::ofstream out(fullpath);
+
+    out << "ORDER=" << m << "\n";
+    out << "ROOT=0\n\n";
+
+    // Asignar IDs a cada nodo (BFS)
+    std::unordered_map<const Node*, int> idMap;
+    std::vector<const Node*> nodes;
+    std::queue<const Node*> q;
+    q.push(root);
+    idMap[root] = 0;
+    nodes.push_back(root);
+    int nextId = 1;
+    while (!q.empty()) {
+        const Node* n = q.front(); q.pop();
+        if (!n->isLeaf) {
+            for (const Node* c : n->children) {
+                if (!idMap.count(c)) {
+                    idMap[c] = nextId++;
+                    nodes.push_back(c);
+                    q.push(c);
+                }
+            }
+        }
+    }
+
+    // volcar cada página en orden de PAGE_ID
+    for (int pid = 0; pid < (int)nodes.size(); ++pid) {
+        const Node* n = nodes[pid];
+        out << "PAGE_ID=" << pid << "\n";
+        out << "IS_LEAF=" << (n->isLeaf ? 1 : 0) << "\n";
+        out << "NUM_KEYS=" << n->keys.size() << "\n";
+
+        // KEYS
+        out << "KEYS=";
+        for (size_t i = 0; i < n->keys.size(); ++i) {
+            out << n->keys[i] << (i + 1 < n->keys.size() ? "," : "");
+        }
+        out << "\n";
+
+        // PTRS
+        out << "PTRS=";
+        if (n->isLeaf) {
+            // imprime bloques de datos asociados a cada clave
+            for (size_t i = 0; i < n->blocks.size(); ++i) {
+                out << '[';
+                for (size_t j = 0; j < n->blocks[i].size(); ++j) {
+                    out << n->blocks[i][j] << (j + 1 < n->blocks[i].size() ? "," : "");
+                }
+                out << ']';
+                if (i + 1 < n->blocks.size()) out << " ";
+            }
+        }
+        else {
+            // imprime IDs de páginas hijas
+            for (size_t i = 0; i < n->children.size(); ++i) {
+                out << idMap.at(n->children[i])
+                    << (i + 1 < n->children.size() ? "," : "");
+            }
+        }
+        out << "\n";
+
+        // NEXT_LEAF
+        out << "NEXT_LEAF=";
+        if (n->isLeaf && n->next)
+            out << idMap.at(n->next);
+        else
+            out << -1;
+        out << "\n\n";
+    }
+
+    out.close();
+}
+
+void BPlusTree::printTree() const {
+    std::queue<Node*> q;
+    q.push(root);
+    int lvl = 0;
+    while (!q.empty()) {
+        std::cout << "Nivel " << lvl++ << ": ";
+        int sz = q.size();
+        for (int i = 0; i < sz; ++i) {
+            Node* n = q.front(); q.pop();
+            std::cout << "[";
+            for (int k : n->keys) std::cout << k << " ";
+            std::cout << "] ";
+            if (!n->isLeaf)
+                for (auto c : n->children)
+                    q.push(c);
+        }
+        std::cout << "\n";
+    }
+}
+
+void BPlusTree::exportDot(const std::string& filename) const {
+    std::ofstream out(filename);
+    out << "digraph BPlusTree {\n";
+    out << "  node [shape=record];\n";
+    std::queue<Node*> q;
+    std::unordered_set<Node*> seen;
+    q.push(root);
+    seen.insert(root);
+    while (!q.empty()) {
+        Node* n = q.front(); q.pop();
+        std::string id = "node" + std::to_string(reinterpret_cast<uintptr_t>(n));
+        out << "  " << id << " [label=\"";
+        for (size_t i = 0; i < n->keys.size(); ++i) {
+            out << n->keys[i];
+            if (i + 1 < n->keys.size()) out << "|";
+        }
+        out << "\"];\n";
+        if (!n->isLeaf) {
+            for (Node* c : n->children) {
+                std::string cid = "node" + std::to_string(reinterpret_cast<uintptr_t>(c));
+                out << "  " << id << " -> " << cid << ";\n";
+                if (seen.insert(c).second) q.push(c);
+            }
+        }
+    }
+    out << "}\n";
+    out.close();
 }
