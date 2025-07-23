@@ -1259,7 +1259,7 @@ int main() {
 
                                 // --- VUELCO LA ESTRUCTURA AL TXT ---
                                 {
-                                    std::string outName = "miTabla_" + field + "_bptree.txt";
+                                    std::string outName = from + "_" + field + "_bptree.txt";
                                     idx.dumpToTxt(outName);
                                     std::cout << "Estructura volcada en: " << outName << "\n";
                                 }

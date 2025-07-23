@@ -518,7 +518,7 @@ std::vector<std::string> BPlusTreeIndex::split(const std::string& s, char delim)
 
 void BPlusTree::dumpToTxt(const std::string& filename) const {
 
-    std::string dir = "DISCO\\";
+    std::string dir = "data\\usr\\db";
     std::filesystem::create_directories(dir);
     std::string fullpath = dir + "\\" + filename;
     std::ofstream out(fullpath);
