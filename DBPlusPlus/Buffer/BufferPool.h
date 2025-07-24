@@ -140,27 +140,14 @@ protected:
     }
 };
 
-/**
- * Clase Page extendida para soportar operaciones de registro fijo:
- * Objetivo: representar una página en memoria con capacidad de insertar,
- *           eliminar y modificar registros de longitud fija.
- * Input: identificador de página y referencia al disco.
- * Output: ninguna, modifica el contenido en memoria y marca la página dirty.
- * Autor: Alexander
- */
+
 class PageWithRecords : public Page {
 public:
     using Page::Page;
 
 
     bool esPagina = true;
-    /**
-     * Autor: Alex
-     * Inserta un registro de longitud fija en la página.
-     * @param relacion Nombre de la relación (e.g., "housing").
-     * @param registroTxt Cadena con los campos separados por '#', termina con '\n'.
-     * @return true si tuvo éxito, false en caso contrario.
-     */
+
     bool insertFixed(const std::string& relacion, const std::string& registroTxt) {
         // Operamos sobre el archivo temporal BUFFERPOOL/Page{id}.txt
         // Llamamos a la función global adicionarRegistroUnico, pero redirigimos el file
@@ -177,13 +164,7 @@ public:
         return ok;
     }
 
-    /**
-     * Autor: Alex
-     * Elimina un registro de longitud fija en la posición global dada.
-     * @param relacion Nombre de la relación.
-     * @param posicion Posición global del registro a eliminar.
-     * @return true si se eliminó, false si no.
-     */
+
     bool deleteFixed(const std::string& relacion, int posicion) {
         bool ok = eliminarRegistro(
             relacion.c_str(),
@@ -197,14 +178,7 @@ public:
         return ok;
     }
 
-    /**
-     * Modifica un registro de longitud fija en la posición dada.
-     * @param relacion Nombre de la relación.
-     * @param posicion Posición global.
-     * @param nuevoRegistroTxt Cadena de nuevos campos separados por '#'.
-     * @return true si se modificó correctamente
-     * Autor: Alex
-     */
+
     bool modifyFixed(const std::string& relacion, int posicion, const std::string& nuevoRegistroTxt) {
         bool ok = modificarRegistro(
             relacion.c_str(),
@@ -293,12 +267,7 @@ void BufferPool::publishEvent(const std::string& evt, int pageId) {
     //appendEvent(evt, pageId);
 }
 
-/**
- * Objetivo: Volcar una página individual del buffer al disco
- * Input: Disco& disco, int pageId
- * Output: Nada; escribe Bloque<pageId>.txt en disco y elimina Page<pageId>.txt
- * Autor: Alex
- */
+
 void flushPageToDisk(Disco& disco, int pageId) {
     namespace fs = std::filesystem;
     // Construir rutas
@@ -351,13 +320,9 @@ bool BufferPool::unpinPermanent(int pageId) {
 }
 
 
-/**
- * Objetivo: Seleccionar y expulsar una página según política LRU.
- * Input: Ninguno; usa estado interno (_pageTable, _frames, _lru).
- * Output: devuelve true si desalojó una página, false si no encontró víctima.
- * Autor: Alexander
- */
+
 bool BufferPool::evictOne() {
+    std::cout << "ENTRADA a EVICT ONE" << std::endl;
     //// 1) Elegir victimId según LRU (timestamp más antiguo), saltando páginas pineadas
     //int victimId = -1;
     //size_t oldest = std::numeric_limits<size_t>::max();
@@ -375,6 +340,7 @@ bool BufferPool::evictOne() {
     //if (victimId < 0) return false;
 
     int victimId = _replacer->victim();
+    std::cout << "DEBUG: VICTIM" << victimId;
     if (victimId < 0) return false;
     int fidx = _pageTable[victimId];
 
@@ -400,9 +366,10 @@ bool BufferPool::evictOne() {
     }
 
     // 3) Expulsar la página de memoria y estructuras
+    _replacer->deletePage(victimPg->getId());
     _frames[fidx].page.reset();
     _pageTable.erase(victimId);
-    _replacer->deletePage(victimId);
+
 
     // NUEVO: evento de expulsión
     publishEvent("pageEvicted", victimId);
@@ -410,15 +377,11 @@ bool BufferPool::evictOne() {
     return true;
 }
 
-/**
- * Autor: Alexander
- * Objetivo: Cargar una nueva página en buffer, expulsando si es necesario.
- * Input: int pageId, char op, bool pinned
- * Output: Page* puntero a la página cargada o nullptr si falla.
- */
+
 Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
     //++_totalCount;
     // Intentar crear en un frame vacío
+    std::cout<<"[DEBUG] Entrda a lOADNEWPAGE"<<std::endl;
     while (true) {
         for (auto& f : _frames) {
             if (!f.page) {
@@ -458,13 +421,6 @@ BufferPool::~BufferPool() {
     flushBufferToDisk(_disk);
 }
 
-
-/**
- * Objetivo: Obtener (pin) una página; si existe, pregunta flush+reload, sino la trae.
- * Input: int pageId, char op, bool pinned
- * Output: Page* puntero a la página o nullptr si falla.
-  * Autor: Alexander
- */
 Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
 
     std::cout << "[DEBUG] Mensaje antes del bucle infinito" << std::endl;
@@ -521,12 +477,6 @@ Page* BufferPool::getPage(int pageId, char op, bool pinned) {
     return pinPage(pageId, op, pinned);
 }
 
-/**
- * Autor: Alex
- * Objetivo: Mostrar estadísticas de accesos y aciertos
- * Input: Ninguno
- * Output: Imprime Requests, Hits y Hit rate
- */
 void BufferPool::printStats() const {
     std::cout << "Requests: " << _totalCount
         << "  Hits: " << _hitCount
@@ -563,32 +513,6 @@ void BufferPool::printEventsStatus()
 }
 
 
-/**
- * Autor: Alex
- * Objetivo: Mostrar estado de cada frame (ID, página, dirty, pinCount, op, lastAccess, pinStatus)
- * Input: Ninguno
- * Output: Imprime tabla de estado
- */
- //LRU
-//void BufferPool::Status() {
-//    std::cout << "| Frame | PageID | Dirty | PinCnt | OpType | LastAcc | PinStat |\n";
-//    for (auto& f : _frames) {
-//        if (f.page) {
-//            std::cout << "| " << std::setw(5) << f.id
-//                << " | " << std::setw(6) << f.page->getId()
-//                << " | " << std::setw(5) << f.page->isDirty()
-//                << " | " << std::setw(6) << f.page->getPinCount()
-//                << " | " << std::setw(6) << f.page->getOp()
-//                << " | " << std::setw(7) << f.page->getLastAccess()  // NUEVO: mostrar timestamp
-//                << " | " << std::setw(7) << f.page->getPinStatus()
-//                << " |\n";
-//        }
-//        else {
-//            std::cout << "| " << std::setw(5) << f.id << " |   -    |   0   |   0    |   -    |    0    |    0    |\n";
-//        }
-//    }
-//}
-
 //CLOCK
 void BufferPool::Status() {
     _replacer->Status();
@@ -600,12 +524,6 @@ inline void registrarPaginaModificada(int nroBloque) {
     paginasModificadas.push_back(nroBloque);
 }
 
-/**
- * Autor: Alex
- * Objetivo: Volcar todas las páginas registradas en paginasModificadas al disco
- * Input: Disco& disco
- * Output: Copia y borra cada PageN.txt, revierte cambios en dirBloques.txt
- */
 
 void flushBufferToDisk(Disco& disco) {
     namespace fs = std::filesystem;

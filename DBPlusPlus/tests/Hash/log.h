@@ -5,7 +5,6 @@
 #include <iostream>
 #include <string>
 #include <set>
-#include <fstream>
 using namespace std;
 
 
@@ -23,7 +22,7 @@ class Bucket {
         int getDepth(void);
         int increaseDepth(void);
         int decreaseDepth(void);
-        std::map<int, vector<string>> copy(void);
+        std::map<int, string> copy(void);
         void clear(void);
         void display(void);
 };
@@ -38,13 +37,11 @@ Bucket::Bucket(int depth, int size){
 int Bucket::insert(int key, string value){
     std::map<int,vector<string>>::iterator it;
     it = values.find(key);
-    if(it!=values.end()){
+    if(it!=values.end())
         it->second.push_back(value); //adds new value
-        return 2;
-    }
-    if(isFull()){
+        return 1;
+    if(isFull())
         return 0;
-    }
     values[key] = std::vector<string>{value};
     return 1;
 }
@@ -83,17 +80,13 @@ void Bucket::search(int key){
     std::map<int,vector<string>>::iterator it;
     it = values.find(key);
     if(it!=values.end())    {
-        if (!it->second.empty()){
-            cout<<"Values = ";
-            for(int i=0;i<it->second.size();i++){
-                cout<<it->second[i]<<" | ";
-            }
-        }
-        else{
+        if (!it->second.empty())
+            cout<<"Value = "<<it->second[0]<<endl;
+        else
             cout<<"Value is empty for this key"<<endl;
-        }
     }
-    else{
+    else
+    {
         cout<<"This key does not exists"<<endl;
     }
 }
@@ -126,15 +119,11 @@ int Bucket::decreaseDepth(void){
     return depth;
 }
 
-std::map<int, vector<string>> Bucket::copy(void){
-    std::map<int, std::vector<std::string>> temp;
-
-    for (const auto& entry : values) {
-        const int key = entry.first;
-        const auto& vec = entry.second;
-        // Sólo copiamos si el vector no está vacío
-        if (!vec.empty()) {
-            temp.emplace(key, vec);
+std::map<int, string> Bucket::copy(void){
+    std::map<int, string> temp;
+    for (auto& pair : values) {
+        if (!pair.second.empty()) {
+            temp[pair.first] = pair.second[0];
         }
     }
     return temp;
@@ -168,8 +157,6 @@ class Directory {
         void update(int key, string value);
         void search(int key);
         void display(bool duplicates);
-
-        void saveToFile(const std::string& filename);
 };
 
 Directory::Directory(int depth, int bucket_size){
@@ -213,8 +200,8 @@ void Directory::shrink(void){
 
 void Directory::split(int bucket_no){
     int local_depth,pair_index,index_diff,dir_size,i;
-    map<int, vector<string>> temp;
-    map<int, vector<string>>::iterator it;
+    map<int, string> temp;
+    map<int, string>::iterator it;
 
     local_depth = buckets[bucket_no]->increaseDepth();
     if(local_depth>global_depth)
@@ -229,14 +216,8 @@ void Directory::split(int bucket_no){
         buckets[i] = buckets[pair_index];
     for( i=pair_index+index_diff ; i<dir_size ; i+=index_diff )
         buckets[i] = buckets[pair_index];
-
-    for (auto& entry : temp) {
-        int key = entry.first;
-        for (auto& val : entry.second) {
-            // aquí reinsertamos cada string, marcándolo como reinsertado
-            insert(key, val, /*reinserted=*/true);
-        }
-    }
+    for(it=temp.begin();it!=temp.end();it++)
+        insert((*it).first,(*it).second,1);
 }
 
 void Directory::merge(int bucket_no){
@@ -295,7 +276,7 @@ void Directory::insert(int key,string value,bool reinserted){
     }
     else
     {
-        cout<<"Key "<<key<<" already exists in bucket "<<bucket_id(bucket_no)<<"added value "<<endl;
+        cout<<"Key "<<key<<" already exists in bucket "<<bucket_id(bucket_no)<<endl;
     }
 }
 
@@ -343,62 +324,4 @@ void Directory::display(bool duplicates){
             buckets[i]->display();
         }
     }
-}
-
-void Directory::saveToFile(const std::string& filename) {
-    string filename=filename+".txt"
-    std::ofstream ofs(filename);
-    if (!ofs.is_open()) {
-        std::cerr << "Error abriendo archivo: " << filename << "\n";
-        return;
-    }
-
-    // Magic header y parámetros
-    ofs << "EXT_HASH_V1\n";
-    ofs << "BUCKET_SIZE: " << bucket_size << "\n";
-    ofs << "GLOBAL_DEPTH: " << global_depth << "\n\n";
-
-    // 1) Sección Directorio
-    ofs << "# Directory\n";
-    int dirSize = 1 << global_depth;
-    // Asignamos etiquetas únicas a cada Bucket*
-    std::map<Bucket*, std::string> labels;
-    int counter = 0;
-    for (int i = 0; i < dirSize; ++i) {
-        Bucket* b = buckets[i];
-        if (labels.find(b) == labels.end()) {
-            labels[b] = "B" + std::to_string(counter++);
-        }
-        ofs << bucket_id(i) << " -> " << labels[b] << "\n";
-    }
-
-    // 2) Sección Buckets
-    ofs << "\n# Buckets\n";
-    for (auto& p : labels) {
-        Bucket* b = p.first;
-        const std::string& label = p.second;
-        ofs << label 
-            << " (depth=" << b->getDepth() << "): ";
-
-        // Recuperamos sólo las entradas no vacías
-        auto content = b->copy();
-        bool firstKV = true;
-        for (auto& kv : content) {
-            if (!firstKV) ofs << "; ";
-            firstKV = false;
-
-            // clave
-            ofs << kv.first << "=";
-
-            // lista de valores separados por coma
-            for (size_t i = 0; i < kv.second.size(); ++i) {
-                ofs << kv.second[i];
-                if (i + 1 < kv.second.size()) 
-                    ofs << ",";
-            }
-        }
-        ofs << "\n";
-    }
-
-    ofs.close();
 }

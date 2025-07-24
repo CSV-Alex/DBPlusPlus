@@ -760,7 +760,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 5; // Numdsdasaero dde frames por defecto
+                int n_frames = 3; // Numdsdasaero dde frames por defecto
 
 
                 // Creamos segun eleccion
