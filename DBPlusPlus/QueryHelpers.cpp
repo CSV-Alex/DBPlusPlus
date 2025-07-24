@@ -6,10 +6,8 @@
 #include <algorithm>
 #include <cctype>
 
-// ---- Helpers ----
-
-// Split por un carácter
-static std::vector<std::string> split(const std::string& s, char delim) {
+// Split por un caracter
+static std::vector<std::string> splitRecords(const std::string& s, char delim) {
     std::vector<std::string> out;
     std::istringstream ss(s);
     std::string item;
@@ -19,7 +17,7 @@ static std::vector<std::string> split(const std::string& s, char delim) {
 }
 
 // Detecta si la cadena representa un número (entero o decimal)
-static bool isNumber(const std::string& s) {
+static bool isNumberRecords(const std::string& s) {
     bool hasDot = false;
     for (char c : s) {
         if (c == '.') {
@@ -36,7 +34,7 @@ static bool isNumber(const std::string& s) {
 
 // Compara lhs op rhs
 static bool cmp(const std::string& lhs, const std::string& op, const std::string& rhs) {
-    if (isNumber(lhs) && isNumber(rhs)) {
+    if (isNumberRecords(lhs) && isNumberRecords(rhs)) {
         double a = std::stod(lhs), b = std::stod(rhs);
         if (op == "=")  return a == b;
         if (op == "!=") return a != b;
@@ -73,10 +71,10 @@ filterPageRecords(
 
     std::vector<std::vector<std::string>> result;
     // 2) split por registros
-    for (auto& rec : split(pageData, '|')) {
+    for (auto& rec : splitRecords(pageData, '|')) {
         if (rec.empty()) continue;
         // 3) split por campos
-        auto fields = split(rec, '#');
+        auto fields = splitRecords(rec, '#');
         if (idx >= fields.size()) continue;
         // 4) comparar y si concuerda, guardar
         if (cmp(fields[idx], op, val))
