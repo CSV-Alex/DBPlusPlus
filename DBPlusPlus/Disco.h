@@ -620,8 +620,8 @@ public:
             }
             // Generar ruta real del sector: "DISCO\PlatoX\SX\PistaX\SectorX.txt"
             rutaSectorDesdeCodigo(sectoresFisicos[sectorIdx]);
-            std::cout << "[DEBUG] Abriendo sector físico para escritura: "
-                << bufferRuta << "\n";
+            //std::cout << "Abriendo sector físico para escritura: "
+            //    << bufferRuta << "\n"; //IMPORTANTE
             fsec = fopen(bufferRuta, "wb");
             if (!fsec) {
                 std::perror("Error abriendo sector para escritura");
@@ -719,9 +719,9 @@ public:
         free(sectoresFisicos);
         fclose(fbloc);
 
-        std::cout << "> Bloque " << bloqueN
-            << " volcado en " << (sectorIdx + 1)
-            << " sectores (registros enteros).\n";
+        //std::cout << "> Bloque " << bloqueN
+        //    << " volcado en " << (sectorIdx + 1)
+        //    << " sectores (registros enteros).\n";
     }
 
     void volcarBloqueASectoresVariable(int bloqueN) {
