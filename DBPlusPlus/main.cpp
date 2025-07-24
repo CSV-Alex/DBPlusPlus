@@ -1408,7 +1408,7 @@ int main() {
                         }
                         else if (method == 3) {
                             try {
-                                const int tree_order = 10;
+                                const int tree_order = 5;
 
                                 // 1) Construcción del índice B+ Tree
                                 BPlusTreeIndex idx(

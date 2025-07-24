@@ -67,7 +67,7 @@ static bool cmp(const std::string& lhs, const std::string& op, const std::string
     return false;
 }
 
-// Filtra los registros de una página in-memory
+// filtra los registros de una pagina in-memory
 static std::vector<std::vector<std::string>>
 filterPageRecords(
     const std::string& pageData,
