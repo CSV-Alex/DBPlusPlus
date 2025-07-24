@@ -126,5 +126,11 @@
     <ClInclude Include="QueryTreeIndexing.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Buffer\clock.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Buffer\replacementStrategy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

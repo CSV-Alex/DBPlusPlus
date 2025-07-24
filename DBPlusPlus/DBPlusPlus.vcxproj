@@ -169,7 +169,9 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
   <ItemGroup>
     <ClInclude Include="Buffer\BufferManager.h" />
     <ClInclude Include="Buffer\BufferPool.h" />
+    <ClInclude Include="Buffer\clock.h" />
     <ClInclude Include="Buffer\LRU.h" />
+    <ClInclude Include="Buffer\replacementStrategy.h" />
     <ClInclude Include="Disco.h" />
     <ClInclude Include="DiscoPaths.h" />
     <ClInclude Include="LVariable.h" />

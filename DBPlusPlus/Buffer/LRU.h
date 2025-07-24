@@ -241,26 +241,26 @@ void LRU::Status() {
               <<"|"<<std::endl;
     for (int idx=0;idx<frames_.size(); ++idx) {
         frame &f = frames_[idx];
-            std::cout << "| " << std::setw(5) << idx;
+            std::cout << "|" << std::setw(5) << idx;
             if(f.pageId != -1) {
-                std::cout<< " | " << std::setw(10) << f.pageId
-                << " | " << std::setw(10) << local_queues[idx].front() // Assuming the front of the local queue is the operation type
-                << " | " << std::setw(10) << (local_queues[idx].front()=='W' ? "1" : "0")               
-                << " | " << std::setw(10) << f.pinCount
-                << " | " << std::setw(15) << f.pinStatus
-                << " | " << std::setw(15) << f.lastAccess
-                << " | " << std::setw(10) << printQueue(idx,local_queues[idx])
-                << " |\n";
+                std::cout<< "|" << std::setw(10) << f.pageId
+                << "|" << std::setw(10) << local_queues[idx].front() // Assuming the front of the local queue is the operation type
+                << "|" << std::setw(10) << (local_queues[idx].front()=='W' ? "1" : "0")               
+                << "|" << std::setw(10) << f.pinCount
+                << "|" << std::setw(15) << f.pinStatus
+                << "|" << std::setw(15) << f.lastAccess
+                << "|" << std::setw(10) << printQueue(idx,local_queues[idx])
+                << "|\n";
             }
             else {
-                std::cout<< " | " << std::setw(10) << "-1"
-                << " | " << std::setw(10) << "-"
-                << " | " << std::setw(10) << "-"            
-                << " | " << std::setw(10) << "-"
-                << " | " << std::setw(15) << "-"
-                << " | " << std::setw(15) << "-"
-                << " | " << std::setw(10) << "[EMPTY]"
-                << " |\n";
+                std::cout<< "|" << std::setw(10) << "-1"
+                << "|" << std::setw(10) << "-"
+                << "|" << std::setw(10) << "-"            
+                << "|" << std::setw(10) << "-"
+                << "|" << std::setw(15) << "-"
+                << "|" << std::setw(15) << "-"
+                << "|" << std::setw(10) << "[EMPTY]"
+                << "|\n";
             }
         }
 }
