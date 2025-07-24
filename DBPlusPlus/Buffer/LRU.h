@@ -217,11 +217,21 @@ void LRU::Status() {
         frame& f = frames_[idx];
         std::cout << "|" << std::setw(5) << idx;
         if (f.pageId != -1) {
-            std::cout << "|" << std::setw(10) << f.pageId
-                << "|" << std::setw(10) << local_queues[idx].front() // Assuming the front of the local queue is the operation type
-                << "|" << std::setw(10) << (local_queues[idx].front() == 'W' ? "1" : "0")
-                << "|" << std::setw(10) << f.pinCount
-                << "|" << std::setw(15) << f.pinStatus
+            std::cout << "|" << std::setw(10) << f.pageId;
+
+            // Check if the queue is empty before accessing front()
+            if (!local_queues[idx].empty()) {
+                char opType = local_queues[idx].front();
+                std::cout << "|" << std::setw(10) << opType
+                    << "|" << std::setw(10) << (opType == 'W' ? "1" : "0");
+            }
+            else {
+                std::cout << "|" << std::setw(10) << "-"
+                    << "|" << std::setw(10) << "-";
+            }
+
+            std::cout << "|" << std::setw(10) << f.pinCount
+                << "|" << std::setw(15) << (f.pinStatus ? "Pinned" : "Not Pinned")
                 << "|" << std::setw(15) << f.lastAccess
                 << "|" << std::setw(10) << printQueue(idx, local_queues[idx])
                 << "|\n";

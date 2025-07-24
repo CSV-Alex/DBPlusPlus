@@ -1424,17 +1424,27 @@ int main() {
                                 const BPTreePageLoader* node = bpt.getPageIndex(bpt.rootPageId);
                                 if (!node) throw std::runtime_error("Raíz no encontrada en índice");
 
+                                std::cout << "[DEBUG][BufferPool] Iniciando navegación desde raíz PAGE_ID=" << node->pageId
+                                    << " (offset aplicado=" << (node->pageId + INDEX_OFFSET) << ")\n";
+
+                                // Pin de la página raíz con offset
+                                std::cout << "[DEBUG][BufferPool] PIN root: getPage(" << (node->pageId + INDEX_OFFSET)
+                                    << ", 'R', true)\n";
+
                                 // Pin de la página raíz con offset
                                 pBufPool->getPage(node->pageId + INDEX_OFFSET, 'R', true);
+                                std::cout << "[DEBUG][BufferPool] Root pineada correctamente\n";
 
+                                int treeLevel = 0;
                                 // Bajo hasta la hoja
                                 while (!node->isLeaf) {
+                                    treeLevel++;
                                     size_t i = 0;
                                     while (i < (size_t)node->numKeys && val >= node->keys[i]) ++i;
                                     int childPid = node->ptrs[i];
 
                                     pBufPool->unpinPage(node->pageId + INDEX_OFFSET);
-                                    pBufPool->getPage(childPid + INDEX_OFFSET, 'R', true);
+                                    pBufPool->getPage(childPid + INDEX_OFFSET, 'R', false);
                                     node = bpt.getPageIndex(childPid);
                                     if (!node)
                                         throw std::runtime_error("Nodo interno faltante, PAGE_ID=" + std::to_string(childPid));
@@ -1448,9 +1458,13 @@ int main() {
 
                                 // Cargo el header para filtrar
                                 auto headers = loadRelationHeader(basePath + from + ".txt");
-
+                                int blockCount = 0;
                                 // Para cada bloque: pin, filtro y unpin
                                 for (int blk : dataBlocks) {
+                                    blockCount++;
+                                    std::cout << "[DEBUG][BufferPool] Bloque " << blockCount << "/" << dataBlocks.size()
+                                        << ": PIN getPage(" << blk << ", 'R', false)\n";
+
                                     Page* raw = pBufPool->getPage(blk, 'R', false);
                                     auto page = dynamic_cast<PageWithRecords*>(raw);
                                     if (!page) {
