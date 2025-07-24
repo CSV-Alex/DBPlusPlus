@@ -390,9 +390,6 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
                 f.page->pin(op, pinned);
                 _pageTable[pageId] = f.id;
                 _replacer->newPage(pageId,op, pinned);
-                if (pinned) {
-                    _replacer->newPage(pageId,op, pinned);
-                }
 
                 publishEvent("pageLoaded", pageId);
 
