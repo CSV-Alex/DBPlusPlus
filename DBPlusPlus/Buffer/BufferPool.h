@@ -299,7 +299,7 @@ void flushPageToDisk(Disco& disco, int pageId) {
     );
 
     // NUEVO: evento de flush
-    cout << "[EVENT] pageFlushed " << pageId << endl;
+    std::cout << "[EVENT] pageFlushed " << pageId << std::endl;
 }
 
 
@@ -533,9 +533,9 @@ void flushBufferToDisk(Disco& disco) {
         fs::path src = fs::path(bufferPagePath) / ("Page" + std::to_string(N) + ".txt");
         fs::path dest = fs::path(discoPath) / "BLOQUES" / ("Bloque" + std::to_string(N) + ".txt");
 
-        std::cout << dest << endl;
-        std::cout << src << endl;
-        std::cout << "Paginas en memoria: " << N << endl;
+        std::cout << dest << std::endl;
+        std::cout << src << std::endl;
+        std::cout << "Paginas en memoria: " << N << std::endl;
 
         std::error_code ec;
 
