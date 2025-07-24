@@ -146,6 +146,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClCompile Include="Catalogo.cpp" />
     <ClCompile Include="Disco.cpp" />
     <ClCompile Include="DiscoPath.cpp" />
+    <ClCompile Include="IndexBTree.cpp" />
     <ClCompile Include="LFija.h" />
     <ClCompile Include="LVariable.cpp" />
     <ClCompile Include="main.cpp" />
@@ -174,6 +175,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClInclude Include="Buffer\replacementStrategy.h" />
     <ClInclude Include="Disco.h" />
     <ClInclude Include="DiscoPaths.h" />
+    <ClInclude Include="IndexBTree.h" />
     <ClInclude Include="LVariable.h" />
     <ClInclude Include="QueryBlocks.h" />
     <ClInclude Include="QueryHashBlocks.h" />
