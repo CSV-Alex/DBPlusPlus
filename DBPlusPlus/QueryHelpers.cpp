@@ -5,6 +5,15 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
+
+// trim de espacios en blanco (incluye '\r','\n','\t', etc.)
+static std::string trim(const std::string& s) {
+    size_t i = 0, j = s.size();
+    while (i < j && std::isspace((unsigned char)s[i]))     ++i;
+    while (j > i && std::isspace((unsigned char)s[j - 1])) --j;
+    return s.substr(i, j - i);
+}
 
 // Split por un caracter
 static std::vector<std::string> splitRecords(const std::string& s, char delim) {
@@ -18,18 +27,22 @@ static std::vector<std::string> splitRecords(const std::string& s, char delim) {
 
 // Detecta si la cadena representa un número (entero o decimal)
 static bool isNumberRecords(const std::string& s) {
+    if (s.empty()) return false;
     bool hasDot = false;
-    for (char c : s) {
+    for (size_t i = 0; i < s.size(); ++i) {
+        char c = s[i];
         if (c == '.') {
             if (hasDot) return false;
             hasDot = true;
         }
-        else if (c == '+' || c == '-') {
-            // permite signo
+        else if ((c == '+' || c == '-') && i == 0) {
+            // signo sólo al inicio
         }
-        else if (!std::isdigit(c)) return false;
+        else if (!std::isdigit((unsigned char)c)) {
+            return false;
+        }
     }
-    return !s.empty();
+    return true;
 }
 
 // Compara lhs op rhs
@@ -63,6 +76,15 @@ filterPageRecords(
     const std::string& op,
     const std::string& val
 ) {
+    // 0) Descarta todo hasta el primer '/'
+    std::string data = pageData;
+    auto slashPos = data.find('/');
+    if (slashPos != std::string::npos) {
+        data = data.substr(slashPos + 1);
+    }
+    // 0.1) Elimina todos los '@'
+    data.erase(std::remove(data.begin(), data.end(), '@'), data.end());
+
     // 1) hallar índice de columna
     auto it = std::find(headers.begin(), headers.end(), whereField);
     if (it == headers.end())
@@ -70,16 +92,42 @@ filterPageRecords(
     size_t idx = it - headers.begin();
 
     std::vector<std::vector<std::string>> result;
-    // 2) split por registros
-    for (auto& rec : splitRecords(pageData, '|')) {
-        if (rec.empty()) continue;
-        // 3) split por campos
+    // 2) split por registros '|'
+    auto recs = splitRecords(data, '|');
+    std::cout << "[DEBUG] total de registros tras '/' y quitar '@': " << recs.size() << "\n";
+    for (size_t r = 0; r < recs.size(); ++r) {
+        std::string rawRec = recs[r];
+        std::cout << "[DEBUG] rawRec[" << r << "] = \"" << rawRec << "\"\n";
+        std::string rec = trim(rawRec);
+        std::cout << "[DEBUG] trimmed rec[" << r << "] = \"" << rec << "\"\n";
+        if (rec.empty()) {
+            std::cout << "[DEBUG] rec[" << r << "] está vacía, salto\n";
+            continue;
+        }
+
+        // 3) split por campos '#'
         auto fields = splitRecords(rec, '#');
-        if (idx >= fields.size()) continue;
+        // trim de cada campo
+        for (size_t f = 0; f < fields.size(); ++f) {
+            fields[f] = trim(fields[f]);
+            std::cout << "[DEBUG]   field[" << f << "] = \"" << fields[f] << "\"\n";
+        }
+        if (idx >= fields.size()) {
+            std::cout << "[DEBUG] idx " << idx << " fuera de rango (" << fields.size() << "), salto\n";
+            continue;
+        }
+
         // 4) comparar y si concuerda, guardar
-        if (cmp(fields[idx], op, val))
+        const std::string& key = fields[idx];
+        bool match = cmp(key, op, val);
+        std::cout << "[DEBUG] comparar key=\"" << key
+            << "\" " << op << " \"" << val
+            << "\" => " << (match ? "MATCH\n" : "NO MATCH\n");
+        if (match) {
             result.push_back(std::move(fields));
+        }
     }
+    std::cout << "[DEBUG] total filas filtradas: " << result.size() << "\n";
     return result;
 }
 

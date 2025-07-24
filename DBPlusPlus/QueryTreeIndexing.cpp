@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <filesystem>
+
 #include "QueryBlocks.h"   // readBlockHeader, loadRelationHeader, getBlocksFromCatalog
 
 BPlusTree::BPlusTree(int m) : m(m) {
@@ -570,8 +571,9 @@ void BPlusTree::dumpToTxt(const std::string& filename) const {
                     out << n->blocks[i][j] << (j + 1 < n->blocks[i].size() ? "," : "");
                 }
                 if (i + 1 < n->blocks.size()) out << " ";
+                }
             }
-        }
+
         else {
             // imprime IDs de páginas hijas
             for (size_t i = 0; i < n->children.size(); ++i) {

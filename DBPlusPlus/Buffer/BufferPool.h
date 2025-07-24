@@ -19,9 +19,9 @@
 #include "ReplacementStrategy.h"
 #include "Clock.h"
 #include "LRU.h"
-#include "IndexOperations.h"
 
 #include <QtCore/QObject>
+
 
 class PageWithRecords;
 
@@ -271,10 +271,10 @@ struct Frame {
 
 class BufferPool {
 public:
-    BufferPool(int n_frames, 
-               size_t pageBytes, 
-               Disco& disk, 
-               std::unique_ptr<ReplacementStrategy> replacer);
+    BufferPool(int n_frames,
+        size_t pageBytes,
+        Disco& disk,
+        std::unique_ptr<ReplacementStrategy> replacer);
 
     ~BufferPool();
 
@@ -290,12 +290,6 @@ public:
     bool unpinPermanent(int pageId);
 
 private:
-
-    // pageId → lista de (campo, clave, isInsert)
-    std::unordered_map<int,
-        std::vector<std::tuple<std::string, std::string, bool>>
-    > _pendingIndexOps;
-
     void publishEvent(const std::string& evt, int pageId);
     bool evictOne();
     Page* loadNewPage(int pageId, char op, bool pinned);
@@ -309,12 +303,6 @@ private:
     std::unique_ptr<ReplacementStrategy> _replacer;        // la lista LRU de páginas
 
     size_t                          _hitCount{ 0 }, _totalCount{ 0 };
-
-    void notifyIndexOp(int pageId,
-        const std::string& field,
-        const std::string& key,
-        bool isInsert);
-
 };
 
 // Un mutex para serializar accesos concurrentes
@@ -361,17 +349,14 @@ void flushPageToDisk(Disco& disco, int pageId) {
     // 3) Volcar sectores al block real
     disco.volcarBloqueASectores(pageId);
 
-    // 4) Apply pending index operations for this page
-    aplicarOperacionesIndice(pageId);
-
-    // 5) Limpiar de la lista de modificadas
+    // 4) Limpiar de la lista de modificadas
     paginasModificadas.erase(
         std::remove(paginasModificadas.begin(), paginasModificadas.end(), pageId),
         paginasModificadas.end()
     );
 
     // NUEVO: evento de flush
-    std::cout << "[EVENT] pageFlushed " << pageId << std::endl;
+    cout << "[EVENT] pageFlushed " << pageId << endl;
 }
 
 
@@ -453,7 +438,7 @@ bool BufferPool::evictOne() {
 Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
     //++_totalCount;
     // Intentar crear en un frame vacío
-    std::cout<<"[DEBUG] Entrda a lOADNEWPAGE"<<std::endl;
+    std::cout << "[DEBUG] Entrda a lOADNEWPAGE" << std::endl;
     while (true) {
         for (auto& f : _frames) {
             if (!f.page) {
@@ -461,10 +446,7 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
                 f.page.reset(new PageWithRecords(pageId, _disk, op, pinned)); // se pasa 'op'
                 f.page->pin(op, pinned);
                 _pageTable[pageId] = f.id;
-                _replacer->newPage(pageId,op, pinned);
-                if (pinned) {
-                    _replacer->newPage(pageId,op, pinned);
-                }
+                _replacer->newPage(pageId, op, pinned);
 
                 publishEvent("pageLoaded", pageId);
 
@@ -479,10 +461,10 @@ Page* BufferPool::loadNewPage(int pageId, char op, bool pinned) {
 
 
 BufferPool::BufferPool(int n_frames, size_t pageBytes, Disco& disk, std::unique_ptr<ReplacementStrategy> replacer)
-    : _disk(disk), 
-      _pageBytes(pageBytes), 
-      _n_frames(n_frames),
-      _replacer(std::move(replacer))
+    : _disk(disk),
+    _pageBytes(pageBytes),
+    _n_frames(n_frames),
+    _replacer(std::move(replacer))
 {
     _frames.reserve(n_frames);
     for (size_t i = 0; i < n_frames; ++i) _frames.emplace_back((int)i);
@@ -519,7 +501,7 @@ Page* BufferPool::pinPage(int pageId, char op, bool pinned) {
             }
         }
         pg->pin(op, pinned);
-        _replacer->pin(pageId,op, pinned);
+        _replacer->pin(pageId, op, pinned);
 
         // NUEVO: evento de pin
         publishEvent("pagePinned", pageId);
@@ -546,7 +528,6 @@ void BufferPool::unpinPage(int pageId) {
 
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {
     ++_totalCount;  // NUEVO: contar todas las peticiones entrantes :contentReference[oaicite:3]{index=3}
-    std::cout << "Aqui es" << endl;
     return pinPage(pageId, op, pinned);
 }
 
@@ -606,9 +587,9 @@ void flushBufferToDisk(Disco& disco) {
         fs::path src = fs::path(bufferPagePath) / ("Page" + std::to_string(N) + ".txt");
         fs::path dest = fs::path(discoPath) / "BLOQUES" / ("Bloque" + std::to_string(N) + ".txt");
 
-        std::cout << dest << std::endl;
-        std::cout << src << std::endl;
-        std::cout << "Paginas en memoria: " << N << std::endl;
+        std::cout << dest << endl;
+        std::cout << src << endl;
+        std::cout << "Paginas en memoria: " << N << endl;
 
         std::error_code ec;
 
@@ -654,12 +635,4 @@ void flushBufferToDisk(Disco& disco) {
     fflush(f);
     fclose(f);
     cambiosDirBloques.clear();
-}
-
-void BufferPool::notifyIndexOp(int pageId,
-    const std::string& field,
-    const std::string& key,
-    bool isInsert) {
-    _pendingIndexOps[pageId]
-        .emplace_back(field, key, isInsert);
 }

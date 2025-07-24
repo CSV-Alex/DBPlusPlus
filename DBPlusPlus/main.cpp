@@ -785,7 +785,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 3; // Numdsdasaero dde frames por defecto
+                int n_frames = 10; // Numdsdasaero dde frames por defecto
 
 
                 // Creamos segun eleccion
@@ -1393,7 +1393,7 @@ int main() {
                         }
                         else if (method == 3) {
                             try {
-                                const int tree_order = 100;
+                                const int tree_order = 10;
                                 // 1) Construcción del índice B+ Tree
                                 BPlusTreeIndex idx(
                                     catalogFile,
