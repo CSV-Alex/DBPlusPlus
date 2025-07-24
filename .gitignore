@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 /DBPlusPlus/DISCO
 /DBPlusPlus/data/usr/db
+/DBPlusPlus/BUFFERPOOL/BLOQUES
