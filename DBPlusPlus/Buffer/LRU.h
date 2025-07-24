@@ -5,7 +5,6 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
-#include <vector>
 #include "replacementStrategy.h"
 
 struct frame{
@@ -58,8 +57,8 @@ void LRU::newPage(int pageId,char op, bool pinned) {
 
     frame &f = frames_[idx];
     f.pageId    = pageId;
-    f.pinStatus = 1;
-    f.pinCount  = (pinned ? 1 : 0);
+    f.pinStatus = pinned;
+    f.pinCount=1;
 
     ++lru_tracker;
     f.lastAccess = lru_tracker;
@@ -135,7 +134,9 @@ void LRU::unpin(int pageId) {
 }
 
 void LRU::deletePage(int pageId) {
+    std::cout << "PAGE ID in delete page" << pageId<<"\n";
     int idx =getpos(pageId);
+    std::cout << "PAGE ID" << idx << std::endl;
     frames_[idx] = frame{-1,0, false, lru_tracker };    
 
     while(!local_queues[idx].empty()) {
@@ -150,30 +151,35 @@ void LRU::deletePage(int pageId) {
 }
 
 int LRU::victim() {
-
+    std::cout << "DEBUG: Victim search" << std::endl;
     int n_locked=0;
 
     while(!locked){
 
         auto pageId = *(lru.begin());
+        std::cout << "LRU begin" <<pageId<< std::endl;
 
         int victim_idx = getpos(pageId);
         //first pass
         frame &f = frames_[victim_idx];
-        f.pinCount--;
-        f.lastAccess= ++lru_tracker;
-        local_queues[victim_idx].pop(); // remove the operation from the local queue
+        std::cout << "DEBUG: Victim search encontro"<<f.pageId << std::endl;
+        if (f.pinCount > 1) {
+            local_queues[victim_idx].pop(); // remove the operation from the local queue
+            f.pinCount--;
 
-        // remove from LRU list if it’s there
-        auto it = pos.find(f.pageId);
-        if (it != pos.end()) {
-            lru.erase(it->second);
-            pos.erase(it);
+            f.lastAccess = ++lru_tracker;
+            // remove from LRU list if it’s there
+            auto it = pos.find(f.pageId);
+            if (it != pos.end()) {
+                lru.erase(it->second);
+                pos.erase(it);
+            }
+            lru.push_back(f.pageId);
+            pos[f.pageId] = std::prev(lru.end());
         }
-        lru.push_back(f.pageId);
-        pos[f.pageId] = std::prev(lru.end());
 
-        if(f.pinCount==0 && !f.pinStatus){
+
+        if(f.pinCount==1 && !f.pinStatus){
             return victim_idx;
         }
 
@@ -184,38 +190,6 @@ int LRU::victim() {
         
     }
 
-    /*
-    while (!local_queue.empty()) {
-        int pid = local_queue.front();
-        local_queue.pop();
-        auto itCount = pinCount.find(pid);
-        if (itCount == pinCount.end()) continue;
-        int pc = itCount->second;
-        if (pc > 1) {
-            itCount->second = pc - 1;
-            auto it = pos.find(pid);
-            if (it != pos.end()) {
-                lru.erase(it->second);
-                pos.erase(it);
-            }
-            lru.push_back(pid);
-            pos[pid] = std::prev(lru.end());
-        } else {
-            bool ps = pinStatus[pid];
-            if (pc <= 1 && ps == false) {
-                auto it = pos.find(pid);
-                if (it != pos.end()) {
-                    lru.erase(it->second);
-                    pos.erase(it);
-                }
-                pinCount.erase(pid);
-                pinStatus.erase(pid);
-                return pid;
-            }
-        }
-    }
-    return -1;
-    */
     std::cerr << "[ERROR] no hay frame elegible\n";
     return -1;
 }
@@ -223,7 +197,7 @@ int LRU::victim() {
 int LRU::getpos(int pageId) {
     auto it = pos.find(pageId);
     if (it != pos.end()) {
-        return std::distance(lru.begin(), it->second);
+        return std::distance(lru.begin(), it->second); // Corrected to use the iterator stored in 'it->second'
     }
     return -1;
 }

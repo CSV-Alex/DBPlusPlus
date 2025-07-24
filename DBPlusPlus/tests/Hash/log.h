@@ -1,3 +1,4 @@
+#pragma once    
 //#include <bits/stdc++.h>
 #include <map>
 #include <vector>
@@ -9,7 +10,7 @@ using namespace std;
 
 class Bucket {
         int depth,size;
-        std::map<int, string> values;
+        std::map<int, vector<string>> values;
     public:
         Bucket(int depth, int size);
         int insert(int key,string value);
@@ -34,21 +35,21 @@ Bucket::Bucket(int depth, int size){
 }
 
 int Bucket::insert(int key, string value){
-    std::map<int,string>::iterator it;
+    std::map<int,vector<string>>::iterator it;
     it = values.find(key);
     if(it!=values.end())
-        return -1;
+        it->second.push_back(value); //adds new value
+        return 1;
     if(isFull())
         return 0;
-    values[key] = value;
+    values[key] = std::vector<string>{value};
     return 1;
 }
 
 int Bucket::remove(int key){
-    std::map<int,string>::iterator it;
+    std::map<int,vector<string>>::iterator it;
     it = values.find(key);
-    if(it!=values.end())
-    {
+    if(it!=values.end())    {
         values.erase(it);
         return 1;
     }
@@ -60,11 +61,11 @@ int Bucket::remove(int key){
 }
 
 int Bucket::update(int key, string value){    
-    std::map<int,string>::iterator it;
+    std::map<int,vector<string>>::iterator it;
     it = values.find(key);
     if(it!=values.end())
     {
-        values[key] = value;
+        values[key] = std::vector<string>{value};
         cout<<"Value updated"<<endl;
         return 1;
     }
@@ -76,11 +77,13 @@ int Bucket::update(int key, string value){
 }
 
 void Bucket::search(int key){
-    std::map<int,string>::iterator it;
+    std::map<int,vector<string>>::iterator it;
     it = values.find(key);
-    if(it!=values.end())
-    {
-        cout<<"Value = "<<it->second<<endl;
+    if(it!=values.end())    {
+        if (!it->second.empty())
+            cout<<"Value = "<<it->second[0]<<endl;
+        else
+            cout<<"Value is empty for this key"<<endl;
     }
     else
     {
@@ -117,7 +120,12 @@ int Bucket::decreaseDepth(void){
 }
 
 std::map<int, string> Bucket::copy(void){
-    std::map<int, string> temp(values.begin(),values.end());
+    std::map<int, string> temp;
+    for (auto& pair : values) {
+        if (!pair.second.empty()) {
+            temp[pair.first] = pair.second[0];
+        }
+    }
     return temp;
 }
 
@@ -126,8 +134,8 @@ void Bucket::clear(void){
 }
 
 void Bucket::display(){
-    std::map<int,string>::iterator it;
-    for(it=values.begin();it!=values.end();it++)
+    std::map<int, std::vector<string>>::iterator it;
+    for(it=values.begin(); it != values.end(); it++)
         cout<<it->first<<" ";
     cout<<endl;
 }
@@ -161,7 +169,8 @@ Directory::Directory(int depth, int bucket_size){
 }
 
 int Directory::hash(int n){
-    return n&((1<<global_depth)-1);
+    size_t h = std::hash<int>{}(n);
+    return static_cast<int>(h & ((1ULL<<global_depth)-1));
 }
 
 int Directory::pairIndex(int bucket_no, int depth){

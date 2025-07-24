@@ -1,0 +1,15 @@
+EXT_HASH_V1
+BUCKET_SIZE: 2
+GLOBAL_DEPTH: 2
+
+# Directory
+00 -> B0
+01 -> B1
+10 -> B2
+11 -> B3
+
+# Buckets
+B0 (depth=2): 
+B1 (depth=2): 
+B2 (depth=2): 30=leo,luna
+B3 (depth=2): 
