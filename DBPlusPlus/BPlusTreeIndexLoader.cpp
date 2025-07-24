@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "Buffer/BufferPool.h"
 #include "QueryBlocks.h"               // loadRelationHeader
-#include "PageWithRecords.h"           // getRawData() + filterRecords(...)
+#include "PageFilter.h"           // getRawData() + filterRecords(...)
 #include "BPlusTreeIndexLoader.h"      // loadBPlusTreeIndexTXT, BPTreeIndex, BPTreePage
 #include <iostream>
 #include <sstream>
@@ -142,7 +142,7 @@ void executeBPlusTreeQuery(
         // 6) Leer y filtrar cada bloque
         for (int blk : dataBlocks) {
             Page* raw = pBufPool->getPage(blk, 'R', true);
-            auto page = dynamic_cast<PageWithRecords*>(raw);
+            auto page = dynamic_cast<PageFilter*>(raw);
             if (!page) {
                 std::cerr << "ERROR: bloque " << blk
                     << " no es PageWithRecords\n";

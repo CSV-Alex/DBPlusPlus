@@ -29,7 +29,7 @@ public:
     
 private:
     int _capacity;
-    vector<frame> frames_; // vector of frames
+    std::vector<frame> frames_; // vector of frames
     std::list<int> lru; //tracks the order of pages in LRU fashion
     std::unordered_map<int, std::list<int>::iterator> pos; // maps pageId to its position in the LRU list
     std::vector<std::queue<char>> local_queues;
