@@ -13,6 +13,7 @@ static std::string trimIndex(const std::string& s) {
     size_t i = 0, j = s.size();
     while (i < j && isspace((unsigned char)s[i])) ++i;
     while (j > i && isspace((unsigned char)s[j - 1])) --j;
+    if (j > i && s[j - 1] == '\r') --j;
     return s.substr(i, j - i);
 }
 
@@ -42,6 +43,7 @@ TreeIndex loadBPlusTreeIndexTXT(const std::string& idxPath) {
         if (kv.size() == 2) {
             auto& key = kv[0];
             auto& val = kv[1];
+            std::cout << "[DEBUG] clave='" << key << "'  val='" << val << "'\n";
 
             if (key == "ORDER") {
                 idx.order = std::stoi(val);

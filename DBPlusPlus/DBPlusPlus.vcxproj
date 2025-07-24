@@ -153,6 +153,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClCompile Include="NonSense.cpp" />
     <ClCompile Include="QueryBlocks.cpp" />
     <ClCompile Include="QueryHashBlocks.cpp" />
+    <ClCompile Include="QueryHelpers.cpp" />
     <ClCompile Include="QueryTreeIndexing.cpp" />
     <ClCompile Include="Titanic.cpp" />
     <ClCompile Include="TitanicData.cpp" />

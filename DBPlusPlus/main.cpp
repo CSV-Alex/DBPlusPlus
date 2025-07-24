@@ -20,6 +20,8 @@
 #include <sstream>
 #include <unordered_set>
 #include "QueryTreeIndexing.h"
+#include "IndexBTree.h"
+#include "QueryHelpers.cpp"
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -1249,7 +1251,7 @@ int main() {
                                     tableFile,
                                     from,
                                     field,     // Search Key
-                                    2          // orden d
+                                    10          // orden d
                                 );
                                 std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
 
@@ -1348,9 +1350,91 @@ int main() {
                             }
                         }
                         else if (method == 3) {
-                            // 3) B-Tree (simulado)
-                            std::cout << "[Simulación B-Tree] Aun no implementado.\n"
-                                << "índice B+Tree sobre campo: " << field << "\n";
+                            try {
+                                // 1) Construcción del índice B+ Tree
+                                BPlusTreeIndex idx(
+                                    catalogFile,
+                                    blocksDir,
+                                    tableFile,
+                                    from,
+                                    field,     // Search Key
+                                    2          // orden d
+                                );
+                                std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
+
+                                // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL por consola ---
+                                std::cout << "[Estructura del B+ Tree]\n";
+                                idx.printTree();
+
+                                // --- VUELCO LA ESTRUCTURA AL TXT ---
+                                std::string outName = from + "_" + field + "_bptree.txt";
+                                idx.dumpToTxt(outName);
+                                std::cout << "Estructura volcada en: " << outName << "\n\n";
+
+                                // 2) Ejecución de la consulta con B+Tree completo
+                                const int INDEX_OFFSET = 100;
+                                std::string outPath = basePath + from + "_" + field + "_bptree.txt";
+                                // Cargo el índice generado
+                                TreeIndex bpt = loadBPlusTreeIndexTXT(outPath);
+
+                                // Navego desde la raíz
+                                const BPTreePageLoader* node = bpt.getPageIndex(bpt.rootPageId);
+                                if (!node) throw std::runtime_error("Raíz no encontrada en índice");
+
+                                // Pin de la página raíz con offset
+                                pBufPool->getPage(node->pageId + INDEX_OFFSET, 'R', true);
+
+                                // Bajo hasta la hoja
+                                while (!node->isLeaf) {
+                                    size_t i = 0;
+                                    while (i < (size_t)node->numKeys && val >= node->keys[i]) ++i;
+                                    int childPid = node->ptrs[i];
+
+                                    pBufPool->unpinPage(node->pageId + INDEX_OFFSET);
+                                    pBufPool->getPage(childPid + INDEX_OFFSET, 'R', true);
+                                    node = bpt.getPageIndex(childPid);
+                                    if (!node)
+                                        throw std::runtime_error("Nodo interno faltante, PAGE_ID=" + std::to_string(childPid));
+                                }
+
+                                // La hoja ya está pinneada
+                                std::vector<int> dataBlocks = node->ptrs;
+                                std::cout << "Leaf PAGE_ID=" << node->pageId << " → bloques: ";
+                                for (int b : dataBlocks) std::cout << b << " ";
+                                std::cout << "\n\n";
+
+                                // Cargo el header para filtrar
+                                auto headers = loadRelationHeader(basePath + from + ".txt");
+
+                                // Para cada bloque: pin, filtro y unpin
+                                for (int blk : dataBlocks) {
+                                    Page* raw = pBufPool->getPage(blk, 'R', false);
+                                    auto page = dynamic_cast<PageWithRecords*>(raw);
+                                    if (!page) {
+                                        std::cerr << "ERROR: bloque " << blk << " no es PageWithRecords\n";
+                                        pBufPool->unpinPage(blk);
+                                        continue;
+                                    }
+
+                                    std::string data = page->getRawData();
+                                    auto rows = filterPageRecords(data, headers, field, op, val);
+
+                                    std::cout << "Registros en bloque " << blk << ":\n";
+                                    for (auto& r : rows) {
+                                        for (size_t j = 0; j < r.size(); ++j)
+                                            std::cout << r[j] << (j + 1 < r.size() ? " | " : "\n");
+                                    }
+                                    std::cout << "\n";
+
+                                    pBufPool->unpinPage(blk);
+                                }
+
+                                // Finalmente, desapin de la hoja
+                                pBufPool->unpinPage(node->pageId + INDEX_OFFSET);
+                            }
+                            catch (const std::exception& e) {
+                                std::cerr << "ERROR B+Tree: " << e.what() << "\n";
+                            }
                         }
                         else {
                             std::cout << "Opción de método inválida.\n";

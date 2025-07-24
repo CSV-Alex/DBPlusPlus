@@ -230,6 +230,20 @@ public:
         while (in.get(c)) std::cout << c;
         std::cout << std::endl;
     }
+
+    std::string getRawData() const {
+        std::ifstream in(_path, std::ios::binary);
+        if (!in.is_open()) {
+            std::cerr << "ERROR: No se puede abrir " << _path << std::endl;
+            return "";
+        }
+        std::ostringstream ss;
+        ss << in.rdbuf();
+        return ss.str();
+    }
+
+
+
 };
 
 struct Frame {
@@ -518,6 +532,7 @@ void BufferPool::unpinPage(int pageId) {
 
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {
     ++_totalCount;  // NUEVO: contar todas las peticiones entrantes :contentReference[oaicite:3]{index=3}
+    std::cout << "Aqui es" << endl;
     return pinPage(pageId, op, pinned);
 }
 
