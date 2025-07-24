@@ -2029,7 +2029,7 @@ static bool adicionarNRegistros(int n, const char* csvPath, const char* tabla, i
         int len = (int)strlen(linea);
         int pos = 0;
         for (int j = 0; j < len && pos + 1 < MAX_BUF; ++j) {
-            if (linea[j] == ',') registroTxt[pos++] = '#';
+            if (linea[j] == ';') registroTxt[pos++] = '#';
             else                  registroTxt[pos++] = linea[j];
         }
         // Asegurar que termine en '\n'
