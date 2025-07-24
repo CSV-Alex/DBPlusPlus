@@ -785,7 +785,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 3; // Numdsdasaero dde frames por defecto
+                int n_frames = 5; // Numdsdasaero dde frames por defecto
 
 
                 // Creamos segun eleccion
@@ -1331,9 +1331,24 @@ int main() {
                         std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
                         std::string sel, from, where;
+                        bool save;
                         std::cout << "SELECT "; std::getline(std::cin, sel);
                         std::cout << "FROM   "; std::getline(std::cin, from);
                         std::cout << "WHERE  "; std::getline(std::cin, where);
+
+                        std::string saveResponse;
+                        std::cout << "¿Guardar resultados en archivo? (s/n): ";
+                        std::getline(std::cin, saveResponse);
+                        bool saveResults = (saveResponse == "s" || saveResponse == "S");
+
+                        std::string outputFile;
+                        if (saveResults) {
+                            std::cout << "Nombre del archivo de salida: ";
+                            std::getline(std::cin, outputFile);
+                            if (!outputFile.empty() && outputFile.find(".txt") == std::string::npos) {
+                                outputFile += ".txt";
+                            }
+                        }
 
                         std::string field, op, val;
                         if (!where.empty()) {
@@ -1393,7 +1408,8 @@ int main() {
                         }
                         else if (method == 3) {
                             try {
-                                const int tree_order = 100;
+                                const int tree_order = 10;
+
                                 // 1) Construcción del índice B+ Tree
                                 BPlusTreeIndex idx(
                                     catalogFile,
@@ -1448,6 +1464,10 @@ int main() {
 
                                 // Cargo el header para filtrar
                                 auto headers = loadRelationHeader(basePath + from + ".txt");
+                                int blockCount = 0;
+
+                                // Vector para almacenar todos los resultados encontrados
+                                std::vector<std::vector<std::string>> allResults;
 
                                 // Para cada bloque: pin, filtro y unpin
                                 for (int blk : dataBlocks) {
@@ -1466,6 +1486,8 @@ int main() {
                                     for (auto& r : rows) {
                                         for (size_t j = 0; j < r.size(); ++j)
                                             std::cout << r[j] << (j + 1 < r.size() ? " | " : "\n");
+                                        
+                                        allResults.push_back(r);
                                     }
                                     std::cout << "\n";
 
@@ -1474,6 +1496,13 @@ int main() {
 
                                 // Finalmente, desapin de la hoja
                                 pBufPool->unpinPage(node->pageId + INDEX_OFFSET);
+
+                                // Si se solicito guardar resultados, hacerlo ahora
+                                if (saveResults && !outputFile.empty()) {
+                                    std::cout << "Guardando resultados en: " << outputFile << std::endl;
+                                    saveQueryResultToFile(outputFile, headers, allResults);
+                                    std::cout << "Se guardaron " << allResults.size() << " registros exitosamente." << std::endl;
+                                }
                             }
                             catch (const std::exception& e) {
                                 std::cerr << "ERROR B+Tree: " << e.what() << "\n";
