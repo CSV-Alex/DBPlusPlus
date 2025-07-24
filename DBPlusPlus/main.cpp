@@ -22,6 +22,7 @@
 #include "QueryTreeIndexing.h"
 #include "IndexBTree.h"
 #include "QueryHelpers.cpp"
+#include "IndexOperations.h"
 
 #define MAX_BUF      1024
 #define MAX_STR_LEN 64
@@ -29,6 +30,9 @@
 #define MAX_PATH_LEN 256
 #define MAX_SCHEMA  4096
 using namespace std;
+
+// Definition of the global variable declared as extern in IndexOperations.h
+std::unordered_map<std::string, BPlusTreeIndex*> indexCache;
 
 size_t relationSizeBytes(const char* fileName, const char* basePath) {
     char tablePath[512];
@@ -660,6 +664,25 @@ std::string leerArchivo(const std::string& path) {
     return buffer.str();
 }
 
+bool file_exists(const std::string& filepath) {
+    std::ifstream file(filepath);
+    return file.good();
+}
+
+string obtenerMetodo(int method) {
+    if (method == 1) {
+        return "sequential";
+    }
+    else if (method == 2) {
+        return "hash";
+    }
+    else if (method == 3) {
+        return "bptree";
+    }
+    else {
+        return "unknown"; 
+    }
+}
 
 int main() {
 
@@ -762,7 +785,7 @@ int main() {
 
                 // Inicializar BufferPool
                 if (pBufPool) delete pBufPool;
-                int n_frames = 5; // Numdsdasaero dde frames por defecto
+                int n_frames = 100; // Numdsdasaero dde frames por defecto
 
 
                 // Creamos segun eleccion
@@ -1243,34 +1266,53 @@ int main() {
                             }
                         }
                         else if (method == 3) {
-                            try {
-                                // 1) Construcción del índice B+ Tree
-                                BPlusTreeIndex idx(
-                                    catalogFile,
-                                    blocksDir,
-                                    tableFile,
-                                    from,
-                                    field,     // Search Key
-                                    10          // orden d
-                                );
-                                std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
+                            //try {
+                            //    // 1) Construcción del índice B+ Tree
+                            //    BPlusTreeIndex idx(
+                            //        catalogFile,
+                            //        blocksDir,
+                            //        tableFile,
+                            //        from,
+                            //        field,     // Search Key
+                            //        10          // orden d
+                            //    );
+                            //    std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
 
-                                // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL por consola ---
-                                std::cout << "[Estructura del B+ Tree]\n";
-                                idx.printTree();
+                            //    // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL por consola ---
+                            //    std::cout << "[Estructura del B+ Tree]\n";
+                            //    idx.printTree();
 
-                                // --- VUELCO LA ESTRUCTURA AL TXT ---
-                                {
-                                    std::string outName = "miTabla_" + field + "_bptree.txt";
-                                    idx.dumpToTxt(outName);
-                                    std::cout << "Estructura volcada en: " << outName << "\n";
-                                }
+                            //    auto it = indexCache.find(field);
+                            //    std::string outName = "miTabla_" + field + "_bptree.txt";
+                            //    std::string idxFile = basePath + outName;
 
-                                // Ya hemos construido y guardado el árbol, no hace falta más.
-                            }
-                            catch (const std::exception& e) {
-                                std::cerr << "ERROR B+ Tree: " << e.what() << "\n";
-                            }
+                            //    if (it == indexCache.end()) {
+                            //        // No existe aún: lo construyo o recargo desde TXT:
+                            //        if (file_exists(idxFile)) {
+                            //            TreeIndex tree_idx = loadBPlusTreeIndexTXT(idxFile);
+                            //        }
+                            //        else {
+                            //            idx = BPlusTreeIndex(catalogFile, blocksDir, tableFile, "housing", "area", order);
+                            //            idx.dumpToTxt(outName);
+                            //            std::cout << "Estructura volcada en: " << outName << "\n";
+                            //        }
+                            //        // Lo guardo en caché para futuras consultas sobre “area”:
+                            //        it = indexCache.emplace("area", std::move(idx)).first;
+
+                            //    // it->second es ahora tu índice de “area”
+                            //    BPlusTreeIndex& areaIdx = it->second;
+                            //    // --- VUELCO LA ESTRUCTURA AL TXT ---
+                            //    {
+                            //        std::string outName = "miTabla_" + field + "_bptree.txt";
+                            //        idx.dumpToTxt(outName);
+                            //        std::cout << "Estructura volcada en: " << outName << "\n";
+                            //    }
+
+                            //    // Ya hemos construido y guardado el árbol, no hace falta más.
+                            //}
+                            //catch (const std::exception& e) {
+                            //    std::cerr << "ERROR B+ Tree: " << e.what() << "\n";
+                            //}
                         }
                         else {
                             std::cout << "Opcion de metodo invalida.\n";
@@ -1351,6 +1393,7 @@ int main() {
                         }
                         else if (method == 3) {
                             try {
+                                const int tree_order = 100;
                                 // 1) Construcción del índice B+ Tree
                                 BPlusTreeIndex idx(
                                     catalogFile,
@@ -1358,9 +1401,9 @@ int main() {
                                     tableFile,
                                     from,
                                     field,     // Search Key
-                                    2          // orden d
+                                    tree_order          // orden d
                                 );
-                                std::cout << "Índice B+ Tree sobre campo: " << field << "\n\n";
+                                std::cout << "Indice B+ Tree sobre campo: " << field << "\n\n";
 
                                 // --- IMPRIMO LA ESTRUCTURA DEL ÁRBOL por consola ---
                                 std::cout << "[Estructura del B+ Tree]\n";
@@ -1369,7 +1412,7 @@ int main() {
                                 // --- VUELCO LA ESTRUCTURA AL TXT ---
                                 std::string outName = from + "_" + field + "_bptree.txt";
                                 idx.dumpToTxt(outName);
-                                std::cout << "Estructura volcada en: " << outName << "\n\n";
+                                std::cout << "Estructura volcada en: " << outName << "\n";
 
                                 // 2) Ejecución de la consulta con B+Tree completo
                                 const int INDEX_OFFSET = 100;
@@ -1435,7 +1478,210 @@ int main() {
                             catch (const std::exception& e) {
                                 std::cerr << "ERROR B+Tree: " << e.what() << "\n";
                             }
+
+                            bool stayInSubmenu = true;
+                            while (stayInSubmenu) {
+                                cout << "\n--- MENU SQL RESULTADOS ---\n";
+                                cout << "1) Pinear página específica\n";
+                                cout << "2) Liberar (unpin) página\n";
+                                cout << "3) Mostrar estado del buffer\n";
+                                cout << "4) Volcar cambios a disco (flush)\n";
+                                cout << "5) Mostrar estadísticas\n";
+                                cout << "6) Modificar datos en página\n";
+                                cout << "7) Ver contenido de página\n";
+                                cout << "8) Nueva consulta SQL\n";
+                                cout << "9) Volver al menú principal\n";
+                                cout << ">> ";
+
+                                int submenuOption;
+                                if (!(cin >> submenuOption)) {
+                                    cin.clear();
+                                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                                    cout << "Opción inválida. Intente nuevamente.\n";
+                                    continue;
+                                }
+                                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                                switch (submenuOption) {
+                                case 1: { // Pinear página
+                                    int pinPageId;
+                                    cout << "ID de página a pinear: ";
+                                    cin >> pinPageId;
+                                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                                    Page* p = pBufPool->getPage(pinPageId, 'R', false);
+                                    if (p)
+                                        cout << "Página " << pinPageId << " pineada correctamente.\n";
+                                    else
+                                        cout << "Error al pinear página " << pinPageId << ".\n";
+                                    break;
+                                }
+
+                                case 2: { // Unpin página
+                                    int unpinPageId;
+                                    cout << "ID de página a liberar: ";
+                                    cin >> unpinPageId;
+                                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                                    pBufPool->unpinPage(unpinPageId);
+                                    cout << "Página " << unpinPageId << " liberada.\n";
+                                    break;
+                                }
+
+                                case 3: // Mostrar estado
+                                    pBufPool->Status();
+                                    break;
+
+                                case 4: // Flush
+                                    flushBufferToDisk(miDisco);
+                                    cout << "Cambios volcados a disco correctamente.\n";
+                                    break;
+
+                                case 5: // Mostrar estadísticas
+                                    pBufPool->printStats();
+                                    break;
+
+                                case 6: { // Modificar datos
+                                    int modPageId;
+                                    cout << "ID de página para modificar: ";
+                                    cin >> modPageId;
+                                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                                    // Pinear la página en modo escritura
+                                    Page* base = pBufPool->getPage(modPageId, 'W', true);
+                                    if (!base) {
+                                        cout << "Error: No se pudo acceder a la página " << modPageId << ".\n";
+                                        break;
+                                    }
+
+                                    auto page = dynamic_cast<PageWithRecords*>(base);
+                                    if (!page) {
+                                        cout << "Error: La página no soporta operaciones de registro.\n";
+                                        pBufPool->unpinPage(modPageId);
+                                        break;
+                                    }
+
+                                    // Mini-menu de operaciones
+                                    cout << "\n--- OPERACIONES EN PÁGINA " << modPageId << " ---\n";
+                                    cout << "1) Insertar registro\n";
+                                    cout << "2) Eliminar registro\n";
+                                    cout << "3) Modificar registro\n";
+                                    cout << ">> ";
+
+                                    int op; cin >> op; cin.ignore();
+
+                                    // Determinar el nombre del campo indexado y su posición
+                                    string indexMethod = obtenerMetodo(method);
+                                    int fieldPos = 1;           // Posición del campo en el registro (0-based)
+
+                                    cout << "Campo indexado (default=" << field << "): ";
+                                    string userField;
+                                    getline(cin, userField);
+                                    if (!userField.empty()) {
+                                        field = userField;
+                                        cout << "Posición del campo en el registro (0-based, default=" << fieldPos << "): ";
+                                        string posStr;
+                                        getline(cin, posStr);
+                                        if (!posStr.empty()) {
+                                            fieldPos = stoi(posStr);
+                                        }
+                                    }
+
+                                    if (op == 1) { // Insertar
+                                        cout << "Registro (# separados, termina '\\n'): ";
+                                        string reg;
+                                        getline(cin, reg);
+                                        if (reg.back() != '\n') reg.push_back('\n');
+
+                                        if (page->insertFixed(from, reg)) { //insertFixed (nombre_txt, valor key)
+                                            cout << "Insertado OK en memoria.\n";
+
+                                            // Extraer el valor de la clave para el índice
+                                            auto parts = split(reg, '#');
+                                            if (fieldPos < parts.size()) {
+                                                string newKey = parts[fieldPos];
+                                                // Registrar la operación de índice para procesamiento posterior
+                                                registrarOperacionIndice(modPageId, field, newKey, /*isInsert=*/true, indexMethod);
+                                                cout << "Operación de índice registrada: INSERT " << field << "=" << newKey << "\n";
+                                            }
+                                        }
+                                        else {
+                                            cout << "Fallo al insertar.\n";
+                                        }
+                                    }
+                                    else if (op == 2) { // Eliminar
+                                        cout << "Posición global a eliminar: ";
+                                        int pos; cin >> pos;
+                                        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                                        // Importante: Obtener el registro ANTES de eliminarlo
+                                        string rec = page->getRecord(pos);
+                                        auto parts = split(rec, '#');
+
+                                        if (page->deleteFixed("housing", pos)) {
+                                            cout << "Eliminado OK en memoria.\n";
+
+                                            // Registrar operación en el índice
+                                            if (fieldPos < parts.size()) {
+                                                string oldKey = parts[fieldPos];
+                                                registrarOperacionIndice(modPageId, field, oldKey, /*isInsert=*/false, indexMethod);
+                                                cout << "Operación de índice registrada: DELETE " << field << "=" << oldKey << "\n";
+                                            }
+                                        }
+                                        else {
+                                            cout << "Fallo al eliminar.\n";
+                                        }
+                                    }
+                                    else {
+                                        cout << "Opcion invalida\n";
+                                    }
+                                }
+
+                                case 7: { // Ver contenido
+                                    int viewPageId;
+                                    cout << "ID de página a visualizar: ";
+                                    cin >> viewPageId;
+                                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                                    Page* p = pBufPool->getPage(viewPageId, 'R', false);
+                                    if (p) {
+                                        auto pr = dynamic_cast<PageWithRecords*>(p);
+                                        if (pr)
+                                            pr->viewContent();
+                                        else
+                                            cout << "Error: La página no contiene registros visibles.\n";
+
+                                        pBufPool->unpinPage(viewPageId);
+                                    }
+                                    else {
+                                        cout << "Error: No se pudo acceder a la página " << viewPageId << ".\n";
+                                    }
+                                    break;
+                                }
+
+                                case 8: // Nueva consulta SQL (volver al menú SQL principal)
+                                    stayInSubmenu = false;
+                                    break;
+
+                                case 9: { // Volver al menú principal
+                                    cout << "¿Seguro que desea volver al menú principal? (s/n): ";
+                                    char confirm;
+                                    cin >> confirm;
+                                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                                    if (confirm == 's' || confirm == 'S') {
+                                        stayInSubmenu = false;
+                                        // Opcional: puedes añadir un flag para salir del menú SQL completo
+                                        break;
+                                    }
+                                    break;
+                                }
+
+                                default:
+                                    cout << "Opción inválida. Intente nuevamente.\n";
+                                }
+                            }
                         }
+
+
                         else {
                             std::cout << "Opción de método inválida.\n";
                             break;

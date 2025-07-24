@@ -177,6 +177,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClInclude Include="Disco.h" />
     <ClInclude Include="DiscoPaths.h" />
     <ClInclude Include="IndexBTree.h" />
+    <ClInclude Include="IndexOperations.h" />
     <ClInclude Include="LVariable.h" />
     <ClInclude Include="QueryBlocks.h" />
     <ClInclude Include="QueryHashBlocks.h" />
