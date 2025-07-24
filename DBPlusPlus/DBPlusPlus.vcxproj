@@ -151,6 +151,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClCompile Include="LVariable.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NonSense.cpp" />
+    <ClCompile Include="PageFilter.cpp" />
     <ClCompile Include="QueryBlocks.cpp" />
     <ClCompile Include="QueryHashBlocks.cpp" />
     <ClCompile Include="QueryTreeIndexing.cpp" />
@@ -178,6 +179,7 @@ Qt6Quick.lib;Qt6QuickControls2.lib;%(AdditionalDependencies)</AdditionalDependen
     <ClInclude Include="Disco.h" />
     <ClInclude Include="DiscoPaths.h" />
     <ClInclude Include="LVariable.h" />
+    <ClInclude Include="PageFilter.h" />
     <ClInclude Include="QueryBlocks.h" />
     <ClInclude Include="QueryHashBlocks.h" />
     <ClInclude Include="QueryTreeIndexing.h" />
