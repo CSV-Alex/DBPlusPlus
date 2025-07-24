@@ -19,9 +19,9 @@
 #include "ReplacementStrategy.h"
 #include "Clock.h"
 #include "LRU.h"
+#include "IndexOperations.h"
 
 #include <QtCore/QObject>
-
 
 class PageWithRecords;
 
@@ -204,6 +204,63 @@ public:
         while (in.get(c)) std::cout << c;
         std::cout << std::endl;
     }
+
+    std::string getRawData() const {
+        std::ifstream in(_path, std::ios::binary);
+        if (!in.is_open()) {
+            std::cerr << "ERROR: No se puede abrir " << _path << std::endl;
+            return "";
+        }
+        std::ostringstream ss;
+        ss << in.rdbuf();
+        return ss.str();
+    }
+
+    /**
+     * Obtiene un registro específico de la página por posición.
+     * @param posicion Posición global del registro a obtener.
+     * @return El registro como string con campos separados por '#'.
+     * @author Alex
+     */
+    std::string getRecord(int posicion) const {
+        // Abrir el archivo de la página
+        std::ifstream in(_path);
+        if (!in.is_open()) {
+            std::cerr << "ERROR: No se pudo abrir " << _path << " para leer el registro\n";
+            return "";
+        }
+
+        // Variables para la búsqueda
+        std::string linea;
+        int regActual = 0;
+        bool encontrado = false;
+
+        // Buscar la posición de registro solicitada
+        while (std::getline(in, linea)) {
+            // Ignorar líneas vacías o marcadas como eliminadas
+            if (linea.empty() || linea[0] == '*')
+                continue;
+
+            // Si es la posición que buscamos
+            if (regActual == posicion) {
+                encontrado = true;
+                break;
+            }
+
+            regActual++;
+        }
+
+        in.close();
+
+        // Si no se encontró el registro
+        if (!encontrado) {
+            std::cerr << "ERROR: No se encontró el registro en posición " << posicion << "\n";
+            return "";
+        }
+
+        return linea;
+    }
+
 };
 
 struct Frame {
@@ -233,6 +290,12 @@ public:
     bool unpinPermanent(int pageId);
 
 private:
+
+    // pageId → lista de (campo, clave, isInsert)
+    std::unordered_map<int,
+        std::vector<std::tuple<std::string, std::string, bool>>
+    > _pendingIndexOps;
+
     void publishEvent(const std::string& evt, int pageId);
     bool evictOne();
     Page* loadNewPage(int pageId, char op, bool pinned);
@@ -246,6 +309,12 @@ private:
     std::unique_ptr<ReplacementStrategy> _replacer;        // la lista LRU de páginas
 
     size_t                          _hitCount{ 0 }, _totalCount{ 0 };
+
+    void notifyIndexOp(int pageId,
+        const std::string& field,
+        const std::string& key,
+        bool isInsert);
+
 };
 
 // Un mutex para serializar accesos concurrentes
@@ -292,7 +361,10 @@ void flushPageToDisk(Disco& disco, int pageId) {
     // 3) Volcar sectores al block real
     disco.volcarBloqueASectores(pageId);
 
-    // 4) Limpiar de la lista de modificadas
+    // 4) Apply pending index operations for this page
+    aplicarOperacionesIndice(pageId);
+
+    // 5) Limpiar de la lista de modificadas
     paginasModificadas.erase(
         std::remove(paginasModificadas.begin(), paginasModificadas.end(), pageId),
         paginasModificadas.end()
@@ -474,6 +546,7 @@ void BufferPool::unpinPage(int pageId) {
 
 Page* BufferPool::getPage(int pageId, char op, bool pinned) {
     ++_totalCount;  // NUEVO: contar todas las peticiones entrantes :contentReference[oaicite:3]{index=3}
+    std::cout << "Aqui es" << endl;
     return pinPage(pageId, op, pinned);
 }
 
@@ -581,4 +654,12 @@ void flushBufferToDisk(Disco& disco) {
     fflush(f);
     fclose(f);
     cambiosDirBloques.clear();
+}
+
+void BufferPool::notifyIndexOp(int pageId,
+    const std::string& field,
+    const std::string& key,
+    bool isInsert) {
+    _pendingIndexOps[pageId]
+        .emplace_back(field, key, isInsert);
 }

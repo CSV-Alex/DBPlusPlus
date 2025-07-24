@@ -518,7 +518,7 @@ std::vector<std::string> BPlusTreeIndex::split(const std::string& s, char delim)
 
 void BPlusTree::dumpToTxt(const std::string& filename) const {
 
-    std::string dir = "DISCO\\";
+    std::string dir = "data\\usr\\db";
     std::filesystem::create_directories(dir);
     std::string fullpath = dir + "\\" + filename;
     std::ofstream out(fullpath);
@@ -566,11 +566,9 @@ void BPlusTree::dumpToTxt(const std::string& filename) const {
         if (n->isLeaf) {
             // imprime bloques de datos asociados a cada clave
             for (size_t i = 0; i < n->blocks.size(); ++i) {
-                out << '[';
                 for (size_t j = 0; j < n->blocks[i].size(); ++j) {
                     out << n->blocks[i][j] << (j + 1 < n->blocks[i].size() ? "," : "");
                 }
-                out << ']';
                 if (i + 1 < n->blocks.size()) out << " ";
             }
         }

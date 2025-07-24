@@ -7,12 +7,14 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <unordered_set>
 
 // Helpers para trim y parseo
 static std::string trimIndex(const std::string& s) {
     size_t i = 0, j = s.size();
     while (i < j && isspace((unsigned char)s[i])) ++i;
     while (j > i && isspace((unsigned char)s[j - 1])) --j;
+    if (j > i && s[j - 1] == '\r') --j;
     return s.substr(i, j - i);
 }
 
@@ -42,6 +44,7 @@ TreeIndex loadBPlusTreeIndexTXT(const std::string& idxPath) {
         if (kv.size() == 2) {
             auto& key = kv[0];
             auto& val = kv[1];
+            std::cout << "[DEBUG] clave='" << key << "'  val='" << val << "'\n";
 
             if (key == "ORDER") {
                 idx.order = std::stoi(val);
@@ -70,8 +73,29 @@ TreeIndex loadBPlusTreeIndexTXT(const std::string& idxPath) {
             else if (key == "PTRS") {
                 auto parts = splitIndex(val, ',');
                 curPage.ptrs.clear();
-                for (auto& p : parts)
-                    curPage.ptrs.push_back(std::stoi(p));
+
+                // Use a set to eliminate duplicates
+                std::unordered_set<int> uniqueBlocks;
+
+                for (auto& p : parts) {
+                    try {
+                        int blockId = std::stoi(p);
+                        uniqueBlocks.insert(blockId);
+                    }
+                    catch (const std::exception& e) {
+                        std::cerr << "Error parsing block ID: " << p << " - " << e.what() << std::endl;
+                    }
+                }
+
+                // Convert set to vector and sort in ascending order
+                curPage.ptrs.assign(uniqueBlocks.begin(), uniqueBlocks.end());
+                std::sort(curPage.ptrs.begin(), curPage.ptrs.end());
+
+                // Debug output
+                std::cout << "Processed PTRS: ";
+                for (size_t i = 0; i < curPage.ptrs.size(); ++i) {
+                    std::cout << curPage.ptrs[i] << (i + 1 < curPage.ptrs.size() ? ", " : "\n");
+                }
             }
             else if (key == "NEXT_LEAF") {
                 curPage.nextLeaf = std::stoi(val);
