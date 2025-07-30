@@ -679,7 +679,7 @@ static void mostrarSectoresDeBloque(int bloqueN, int opcion, Disco disco) {
 static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuffer, int* outLen) {
     int numFields = 0;
     int maxLen[MAX_FIELDS] = { 0 };
-    printf("DEBUG: Llamando a crearRLF para relación '%s' con registroTxt: '%s'\n", relacion, registroTxt);
+    //printf("DEBUG: Llamando a crearRLF para relación '%s' con registroTxt: '%s'\n", relacion, registroTxt);
 
     if (!obtenerLongitudesPorCampo(relacion, &numFields, maxLen)) {
         printf("DEBUG: obtenerLongitudesPorCampo falló para '%s'\n", relacion);
@@ -700,7 +700,7 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
     for (int i = 0; i < numFields; i++) {
         if (!tok) {
-            printf("DEBUG: Faltan campos en registroTxt para el campo %d\n", i);
+            //printf("DEBUG: Faltan campos en registroTxt para el campo %d\n", i);
             return false;
         }
 
@@ -720,10 +720,10 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
         // Debug: mostramos cómo queda el campo antes del '#'
         //printf("DEBUG: Campo %d (fijo): '", i);
-        for (int k = 0; k < fieldLen; ++k) {
-            if (k < toCopy) putchar(tok[k]);
-            else putchar('@');
-        }
+        //for (int k = 0; k < fieldLen; ++k) {
+        //    if (k < toCopy) putchar(tok[k]);
+        //    else putchar('@');
+        //}
         //printf("'\n");
 
         ofs += fieldLen;
@@ -743,10 +743,10 @@ static bool crearRLF(const char* registroTxt, const char* relacion, char* outBuf
 
     // Mostrar el registro fijo completo (con '#' tras cada campo)
     //printf("DEBUG: Registro fijo generado (longitud %d): [", *outLen);
-    for (int i = 0; i < *outLen; ++i) {
-        putchar(outBuffer[i]);
-    }
-    printf("]\n");
+    //for (int i = 0; i < *outLen; ++i) {
+    //    putchar(outBuffer[i]);
+    //}
+    //printf("]\n");
 
     return true;
 }
@@ -1913,21 +1913,21 @@ static bool adicionarRegistroUnico(const char* registroTxt, const char* relacion
             fputc('|', fbloc);
             fflush(fbloc);
             if (escritosReuse != (size_t)regLen) {
-                printf("ERROR: Se escribieron %zu bytes de RLF reusado, esperados %d\n", escritosReuse, regLen);
+                //printf("ERROR: Se escribieron %zu bytes de RLF reusado, esperados %d\n", escritosReuse, regLen);
             }
             else {
-                printf("DEBUG: Registro de %d bytes reusado en posición %d (+ '|').\n", regLen, idxLibre);
+                //printf("DEBUG: Registro de %d bytes reusado en posición %d (+ '|').\n", regLen, idxLibre);
             }
 
             fclose(fbloc);
             // 12) Volcar bloque reasignado a sectores
-            printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (reuso)\n", nroBloque);
+            //printf("DEBUG: Llamando a volcarBloqueASectores para bloque #%d (reuso)\n", nroBloque);
 
             if (!esPagina) {
                 disco.volcarBloqueASectores(nroBloque);
             }
 
-            printf("DEBUG: adicionarRegistroUnico (reuso) finalizado para Bloque #%d\n", nroBloque);
+            //printf("DEBUG: adicionarRegistroUnico (reuso) finalizado para Bloque #%d\n", nroBloque);
             return true;
         }
 
