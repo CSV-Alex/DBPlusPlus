@@ -31,6 +31,7 @@ private:
     std::vector<frame> frames_; // vector of frames
     std::list<int> lru; //tracks the order of pages in LRU fashion
     std::unordered_map<int, std::list<int>::iterator> pos; // maps pageId to its position in the LRU list
+    std::unordered_map<int, int> idx_;     // maps pageId to frame index
     std::vector<std::queue<char>> local_queues;
     int lru_tracker=0;
     bool full, locked;
@@ -47,24 +48,27 @@ LRU::LRU(int capacity) {
 
 void LRU::newPage(int pageId,char op, bool pinned) {
     // 1) Find a free slot (pageId == -1) or pick a victim if full
-    int idx = -1;
+    int slot = -1;
     for (int i = 0; i < _capacity; ++i) {
         if (frames_[i].pageId == -1) {
-            idx = i;
+            slot = i;
             break;
         }
     }
 
-    frame &f = frames_[idx];
+    if (slot < 0) return;
+
+    frame &f = frames_[slot];
     f.pageId    = pageId;
     f.pinStatus = pinned;
     f.pinCount=1;
+	idx_[pageId] = slot; // map pageId to frame index
 
     ++lru_tracker;
     f.lastAccess = lru_tracker;
 
-    local_queues[idx].push(op); // almacenar la operación en la cola local
-    std::cout << idx << local_queues[idx].front() << "\n";
+    local_queues[slot].push(op); // almacenar la operación en la cola local
+    std::cout << slot << local_queues[slot].front() << "\n";
 
     // 4) lru insert
     lru.push_back(pageId);
@@ -120,6 +124,7 @@ void LRU::pin(int pageId,char op, bool pinned) {
 
 void LRU::unpin(int pageId) {
     int idx =getpos(pageId);
+	if (idx < 0) return; // page not present
 
     frame &f =frames_[idx];
 
@@ -135,7 +140,9 @@ void LRU::unpin(int pageId) {
 
 void LRU::deletePage(int pageId) {
     std::cout << "PAGE ID in delete page" << pageId<<"\n";
+
     int idx =getpos(pageId);
+    if (idx < 0) return;
     std::cout << "PAGE ID" << idx << std::endl;
     frames_[idx] = frame{-1,0, false, lru_tracker };    
 
@@ -148,6 +155,7 @@ void LRU::deletePage(int pageId) {
         lru.erase(it->second);  
         pos.erase(it);
     }
+	idx_.erase(pageId); // remove from idx_ map
 }
 
 int LRU::victim() {
@@ -161,6 +169,10 @@ int LRU::victim() {
 
         int victim_idx = getpos(pageId);
         //first pass
+        if (victim_idx < 0) {
+            locked = true;
+            break;
+        }
         frame &f = frames_[victim_idx];
         std::cout << "DEBUG: Victim search encontro"<<f.pageId << std::endl;
         if (f.pinCount > 1) {
@@ -180,7 +192,7 @@ int LRU::victim() {
 
 
         if(f.pinCount==1 && !f.pinStatus){
-            return victim_idx;
+            return pageId;
         }
 
         n_locked++;
@@ -195,9 +207,9 @@ int LRU::victim() {
 }
 
 int LRU::getpos(int pageId) {
-    auto it = pos.find(pageId);
-    if (it != pos.end()) {
-        return std::distance(lru.begin(), it->second); // Corrected to use the iterator stored in 'it->second'
+    auto it = idx_.find(pageId);
+    if (it != idx_.end()) {
+        return it->second; // Corrected to use the iterator stored in 'it->second'
     }
     return -1;
 }

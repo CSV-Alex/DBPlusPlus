@@ -569,6 +569,7 @@ void BufferPool::printEventsStatus()
 
 //CLOCK
 void BufferPool::Status() {
+    _replacer->printEventsStatus();
     _replacer->Status();
 }
 
