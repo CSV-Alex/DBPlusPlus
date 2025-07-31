@@ -616,7 +616,12 @@ void BPlusTree::printTree() const {
 }
 
 void BPlusTree::exportDot(const std::string& filename) const {
-    std::ofstream out(filename);
+
+    std::string dir = "data\\usr";
+    std::filesystem::create_directories(dir);
+    std::string fullpath = dir + "\\" + filename;
+    std::ofstream out(fullpath);
+
     out << "digraph BPlusTree {\n";
     out << "  node [shape=record];\n";
     std::queue<Node*> q;

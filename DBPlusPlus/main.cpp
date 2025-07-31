@@ -851,8 +851,8 @@ int main() {
                     else if (opt == "2") {
 
                         cout << "Ingrese registro (campos separados por #, p.ej. \"1#John Doe#30\\n\"): ";
-                        cout << "1790000#4000#3#1#2#yes#no#no#nohfdhjf#no#0#no#unfurnished\n" << endl;
-                        string input = "890#1#1#\"Behr# Mr.Karl Howell\"#male#26#0#0#111369#30#C148#C\n";
+                        cout << "1945#1#CONCESIONARIA VIAL DEL SOL S.A.#AUTOPISTA DEL SOL, TRAMO TRUJILLO-SULLANA#UP BAYOVAR#ASCENDENTE#0#0#0#0\n" << endl;
+                        string input = "1945#1#CONCESIONARIA VIAL DEL SOL S.A.#AUTOPISTA DEL SOL, TRAMO TRUJILLO-SULLANA#UP BAYOVAR#ASCENDENTE#0#0#0#0\n";
                         if (input.back() != '\n')
                             input.push_back('\n');
 
@@ -868,7 +868,7 @@ int main() {
                         if (opcion == 1)
                             std::cout << "" << std::endl;
                         else if (opcion == 2) {
-                            ok = adicionarRegistroUnico(input.c_str(), "titanic", miDisco);
+                            ok = adicionarRegistroUnico(input.c_str(), "peajes", miDisco);
                         }
                         else {
                             std::cout << "Opcion Invalida " << std::endl; break;
@@ -926,7 +926,7 @@ int main() {
                         cin.ignore(1, '\n');
 
                         if (opcion == 2) {
-                            if (eliminarRegistro("housing", 193, miDisco)) {
+                            if (eliminarRegistro("peajes", 1, miDisco)) {
                                 cout << "Eliminado correctamente\n";
                                 cout << "Entrando a Eliminar Registro \n" << std::endl;
                             }
@@ -947,9 +947,9 @@ int main() {
                         cout << ">> ";
                         int n; cin >> n;
 
-                        const char* nuevoReg = "1790000#9#3#1#2#yes#no#no#no#no#0#no#semi-furnished";
+                        const char* nuevoReg = "2050#13#CONCESIONARIA VIAL DEL SOL S.A.#AUTOPISTA DEL SOL, TRAMO TRUJILLO-SULLANA#UP BAYOVAR#ASCENDENTE#0#0#0#0";
                         if (n == 2) {
-                            if (modificarRegistro("housing", 4, nuevoReg, miDisco)) {
+                            if (modificarRegistro("peajes", 5, nuevoReg, miDisco)) {
                                 cout << "Modificado correctamente\n";
                             }
                         }
@@ -1099,7 +1099,7 @@ int main() {
 
                         if (op == 1) {
                             cout << "Registro (# separados, termina '\\n'): ";
-                            string reg = "1790000#4123#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished\n";
+                            string reg = "1970#13#CONCESIONARIA VIAL DEL SOL S.A.#AUTOPISTA DEL SOL, TRAMO TRUJILLO-SULLANA#UP BAYOVAR#ASCENDENTE#0#0#0#0\n";
                             if (page->insertFixed("housing", reg))
                                 cout << "Insertado OK en memoria.\n";
                             else
@@ -1117,7 +1117,7 @@ int main() {
                             cout << "Posicion global a modificar: ";
                             int pos; cin >> pos; cin.ignore();
                             cout << "Nuevo registro (# separados, termina '\\n'): ";
-                            string reg = "1790000#4#3#1#2#yes#nosdffdad#no#no#no#0#no#unfurnished";
+                            string reg = "1980#1#CONCESIONARIA VIAL DEL SOL S.A.#AUTOPISTA DEL SOL, TRAMO TRUJILLO-SULLANA#UP BAYOVAR#ASCENDENTE#0#0#0#0";
                             if (page->modifyFixed("housing", pos, reg))
                                 cout << "Modificado OK en memoria.\n";
                             else
@@ -1408,7 +1408,7 @@ int main() {
                         }
                         else if (method == 3) {
                             try {
-                                const int tree_order = 5;
+                                const int tree_order = 2;
 
                                 // 1) Construcción del índice B+ Tree
                                 BPlusTreeIndex idx(
@@ -1428,6 +1428,7 @@ int main() {
                                 // --- VUELCO LA ESTRUCTURA AL TXT ---
                                 std::string outName = from + "_" + field + "_bptree.txt";
                                 idx.dumpToTxt(outName);
+                                idx.exportDot(outName);
                                 std::cout << "Estructura volcada en: " << outName << "\n";
 
                                 // 2) Ejecución de la consulta con B+Tree completo
@@ -1448,7 +1449,7 @@ int main() {
                                     << ", 'R', true)\n";
 
                                 // Pin de la página raíz con offset
-                                pBufPool->getPage(node->pageId + INDEX_OFFSET, 'R', true);
+                                //pBufPool->getPage(node->pageId + INDEX_OFFSET, 'R', true);
                                 std::cout << "[DEBUG][BufferPool] Root pineada correctamente\n";
 
                                 int treeLevel = 0;
@@ -1459,8 +1460,8 @@ int main() {
                                     while (i < (size_t)node->numKeys && val >= node->keys[i]) ++i;
                                     int childPid = node->ptrs[i];
 
-                                    pBufPool->unpinPage(node->pageId + INDEX_OFFSET);
-                                    pBufPool->getPage(childPid + INDEX_OFFSET, 'R', false);
+                                    //pBufPool->unpinPage(node->pageId + INDEX_OFFSET);
+                                    //pBufPool->getPage(childPid + INDEX_OFFSET, 'R', false);
                                     node = bpt.getPageIndex(childPid);
                                     if (!node)
                                         throw std::runtime_error("Nodo interno faltante, PAGE_ID=" + std::to_string(childPid));
