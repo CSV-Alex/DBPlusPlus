@@ -19,6 +19,9 @@ public:
     void setPermanentPin(int pageId, bool value);
 
     void Status() override;
+    void printEventsStatus() override {
+        std::cout << "[DEBUG] Clock::printEventsStatus() llamado\n";
+	}
 
     int getClockBit(int pageId) const {
         auto it = idx_.find(pageId);

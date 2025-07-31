@@ -1,6 +1,7 @@
 #pragma once
 #include <list>
 #include <unordered_map>
+#include <fstream>
 #include <queue>
 #include <iostream>
 #include <iomanip>
@@ -25,6 +26,7 @@ public:
     int getpos(int pageId);
     int victim() override;
     void Status() override;
+    void printEventsStatus() override;
     
 private:
     int _capacity;
@@ -249,4 +251,31 @@ void LRU::Status() {
                 << "|\n";
             }
         }
+}
+
+void LRU::printEventsStatus() {
+    std::ofstream f("events.log", std::ios::out | std::ios::trunc);
+    if (!f.is_open())
+        return;
+
+    // Cabecera para que el watcher (o tú) reconozca bloque de estado
+    f << "#STATUS\n";
+    for (int idx = 0; idx < frames_.size(); idx++) {
+        auto& fr = frames_[idx];
+        if (fr.pageId != -1) {
+            f
+                << idx << ' '                              // Frame
+                << fr.pageId << ' '                        // PageID
+                << ((local_queues[idx].front() == 'R' || local_queues[idx].front() == 'r') ? 0 : 1) << ' ' // Dirty
+                << fr.pinCount << ' '                      // PinCnt
+                << local_queues[idx].front() << ' '        // OpType
+                << fr.lastAccess << ' '                    // LastAcc
+                << fr.pinStatus                            // PinStat
+                << "\n";
+        }
+        else {
+            // frame vacío: PageID=-1
+            f << idx << " -1 0 0 - 0 0\n";
+        }
+    }
 }
